@@ -252,7 +252,7 @@ if menu_selecionado == "🛒 Vendas":
                             cod_cli = dados_c[nomes_up.index(nome_cli.upper())+1][0]
                         else:
                             cod_cli = f"CLI-{len(dados_c):03d}"
-                            aba_cli.append_row([cod_cli, nome_cli, c_zap.strip(), "", datetime.now().strftime("%d/%m/%Y"), 0, "", "Incompleto"], value_input_option='USER_ENTERED')
+                            aba_cli.append_row([cod_cli, nome_cli, c_zap.strip(), "", datetime.now().strftime("%d/%m/%Y"), 0, "", "Incompleto"], value_input_option='RAW')
                             st.toast(f"👤 {nome_cli} cadastrada!")
                     except Exception as e: 
                         st.error(f"Erro no cadastro: {e}"); st.stop()
@@ -290,7 +290,7 @@ if menu_selecionado == "🛒 Vendas":
                     f_r = '=SE(INDIRETO("L"&LIN())=""; ""; SE(INDIRETO("P"&LIN())="Não"; INDIRETO("L"&LIN()); 0))'
                     
                     linha = ["", datetime.now().strftime("%d/%m/%Y"), cod_cli, nome_cli, cod_p, nome_p, custo_un, qtd_v, val_v, desc_percentual, f_k, f_l, f_m, f_n, metodo, eh_parc, n_p, f_r, t_liq/n_p if eh_parc=="Sim" else 0, t_liq if eh_parc=="Não" else 0, t_liq if eh_parc=="Sim" else 0, detalhes_p[0] if (eh_parc=="Sim" and detalhes_p) else "", "Pendente" if eh_parc=="Sim" else "Pago", f_atraso]
-                    aba_v.insert_row(linha, index=idx_ins, value_input_option='USER_ENTERED')
+                    aba_v.insert_row(linha, index=idx_ins, value_input_option='RAW')
                     st.success("✅ Venda registrada com sucesso!")
                     st.cache_resource.clear() 
                 except Exception as e:
@@ -421,7 +421,7 @@ elif menu_selecionado == "💰 Financeiro":
                                 sobra = 0
                         
                         aba_f = planilha_mestre.worksheet("FINANCEIRO")
-                        aba_f.append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), c_pg.split(" - ")[0], nome_c_alvo, 0, v_pg, "PAGO", f"{meio}: {obs}"], value_input_option='USER_ENTERED')
+                        aba_f.append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), c_pg.split(" - ")[0], nome_c_alvo, 0, v_pg, "PAGO", f"{meio}: {obs}"], value_input_option='RAW')
                         st.success(f"✅ Recebido de {nome_c_alvo} processado!")
                         st.cache_resource.clear(); st.rerun()
                     except Exception as e: st.error(f"Erro no FIFO: {e}")
@@ -524,7 +524,7 @@ elif menu_selecionado == "📦 Estoque":
                                 aba.update_acell(f"C{lin_p}", comp_c + q_nova)
                                 aba.update_acell(f"J{lin_p}", datetime.now().strftime("%d/%m/%Y"))
                                 # Escreve o Log Permanente
-                                planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "REPOSIÇÃO", nome_e, f"+{q_nova} un. (Cód: {cod_e})", st.session_state.get('usuario_logado', 'Bia')], value_input_option='USER_ENTERED')
+                                planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "REPOSIÇÃO", nome_e, f"+{q_nova} un. (Cód: {cod_e})", st.session_state.get('usuario_logado', 'Bia')], value_input_option='RAW')
                                 st.success("Estoque Atualizado!"); st.cache_resource.clear(); st.rerun()
 
                 elif acao == "2. Novo Lote (Preço Novo)":
