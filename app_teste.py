@@ -450,7 +450,13 @@ if menu_selecionado == "🛒 Vendas":
                     val_atual = limpar_para_editar(linha_dados[8])
                     desc_perc_atual = limpar_para_editar(linha_dados[9], is_perc=True)
                     
-                    desc_reais_atual = (qtd_atual * val_atual) * desc_perc_atual
+                    # ✨ TRAVA DE SEGURANÇA CONTRA BUGS ANTIGOS ✨
+                    # Se o percentual na planilha estiver absurdo (maior que 100%) ou negativo, zera para não confundir.
+                    if desc_perc_atual > 1.0 or desc_perc_atual < 0:
+                        desc_reais_atual = 0.0
+                    else:
+                        desc_reais_atual = round((qtd_atual * val_atual) * desc_perc_atual, 2)
+                        
                     metodo_atual = linha_dados[14]
 
                     lista_clientes = [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()]
