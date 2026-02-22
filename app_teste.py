@@ -580,7 +580,7 @@ elif menu_selecionado == "📦 Estoque":
                     try:
                         # Conecta com a sua chave
                         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-                        modelo_ia = genai.GenerativeModel('gemini-1.5-flash')
+                        modelo_ia = genai.GenerativeModel('gemini-2.5-flash')
                         
                         # Prepara a imagem
                         img = Image.open(foto_nf)
