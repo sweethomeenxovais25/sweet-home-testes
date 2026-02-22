@@ -9,14 +9,17 @@ import urllib.parse
 
 # --- AUXILIARES TÉCNICOS ---
 def limpar_texto(texto):
+    # O código dentro dela PRECISA ter esse recuo (espaços antes)
     if not isinstance(texto, str):
         return ""
-    # Remove acentos, cedilhas e deixa tudo minúsculo para a busca não falhar
     texto_sem_acento = unicodedata.normalize('NFD', texto).encode('ascii', 'ignore').decode("utf-8")
     return texto_sem_acento.lower().strip()
 
-def limpar_v(v):
-    # ... (sua função de arredondar centavos continua aqui normal) ...
+# O st.set_page_config precisa estar colado no canto esquerdo, fora da função
+st.set_page_config(
+    page_title="🧪 TESTE - Sweet Home",
+    # ... resto da sua configuração
+)
 
 # ==========================================
 # 1. CONFIGURAÇÃO ÚNICA DA PÁGINA
