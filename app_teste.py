@@ -22,7 +22,7 @@ if 'autenticado' not in st.session_state:
 if 'historico_sessao' not in st.session_state:
     st.session_state['historico_sessao'] = []
 if 'historico_estoque' not in st.session_state:
-    st.session_state['historico_estoque'] = []    
+    st.session_state['historico_estoque'] = []   
 
 # --- AUXILIARES TÉCNICOS ---
 def limpar_v(v):
@@ -73,48 +73,6 @@ if not st.session_state['autenticado']:
 # ==========================================
 # 🚀 3. SISTEMA LIBERADO (CONEXÕES E DADOS)
 # ==========================================
-
-with st.sidebar:
-    try:
-        st.image("logo_sweet_teste.png", use_container_width=True)
-    except:
-        st.write("🌸 **Sweet Home**")
-    
-    st.write(f"👋 Olá, **{st.session_state.get('usuario_logado', 'Usuária')}**!")
-    st.divider()
-    
-    if st.button("Sair do Sistema 🚪", use_container_width=True):
-        st.session_state['autenticado'] = False
-        st.rerun()
-
-    st.title("🛠️ Painel Sweet Home")
-    
-    menu_selecionado = st.radio(
-        "Navegação",
-        ["🛒 Vendas", "💰 Financeiro", "📦 Estoque", "👥 Clientes"],
-        key="navegacao_principal_sweet"
-    )
-    
-    st.divider()
-    modo_teste = st.toggle("🔬 Modo de Teste", value=False, key="toggle_teste")
-    
-    if st.button("🔄 Sincronizar Planilha", key="btn_sincronizar"):
-        st.cache_resource.clear()
-        st.rerun()
-
-    # 👇 ADICIONE O BLOCO DE BACKUP AQUI
-    st.divider()
-    with st.expander("🛡️ Backup do Sistema"):
-        st.markdown("<small>Faça o download seguro dos seus dados para o computador.</small>", unsafe_allow_html=True)
-        try:
-            if not df_vendas_hist.empty:
-                st.download_button("📥 Baixar Vendas", df_vendas_hist.to_csv(index=False).encode('utf-8'), f"Vendas_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
-            if not df_full_inv.empty:
-                st.download_button("📥 Baixar Estoque", df_full_inv.to_csv(index=False).encode('utf-8'), f"Estoque_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
-            if not df_clientes_full.empty:
-                st.download_button("📥 Baixar Clientes", df_clientes_full.to_csv(index=False).encode('utf-8'), f"Clientes_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
-        except Exception as e:
-            st.error("Sincronize a planilha para gerar o backup.")
 
 # ID da Planilha Cobaia
 ID_PLANILHA = "1lXUnGrWtwV-IfIiUbGzLH3P2T-h3b6Mr9NEBCpwulXg"
@@ -168,6 +126,48 @@ def carregar_dados():
     return banco_prod, banco_cli, df_inv, df_fin, df_vendas, df_painel, df_cli
 
 banco_de_produtos, banco_de_clientes, df_full_inv, df_financeiro, df_vendas_hist, df_painel_resumo, df_clientes_full = carregar_dados()
+
+with st.sidebar:
+    try:
+        st.image("logo_sweet_teste.png", use_container_width=True)
+    except:
+        st.write("🌸 **Sweet Home**")
+    
+    st.write(f"👋 Olá, **{st.session_state.get('usuario_logado', 'Usuária')}**!")
+    st.divider()
+    
+    if st.button("Sair do Sistema 🚪", use_container_width=True):
+        st.session_state['autenticado'] = False
+        st.rerun()
+
+    st.title("🛠️ Painel Sweet Home")
+    
+    menu_selecionado = st.radio(
+        "Navegação",
+        ["🛒 Vendas", "💰 Financeiro", "📦 Estoque", "👥 Clientes"],
+        key="navegacao_principal_sweet"
+    )
+    
+    st.divider()
+    modo_teste = st.toggle("🔬 Modo de Teste", value=False, key="toggle_teste")
+    
+    if st.button("🔄 Sincronizar Planilha", key="btn_sincronizar"):
+        st.cache_resource.clear()
+        st.rerun()
+
+    # 🌟 NOVO: O BLOCO DE BACKUP NA SIDEBAR
+    st.divider()
+    with st.expander("🛡️ Backup do Sistema"):
+        st.markdown("<small>Faça o download seguro dos seus dados para o computador.</small>", unsafe_allow_html=True)
+        try:
+            if not df_vendas_hist.empty:
+                st.download_button("📥 Baixar Vendas", df_vendas_hist.to_csv(index=False).encode('utf-8'), f"Vendas_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
+            if not df_full_inv.empty:
+                st.download_button("📥 Baixar Estoque", df_full_inv.to_csv(index=False).encode('utf-8'), f"Estoque_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
+            if not df_clientes_full.empty:
+                st.download_button("📥 Baixar Clientes", df_clientes_full.to_csv(index=False).encode('utf-8'), f"Clientes_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
+        except Exception as e:
+            st.error("Sincronize a planilha para gerar o backup.")
 
 # ==========================================
 # --- SEÇÃO 1: VENDAS (SISTEMA INTEGRAL) ---
@@ -298,28 +298,44 @@ if menu_selecionado == "🛒 Vendas":
             st.session_state['historico_sessao'] = []; st.rerun()
 
 # ==========================================
-# --- SEÇÃO 2: FINANCEIRO (COMPLETO) ---
+# --- SEÇÃO 2: FINANCEIRO (COMPLETO E COM GRÁFICO) ---
 # ==========================================
 elif menu_selecionado == "💰 Financeiro":
-    st.markdown(f"### <span style='color:{status_cor}'>{status_texto}</span>", unsafe_allow_html=True)
+    st.markdown("### 📈 Resumo Geral Sweet Home")
+    if not df_vendas_hist.empty:
+        try:
+            vendas_brutas = df_vendas_hist.iloc[:, 11].apply(limpar_v).sum()
+            lucro_bruto = df_vendas_hist.iloc[:, 12].apply(limpar_v).sum()
+            saldo_devedor = df_vendas_hist.iloc[:, 20].apply(limpar_v).sum()
+            total_recebido = vendas_brutas - saldo_devedor
+            percentual_pendente = (saldo_devedor / vendas_brutas) * 100 if vendas_brutas > 0 else 0
+            
+            if percentual_pendente <= 20:
+                status_cor = "green"; status_texto = "✨ Saúde Financeira: EXCELENTE"
+            elif percentual_pendente <= 40:
+                status_cor = "orange"; status_texto = "⚠️ Saúde Financeira: ATENÇÃO (Cobrar mais)"
+            else:
+                status_cor = "red"; status_texto = "🚨 Saúde Financeira: CRÍTICA (Risco de Caixa)"
+
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Vendas Totais", f"R$ {vendas_brutas:,.2f}")
+            c2.metric("Lucro Bruto", f"R$ {lucro_bruto:,.2f}", delta="Margem Real")
+            c3.metric("Total Recebido", f"R$ {total_recebido:,.2f}", delta="Dinheiro no Bolso")
             c4.metric("Saldo Devedor", f"R$ {saldo_devedor:,.2f}", delta=f"{percentual_pendente:.1f}% do total", delta_color="inverse")
 
             st.markdown(f"### <span style='color:{status_cor}'>{status_texto}</span>", unsafe_allow_html=True)
             st.progress(min(percentual_pendente/100, 1.0)) 
             
-            # Gráfico...
-            
-            # 👇 ADICIONE O GRÁFICO AQUI
+            # 🌟 NOVO: O GRÁFICO DE EVOLUÇÃO
             st.write("### 📊 Evolução de Faturamento (Diário)")
             df_grafico = df_vendas_hist.copy()
             df_grafico['DATA_DATETIME'] = pd.to_datetime(df_grafico['DATA DA VENDA'], format='%d/%m/%Y', errors='coerce')
             df_grafico['VALOR_NUM'] = df_grafico['TOTAL R$'].apply(limpar_v)
             
-            # Agrupa as vendas por dia
             vendas_por_dia = df_grafico.groupby('DATA_DATETIME')['VALOR_NUM'].sum().reset_index()
             if not vendas_por_dia.empty:
                 vendas_por_dia.set_index('DATA_DATETIME', inplace=True)
-                st.bar_chart(vendas_por_dia['VALOR_NUM'], color="#FF69B4") # Cor rosa Sweet Home
+                st.bar_chart(vendas_por_dia['VALOR_NUM'], color="#FF69B4") 
             else:
                 st.info("Aguardando mais dados de vendas para gerar o gráfico.")
 
@@ -402,16 +418,11 @@ elif menu_selecionado == "📦 Estoque":
     st.subheader("📦 Gestão Inteligente de Estoque")
     df_estoque = df_full_inv.copy()
 
-    # ==========================================
-    # 🌟 NOVO: DASHBOARD E MALHA FINA PREMIUM
-    # ==========================================
     if not df_estoque.empty:
-        # Prepara os números para cálculo
         df_estoque['EST_NUM'] = pd.to_numeric(df_estoque['ESTOQUE ATUAL'], errors='coerce').fillna(0)
         df_estoque['VENDAS_NUM'] = pd.to_numeric(df_estoque['QTD VENDIDA'], errors='coerce').fillna(0)
         df_estoque['CUSTO_NUM'] = df_estoque['CUSTO UNITÁRIO R$'].apply(limpar_v)
         
-        # 1. KPIs Rápidos (Métricas)
         total_skus = len(df_estoque)
         capital_parado = (df_estoque['EST_NUM'] * df_estoque['CUSTO_NUM']).sum()
         qtd_furos = len(df_estoque[df_estoque['EST_NUM'] <= 0])
@@ -423,7 +434,6 @@ elif menu_selecionado == "📦 Estoque":
         c3.metric("🚨 Esgotados / Furos", qtd_furos)
         c4.metric("⚠️ Estoque Baixo (≤3)", qtd_baixos)
 
-        # 2. Abas de Inteligência (Retrátil)
         with st.expander("📊 Central de Reposição e Tendências (Clique para abrir)", expanded=False):
             tab1, tab2 = st.tabs(["🚨 Malha Fina (Reposição Urgente)", "🏆 Campeões de Venda (Mais Saem)"])
             
@@ -452,22 +462,15 @@ elif menu_selecionado == "📦 Estoque":
 
     st.divider()
 
-    # ==========================================
-    # 🎯 SEU CÓDIGO ORIGINAL (INTACTO A PARTIR DAQUI)
-    # ==========================================
-
-    # --- 2. RADAR DE ENTRADA ---
     st.write("### 🔍 Radar de Entrada")
     busca_radar = st.text_input("Pesquisar produto para atualizar", placeholder="Ex: lencol casal ou 800")
     
     if busca_radar and not df_estoque.empty:
         t_limpo = limpar_texto(busca_radar)
         
-        # Prepara as duas colunas para a busca (Nome e Código)
         df_estoque['Nome_L'] = df_estoque['NOME DO PRODUTO'].apply(limpar_texto)
         df_estoque['Cod_L'] = df_estoque['CÓD. PRÓDUTO'].astype(str).str.lower().str.strip()
         
-        # 🎯 O NOVO FILTRO: Procura no Nome OU (|) no Código
         res = df_estoque[
             df_estoque['Nome_L'].str.contains(t_limpo, na=False) | 
             df_estoque['Cod_L'].str.contains(t_limpo, na=False)
@@ -498,13 +501,11 @@ elif menu_selecionado == "📦 Estoque":
                     with st.form("f_rep"):
                         q_nova = st.number_input("Quantidade recebida", 1)
                         if st.form_submit_button("Confirmar Entrada"):
-                            # 🚀 SPINNER: Feedback visual de carregamento
                             with st.spinner("Atualizando planilha... ⏳"):
                                 aba = planilha_mestre.worksheet("INVENTÁRIO")
                                 aba.update_acell(f"C{lin_p}", comp_c + q_nova)
                                 aba.update_acell(f"J{lin_p}", datetime.now().strftime("%d/%m/%Y"))
                                 
-                                # 📜 REGISTRO NO HISTÓRICO
                                 st.session_state['historico_estoque'].insert(0, {"Data": datetime.now().strftime("%d/%m %H:%M"), "Ação": "Reposição", "Produto": nome_e, "Detalhe": f"+{q_nova} unidades"})
                                 st.success("Estoque Atualizado!"); st.cache_resource.clear(); st.rerun()
 
@@ -516,11 +517,9 @@ elif menu_selecionado == "📦 Estoque":
                         pr_l = c3.number_input("Novo Preço", value=float(preco_at))
                         puxar = st.checkbox(f"Puxar {est_h} itens antigos?", value=True)
                         if st.form_submit_button("Gerar Lote"):
-                            # 🚀 SPINNER: Feedback visual de carregamento
                             with st.spinner("Criando lote e empurrando Totais... ⏳"):
                                 aba = planilha_mestre.worksheet("INVENTÁRIO")
                                 
-                                # As Fórmulas Vivas da Planilha (Coluna E e H)
                                 f_total_e = '=SE(INDIRETO("C"&LIN())=""; ""; ARRED(INDIRETO("C"&LIN()) * INDIRETO("D"&LIN()); 2))'
                                 f_estoque_h = '=SE(INDIRETO("C"&LIN())=""; ""; INDIRETO("C"&LIN()) - INDIRETO("G"&LIN()))'
                                 
@@ -530,14 +529,12 @@ elif menu_selecionado == "📦 Estoque":
                                 
                                 nova_linha = [n_cod, f"{nome_e} (Lote {int(ext)+1})", q_l + (est_h if puxar else 0), cu_l, f_total_e, 3, 0, f_estoque_h, pr_l, datetime.now().strftime("%d/%m/%Y"), ""]
                                 
-                                # 🎯 O RADAR COM PARAQUEDAS
                                 celula_totais = aba.find("TOTAIS")
                                 if celula_totais:
                                     aba.insert_row(nova_linha, index=celula_totais.row, value_input_option='USER_ENTERED')
                                 else:
                                     aba.append_row(nova_linha, value_input_option='USER_ENTERED')
                                 
-                                # 📜 REGISTRO NO HISTÓRICO
                                 st.session_state['historico_estoque'].insert(0, {"Data": datetime.now().strftime("%d/%m %H:%M"), "Ação": "Novo Lote", "Produto": f"{nome_e} ({n_cod})", "Detalhe": f"{q_l} novas"})
                                 st.success(f"Lote {n_cod} criado com inteligência!"); st.cache_resource.clear(); st.rerun()
 
@@ -545,18 +542,15 @@ elif menu_selecionado == "📦 Estoque":
                     with st.form("f_cor"):
                         real = st.number_input("Qtd real física", value=est_h)
                         if st.form_submit_button("Corrigir"):
-                            # 🚀 SPINNER
                             with st.spinner("Sincronizando estoque... ⏳"):
                                 aba = planilha_mestre.worksheet("INVENTÁRIO")
                                 aba.update_acell(f"C{lin_p}", real + vend_g)
                                 
-                                # 📜 REGISTRO NO HISTÓRICO
                                 st.session_state['historico_estoque'].insert(0, {"Data": datetime.now().strftime("%d/%m %H:%M"), "Ação": "Correção", "Produto": nome_e, "Detalhe": f"Ajustado p/ {real}"})
                                 st.success("Corrigido!"); st.cache_resource.clear(); st.rerun()
 
     st.divider()
 
-    # --- 3. CADASTRO ORIGINAL (COM TRAVA E INSERT ROW) ---
     with st.expander("➕ Cadastrar Novo Produto"):
         with st.form("f_est_original", clear_on_submit=True):
             c1, c2 = st.columns([1, 2])
@@ -570,30 +564,24 @@ elif menu_selecionado == "📦 Estoque":
                 if not n_c or not n_n:
                     st.error("⚠️ Código e Nome são obrigatórios!")
                 else:
-                    # 🚀 SPINNER
                     with st.spinner("Cadastrando produto e organizando planilha... ⏳"):
                         aba = planilha_mestre.worksheet("INVENTÁRIO")
                         
-                        # As Fórmulas Vivas da Planilha (Coluna E e H)
                         f_total_e = '=SE(INDIRETO("C"&LIN())=""; ""; ARRED(INDIRETO("C"&LIN()) * INDIRETO("D"&LIN()); 2))'
                         f_estoque_h = '=SE(INDIRETO("C"&LIN())=""; ""; INDIRETO("C"&LIN()) - INDIRETO("G"&LIN()))'
                         linha_manual = [n_c, n_n, n_q, n_custo, f_total_e, 3, 0, f_estoque_h, n_v, datetime.now().strftime("%d/%m/%Y"), ""]
                         
-                        # 🎯 O RADAR COM PARAQUEDAS
                         celula_totais = aba.find("TOTAIS")
                         if celula_totais:
                             aba.insert_row(linha_manual, index=celula_totais.row, value_input_option='USER_ENTERED')
                         else:
                             aba.append_row(linha_manual, value_input_option='USER_ENTERED')
                             
-                        # 📜 REGISTRO NO HISTÓRICO
                         st.session_state['historico_estoque'].insert(0, {"Data": datetime.now().strftime("%d/%m %H:%M"), "Ação": "Novo Produto", "Produto": n_n, "Detalhe": f"Cód: {n_c}"})
                         st.success("✅ Cadastrado!"); st.cache_resource.clear(); st.rerun()
 
-    # --- 4. EXIBIÇÃO DO HISTÓRICO E LISTA ORIGINAL ---
     st.divider()
     
-    # 📜 A GAVETA DO DIÁRIO DE BORDO
     st.write("### 📜 Histórico de Movimentações")
     if st.session_state['historico_estoque']:
         st.dataframe(st.session_state['historico_estoque'], use_container_width=True, hide_index=True)
@@ -610,31 +598,27 @@ elif menu_selecionado == "📦 Estoque":
         df_ver = df_ver[df_ver.apply(lambda r: busca_lista.lower() in str(r).lower(), axis=1)]
     st.dataframe(df_ver, use_container_width=True, hide_index=True)
 
+
 # ==========================================
 # --- SEÇÃO 4: CLIENTES (COM CRM INTELIGENTE) ---
 # ==========================================
 elif menu_selecionado == "👥 Clientes":
-    st.subheader("👥 Gestão de Clientes")
+    st.subheader("👥 Gestão de Clientes e CRM")
 
-    # ==========================================
-    # 🎯 NOVO: RADAR DE CLIENTES AUSENTES (CRM)
-    # ==========================================
+    # 🌟 NOVO: RADAR DE CLIENTES AUSENTES (CRM)
     if not df_vendas_hist.empty and not df_clientes_full.empty:
         df_v_crm = df_vendas_hist.copy()
         df_v_crm['DATA_DATETIME'] = pd.to_datetime(df_v_crm['DATA DA VENDA'], format='%d/%m/%Y', errors='coerce')
         
-        # Acha a última compra de cada cliente
         ultima_compra = df_v_crm.groupby('CÓD. CLIENTE')['DATA_DATETIME'].max().reset_index()
         hoje = pd.to_datetime(datetime.now().date())
         ultima_compra['DIAS_AUSENTE'] = (hoje - ultima_compra['DATA_DATETIME']).dt.days
         
-        # Filtra quem está sumida há mais de 60 dias
         sumidas = ultima_compra[ultima_compra['DIAS_AUSENTE'] >= 60].copy()
         
         with st.expander(f"🎯 CRM: Radar de Retenção ({len(sumidas)} clientes ausentes há +60 dias)", expanded=True):
             if not sumidas.empty:
                 st.write("Estas clientes não compram há mais de 2 meses. Que tal enviar uma promoção?")
-                # Puxa o nome e zap da carteira de clientes
                 df_c_crm = df_clientes_full.rename(columns={df_clientes_full.columns[0]: 'CÓD. CLIENTE', df_clientes_full.columns[1]: 'NOME', df_clientes_full.columns[2]: 'ZAP'})
                 sumidas_full = sumidas.merge(df_c_crm[['CÓD. CLIENTE', 'NOME', 'ZAP']], on='CÓD. CLIENTE', how='left')
                 
@@ -657,7 +641,6 @@ elif menu_selecionado == "👥 Clientes":
 
     st.divider()
 
-    # --- ÁREA 2: CADASTRO DO ZERO ---
     with st.expander("➕ Cadastrar Nova Cliente (Sem compra atual)", expanded=False):
         with st.form("form_novo_manual", clear_on_submit=True):
             st.markdown("Código gerado automaticamente.")
@@ -676,7 +659,6 @@ elif menu_selecionado == "👥 Clientes":
 
     st.divider()
     
-    # --- EXIBIÇÃO DA CARTEIRA E INCOMPLETOS ---
     if not df_clientes_full.empty:
         try:
             inc = df_clientes_full[df_clientes_full.iloc[:, 7].str.strip() == "Incompleto"]
@@ -687,7 +669,6 @@ elif menu_selecionado == "👥 Clientes":
         st.markdown("### 🗂️ Carteira Total")
         st.dataframe(df_clientes_full, use_container_width=True, hide_index=True)
         
-    # --- ÁREA 3: ATUALIZAÇÃO DE DADOS ---
     with st.expander("🔄 Atualizar Dados de Cliente Existente", expanded=False):
         lista_clientes_edit = [f"{row[0]} - {row[1]}" for row in df_clientes_full.values]
         escolha = st.selectbox("Selecione a Cliente para editar", ["---"] + lista_clientes_edit, key="sel_edit_cli_manual")
