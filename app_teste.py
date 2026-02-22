@@ -90,7 +90,7 @@ def upload_para_cloudinary(file_bytes, file_name, pasta_destino):
     try:
         # Puxa as senhas dos secrets
         cloudinary.config(
-            cloud_name = st.secrets["cloudinary"]["cloud_name"],
+            cloud_name = st.secrets["cloudinary"]["Sweetdriver"],
             api_key = st.secrets["cloudinary"]["api_key"],
             api_secret = st.secrets["cloudinary"]["api_secret"],
             secure = True
