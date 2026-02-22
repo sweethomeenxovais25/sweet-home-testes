@@ -271,7 +271,7 @@ with st.sidebar:
 # ==========================================
 if menu_selecionado == "🛒 Vendas":
     st.subheader("🛒 Registro de Venda")
-    metodo = st.selectbox("Forma de Pagamento", ["Pix", "Dinheiro", "Cartão", "Sweet Flex"], key="venda_metodo_pg")
+    metodo = st.selectbox("Forma de Pagamento", ["Pix", "Dinheiro", "Cartão", "Sweet Flex"], key="venda_metodo_pg", help="Escolha como a cliente vai pagar esta compra.")
     
     with st.form("form_venda_final", clear_on_submit=True):
         detalhes_p = []; n_p = 1 
@@ -293,7 +293,7 @@ if menu_selecionado == "🛒 Vendas":
                 if id_cliente in banco_de_clientes:
                     telefone_sugerido = banco_de_clientes[id_cliente].get('fone', "")
             c_nome_novo = st.text_input("Nome Completo (se novo)", key="venda_nome_novo")
-            c_zap = st.text_input("WhatsApp", value=telefone_sugerido, key=f"zap_venda_{c_sel}")
+            c_zap = st.text_input("WhatsApp", value=telefone_sugerido, key=f"zap_venda_{c_sel}", help="Coloque o DDD e o número. Exemplo: 81999999999")
 
         with col_dir:
             st.write("📦 **Produto**")
@@ -301,7 +301,7 @@ if menu_selecionado == "🛒 Vendas":
             cc1, cc2, cc3 = st.columns(3)
             qtd_v = cc1.number_input("Qtd", 1, key="venda_qtd_input")
             val_v = cc2.number_input("Preço Un.", 0.0, key="venda_val_input")
-            desc_v = cc3.number_input("Desconto (R$)", 0.0, key="venda_desc_input")
+            desc_v = cc3.number_input("Desconto (R$)", 0.0, key="venda_desc_input", help="Valor do desconto em Reais (R$). Deixe zero se não houver.")
             vendedor = st.text_input("Vendedor(a)", value="Bia", key="venda_vendedor_input")
 
         enviar = st.form_submit_button("Finalizar Venda 🚀")
@@ -459,7 +459,7 @@ elif menu_selecionado == "💰 Financeiro":
             lista_todas_clientes = sorted([f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
             c_pg = st.selectbox("Quem está pagando?", ["Selecione..."] + lista_todas_clientes, key="fifo_cliente")
             f1, f2, f3 = st.columns(3)
-            v_pg = f1.number_input("Valor Pago (R$)", min_value=0.0, key="fifo_valor")
+            v_pg = f1.number_input("Valor Pago (R$)", min_value=0.0, key="fifo_valor", help="Digite o valor exato que a cliente pagou agora.")
             meio = f2.selectbox("Meio", ["Pix", "Dinheiro", "Cartão", "Sweet Flex"], key="fifo_meio")
             obs = f3.text_input("Obs", "Abatimento", key="fifo_obs")
             
@@ -586,7 +586,7 @@ elif menu_selecionado == "📦 Estoque":
                 vend_g = int(pd.to_numeric(df_estoque.loc[idx, 'QTD VENDIDA'], errors='coerce') or 0); comp_c = int(pd.to_numeric(df_estoque.loc[idx, 'QUANTIDADE'], errors='coerce') or 0)
                 custo_at = limpar_v(df_estoque.loc[idx, 'CUSTO UNITÁRIO R$']); preco_at = limpar_v(df_estoque.loc[idx, 'VALOR DE VENDA'])
 
-                acao = st.selectbox("Ação:", ["Selecione...", "1. Reposição", "2. Novo Lote (Preço Novo)", "3. Correção"])
+                acao = st.selectbox("Ação:", ["Selecione...", "1. Reposição", "2. Novo Lote (Preço Novo)", "3. Correção"], help="1. Reposição: chegou mais do mesmo produto.\n2. Novo Lote: a mercadoria chegou com um custo ou preço de venda diferente.\n3. Correção: apenas arrumar um erro de contagem no sistema.")
 
                 if acao == "1. Reposição":
                     with st.form("f_rep"):
@@ -851,7 +851,7 @@ elif menu_selecionado == "📂 Documentos":
             vinc_cli = st.selectbox("Selecione a Cliente:", opcoes_cli)
         
         else:
-            nome_livre = st.text_input("Nome/Descrição Breve")
+            nome_livre = st.text_input("Nome ou Descrição Breve", help="Digite um nome fácil de lembrar. Exemplo: Conta de Luz Janeiro")
 
         arquivo_subido = st.file_uploader("3️⃣ Escolha o arquivo (Imagem/PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
         
