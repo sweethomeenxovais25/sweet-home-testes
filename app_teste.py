@@ -638,7 +638,7 @@ elif menu_selecionado == "📦 Estoque":
                             st.info(f"O sistema acha que tem **{estoque_atual_h}**. Quantas peças existem FISICAMENTE na loja hoje?")
                             estoque_real = st.number_input("Estoque Real (Contagem Física)", min_value=0, step=1, value=estoque_atual_h)
                             
-                            if st.form_submit_button("Salvar"):
+                if st.form_submit_button("Salvar"):
                 if not n_c or not n_n: # <--- Linha 641
                     st.error("⚠️ Erro: Você precisa digitar o CÓDIGO e o NOME do produto.") # <--- Linha 642 (RECUADA)
                 else:
