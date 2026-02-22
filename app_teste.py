@@ -47,13 +47,20 @@ estilo_sweet_clean = """
     /* 1. Tela Principal Branca com a Listra Café na Extrema Direita */
     [data-testid="stAppViewContainer"] {
         background-color: #ffffff !important;
-        border-right: 12px solid #31241b !important; /* Listra de Destaque */
+        border-right: 12px solid #31241b !important;
     }
     
-    /* 2. Barra Lateral (Tom Areia Muito Claro) - Não esconde a seta! */
+    /* 2. Barra Lateral (Tom Areia Muito Claro) */
     [data-testid="stSidebar"] {
         background-color: #FCF8F2 !important;
-        border-right: 1px solid #f6debc !important; /* Linha sutil separando o menu */
+        border-right: 1px solid #f6debc !important;
+    }
+
+    /* ✨ CORREÇÃO DA SETA FANTASMA ✨ */
+    /* Força a seta do menu e outros controles a ficarem na cor Café */
+    button svg {
+        color: #31241b !important;
+        fill: #31241b !important;
     }
 
     /* 3. Títulos na cor Café Intenso para dar contraste chique */
@@ -61,7 +68,7 @@ estilo_sweet_clean = """
         color: #31241b !important;
     }
 
-    /* 4. Botões no tom Doce de Leite/Caramelo (Elegante e super legível) */
+    /* 4. Botões Principais no tom Caramelo */
     .stButton>button {
         background-color: #A67B5B !important; 
         color: #ffffff !important;
@@ -72,12 +79,16 @@ estilo_sweet_clean = """
         transition: all 0.2s ease-in-out !important;
     }
     
-    /* Botões: Efeito ao passar o mouse (Escurece levemente o caramelo) */
     .stButton>button:hover {
         background-color: #8B5A2B !important;
         color: #ffffff !important;
-        border: none !important;
-        transform: scale(1.02); /* Dá uma leve "crescida" no botão */
+        transform: scale(1.02);
+    }
+    
+    /* Mantém os ícones dentro dos botões Caramelo na cor branca */
+    .stButton>button svg {
+        color: #ffffff !important;
+        fill: #ffffff !important;
     }
 
     /* Ocultar marca d'água do Streamlit para manter o visual de sistema próprio */
