@@ -638,10 +638,12 @@ elif menu_selecionado == "📦 Estoque":
                             st.info(f"O sistema acha que tem **{estoque_atual_h}**. Quantas peças existem FISICAMENTE na loja hoje?")
                             estoque_real = st.number_input("Estoque Real (Contagem Física)", min_value=0, step=1, value=estoque_atual_h)
                             
-                if st.form_submit_button("Salvar"):
-                if not n_c or not n_n: # <--- Linha 641
-                    st.error("⚠️ Erro: Você precisa digitar o CÓDIGO e o NOME do produto.") # <--- Linha 642 (RECUADA)
+               if st.form_submit_button("Salvar"):
+                if not n_c or not n_n: # Esta é a linha 641
+                    # A linha abaixo (642) precisa de 4 espaços extras à frente do 'if'
+                    st.error("⚠️ Erro: Você precisa digitar o CÓDIGO e o NOME do produto.")
                 else:
+                    # O bloco abaixo também precisa estar alinhado dentro do 'else'
                     aba_inv = planilha_mestre.worksheet("INVENTÁRIO")
                     aba_inv.append_row([n_c, n_n, n_q, n_custo, "", 3, 0, "", n_v, datetime.now().strftime("%d/%m/%Y"), ""], value_input_option='USER_ENTERED')
                     st.success("✅ Cadastrado!")
