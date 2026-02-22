@@ -585,22 +585,28 @@ elif menu_selecionado == "📦 Estoque":
                         # Prepara a imagem
                         img = Image.open(foto_nf)
                         
-                        # A "ordem" que damos para a IA
+                        # A "ordem" rigorosa e estruturada para a IA
                         prompt = """
                         Você é o assistente de estoque da 'Sweet Home Enxovais'. 
-                        Sua tarefa é ler esta nota fiscal ou recibo e extrair apenas os produtos.
-                        Para cada produto encontrado, retorne uma linha neste formato exato:
-                        ✅ [Quantidade]x [Nome do Produto] - Custo Unitário: R$ [Valor]
+                        Sua tarefa é ler esta nota fiscal ou recibo e extrair os produtos.
                         
-                        Seja direto e não invente dados. Se a imagem não for uma nota ou não estiver nítida, avise.
+                        Aja como um sistema. Retorne o resultado EXATAMENTE no formato de uma tabela Markdown com as seguintes colunas:
+                        | Qtd | Descrição do Produto | Custo Unitário (R$) | Valor Total (R$) |
+                        
+                        REGRAS RÍGIDAS:
+                        1. Retorne APENAS a tabela. Não escreva nenhum texto de saudação, explicação ou formatação fora da tabela.
+                        2. Extraia os valores com precisão.
+                        3. Se a imagem não for uma nota fiscal ou estiver ilegível, retorne APENAS a frase: "⚠️ Documento ilegível ou não reconhecido. Tente enviar uma foto mais nítida."
                         """
                         
                         # A mágica acontece aqui
                         resposta = modelo_ia.generate_content([prompt, img])
                         
                         st.success("✅ Leitura Concluída!")
-                        st.markdown("### 📋 Produtos Encontrados pela IA:")
-                        st.info(resposta.text)
+                        st.markdown("#### 📋 Produtos Identificados na Nota:")
+                        
+                        # Exibe a resposta da IA nativamente como uma tabela bonita no Streamlit
+                        st.markdown(resposta.text)
                         
                         st.warning("💡 Dica: Use a lista acima para copiar os nomes e dar a entrada rápida no 'Radar de Entrada' logo abaixo.")
                         
