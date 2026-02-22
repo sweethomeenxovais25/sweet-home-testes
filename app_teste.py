@@ -191,7 +191,6 @@ with st.sidebar:
                 st.download_button("📥 Baixar Estoque", df_full_inv.to_csv(index=False).encode('utf-8'), f"Estoque_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
             if not df_clientes_full.empty:
                 st.download_button("📥 Baixar Clientes", df_clientes_full.to_csv(index=False).encode('utf-8'), f"Clientes_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
-            # 👇 Adicionado o botão do Financeiro aqui:
             if not df_financeiro.empty:
                 st.download_button("📥 Baixar Financeiro", df_financeiro.to_csv(index=False).encode('utf-8'), f"Financeiro_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
         except Exception as e:
@@ -291,7 +290,7 @@ if menu_selecionado == "🛒 Vendas":
                     linha = ["", datetime.now().strftime("%d/%m/%Y"), cod_cli, nome_cli, cod_p, nome_p, custo_un, qtd_v, val_v, desc_percentual, f_k, f_l, f_m, f_n, metodo, eh_parc, n_p, f_r, t_liq/n_p if eh_parc=="Sim" else 0, t_liq if eh_parc=="Não" else 0, t_liq if eh_parc=="Sim" else 0, detalhes_p[0] if (eh_parc=="Sim" and detalhes_p) else "", "Pendente" if eh_parc=="Sim" else "Pago", f_atraso]
                     aba_v.insert_row(linha, index=idx_ins, value_input_option='USER_ENTERED')
                     st.success("✅ Venda registrada com sucesso!")
-                    st.cache_data.clear() 
+                    st.cache_resource.clear() 
                 except Exception as e:
                     st.error(f"Erro ao registrar: {e}")
             else:
@@ -332,7 +331,7 @@ elif menu_selecionado == "💰 Financeiro":
     st.markdown("### 📈 Resumo Geral Sweet Home")
     if not df_vendas_hist.empty:
         try:
-            # 1. CÁLCULOS TÉCNICOS (Mantidos conforme sua lógica)
+            # 1. CÁLCULOS TÉCNICOS
             vendas_brutas = df_vendas_hist.iloc[:, 11].apply(limpar_v).sum()
             lucro_bruto = df_vendas_hist.iloc[:, 12].apply(limpar_v).sum()
             saldo_devedor = df_vendas_hist.iloc[:, 20].apply(limpar_v).sum()
@@ -356,7 +355,7 @@ elif menu_selecionado == "💰 Financeiro":
             st.markdown(f"### <span style='color:{status_cor}'>{status_texto}</span>", unsafe_allow_html=True)
             st.progress(min(percentual_pendente/100, 1.0)) 
 
-            # 🌟 NOVO: CENTRAL DE INTELIGÊNCIA VISUAL (Expander)
+            # 🌟 CENTRAL DE INTELIGÊNCIA VISUAL (Expander)
             with st.expander("📊 Análise de Desempenho e Tendências", expanded=False):
                 t_faturamento, t_pagamentos = st.tabs(["📈 Faturamento Diário", "💳 Meios de Pagamento"])
                 
@@ -381,7 +380,7 @@ elif menu_selecionado == "💰 Financeiro":
                     # Agrupa por Forma de Pagamento
                     vendas_meio = df_meio.groupby('FORMA DE PAGTO')['VALOR_NUM'].sum().sort_values(ascending=False)
                     if not vendas_meio.empty:
-                        st.bar_chart(vendas_meio, color="#C71585") # Um tom de rosa mais escuro para diferenciar
+                        st.bar_chart(vendas_meio, color="#C71585") # Um tom de rosa mais escuro
                     else:
                         st.info("Aguardando registros para análise de pagamentos.")
 
@@ -390,7 +389,6 @@ elif menu_selecionado == "💰 Financeiro":
 
     st.divider()
 
-    # --- ABAIXO DAQUI SEGUE O SEU CÓDIGO FIFO E FICHA DE CLIENTE (Mantidos Intactos) ---
     with st.expander("➕ Lançar Novo Abatimento (Sistema FIFO)", expanded=False):
         with st.form("f_fifo_novo", clear_on_submit=True):
             lista_todas_clientes = sorted([f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
@@ -459,7 +457,7 @@ elif menu_selecionado == "💰 Financeiro":
             st.info("Nenhuma compra registrada para esta cliente ainda.")
 
 # ==========================================
-# --- SEÇÃO 3: ESTOQUE (COM DASHBOARD, FÓRMULAS VIVAS, SPINNER E HISTÓRICO) ---
+# --- SEÇÃO 3: ESTOQUE (COM DASHBOARD) ---
 # ==========================================
 elif menu_selecionado == "📦 Estoque":
     st.subheader("📦 Gestão Inteligente de Estoque")
