@@ -385,7 +385,7 @@ elif menu_selecionado == "💰 Financeiro":
             st.info("Nenhuma compra registrada para esta cliente ainda.")
 
 # ==========================================
-# --- SEÇÃO 3: ESTOQUE (COM FÓRMULAS VIVAS) ---
+# --- SEÇÃO 3: ESTOQUE (COM FÓRMULAS VIVAS, SPINNER E HISTÓRICO) ---
 # ==========================================
 elif menu_selecionado == "📦 Estoque":
     st.subheader("📦 Gestão Inteligente de Estoque")
@@ -404,9 +404,7 @@ elif menu_selecionado == "📦 Estoque":
     st.divider()
 
     # --- 2. RADAR DE ENTRADA ---
-    # --- 2. RADAR DE ENTRADA ---
     st.write("### 🔍 Radar de Entrada")
-    # Atualizei o placeholder para dar a dica visual de que aceita código também!
     busca_radar = st.text_input("Pesquisar produto para atualizar", placeholder="Ex: lencol casal ou 800")
     
     if busca_radar and not df_estoque.empty:
@@ -446,11 +444,16 @@ elif menu_selecionado == "📦 Estoque":
                 if acao == "1. Reposição":
                     with st.form("f_rep"):
                         q_nova = st.number_input("Quantidade recebida", 1)
-                        if st.form_submit_button("Confirmar"):
-                            aba = planilha_mestre.worksheet("INVENTÁRIO")
-                            aba.update_acell(f"C{lin_p}", comp_c + q_nova)
-                            aba.update_acell(f"J{lin_p}", datetime.now().strftime("%d/%m/%Y"))
-                            st.success("Estoque Atualizado!"); st.cache_resource.clear(); st.rerun()
+                        if st.form_submit_button("Confirmar Entrada"):
+                            # 🚀 SPINNER: Feedback visual de carregamento
+                            with st.spinner("Atualizando planilha... ⏳"):
+                                aba = planilha_mestre.worksheet("INVENTÁRIO")
+                                aba.update_acell(f"C{lin_p}", comp_c + q_nova)
+                                aba.update_acell(f"J{lin_p}", datetime.now().strftime("%d/%m/%Y"))
+                                
+                                # 📜 REGISTRO NO HISTÓRICO
+                                st.session_state['historico_estoque'].insert(0, {"Data": datetime.now().strftime("%d/%m %H:%M"), "Ação": "Reposição", "Produto": nome_e, "Detalhe": f"+{q_nova} unidades"})
+                                st.success("Estoque Atualizado!"); st.cache_resource.clear(); st.rerun()
 
                 elif acao == "2. Novo Lote (Preço Novo)":
                     with st.form("f_lote"):
@@ -460,38 +463,43 @@ elif menu_selecionado == "📦 Estoque":
                         pr_l = c3.number_input("Novo Preço", value=float(preco_at))
                         puxar = st.checkbox(f"Puxar {est_h} itens antigos?", value=True)
                         if st.form_submit_button("Gerar Lote"):
-                            aba = planilha_mestre.worksheet("INVENTÁRIO")
-                            
-                            # As Fórmulas Vivas da Planilha (Coluna E e H)
-                            f_total_e = '=SE(INDIRETO("C"&LIN())=""; ""; ARRED(INDIRETO("C"&LIN()) * INDIRETO("D"&LIN()); 2))'
-                            f_estoque_h = '=SE(INDIRETO("C"&LIN())=""; ""; INDIRETO("C"&LIN()) - INDIRETO("G"&LIN()))'
-                            
-                            base = str(cod_e).split(".")[0]; ext = str(cod_e).split(".")[1] if "." in str(cod_e) else "0"
-                            n_cod = f"{base}.{int(ext)+1}"
-                            if puxar: aba.update_acell(f"C{lin_p}", vend_g)
-                            
-                            nova_linha = [n_cod, f"{nome_e} (Lote {int(ext)+1})", q_l + (est_h if puxar else 0), cu_l, f_total_e, 3, 0, f_estoque_h, pr_l, datetime.now().strftime("%d/%m/%Y"), ""]
-                            
-                            # 🎯 O RADAR COM PARAQUEDAS
-                            celula_totais = aba.find("TOTAIS")
-                            if celula_totais:
-                                aba.insert_row(nova_linha, index=celula_totais.row, value_input_option='USER_ENTERED')
-                            else:
-                                aba.append_row(nova_linha, value_input_option='USER_ENTERED')
+                            # 🚀 SPINNER: Feedback visual de carregamento
+                            with st.spinner("Criando lote e empurrando Totais... ⏳"):
+                                aba = planilha_mestre.worksheet("INVENTÁRIO")
                                 
-                            st.success(f"Lote {n_cod} criado com inteligência!"); st.cache_resource.clear(); st.rerun()
-                            
-                            # 🎯 TROCAMOS append_row POR insert_row
-                            aba.insert_row(nova_linha, index=idx_ins, value_input_option='USER_ENTERED')
-                            st.success(f"Lote {n_cod} criado com inteligência!"); st.cache_resource.clear(); st.rerun()
+                                # As Fórmulas Vivas da Planilha (Coluna E e H)
+                                f_total_e = '=SE(INDIRETO("C"&LIN())=""; ""; ARRED(INDIRETO("C"&LIN()) * INDIRETO("D"&LIN()); 2))'
+                                f_estoque_h = '=SE(INDIRETO("C"&LIN())=""; ""; INDIRETO("C"&LIN()) - INDIRETO("G"&LIN()))'
+                                
+                                base = str(cod_e).split(".")[0]; ext = str(cod_e).split(".")[1] if "." in str(cod_e) else "0"
+                                n_cod = f"{base}.{int(ext)+1}"
+                                if puxar: aba.update_acell(f"C{lin_p}", vend_g)
+                                
+                                nova_linha = [n_cod, f"{nome_e} (Lote {int(ext)+1})", q_l + (est_h if puxar else 0), cu_l, f_total_e, 3, 0, f_estoque_h, pr_l, datetime.now().strftime("%d/%m/%Y"), ""]
+                                
+                                # 🎯 O RADAR COM PARAQUEDAS
+                                celula_totais = aba.find("TOTAIS")
+                                if celula_totais:
+                                    aba.insert_row(nova_linha, index=celula_totais.row, value_input_option='USER_ENTERED')
+                                else:
+                                    aba.append_row(nova_linha, value_input_option='USER_ENTERED')
+                                
+                                # 📜 REGISTRO NO HISTÓRICO
+                                st.session_state['historico_estoque'].insert(0, {"Data": datetime.now().strftime("%d/%m %H:%M"), "Ação": "Novo Lote", "Produto": f"{nome_e} ({n_cod})", "Detalhe": f"{q_l} novas"})
+                                st.success(f"Lote {n_cod} criado com inteligência!"); st.cache_resource.clear(); st.rerun()
 
                 elif acao == "3. Correção":
                     with st.form("f_cor"):
-                        real = st.number_input("Qtd real", value=est_h)
+                        real = st.number_input("Qtd real física", value=est_h)
                         if st.form_submit_button("Corrigir"):
-                            aba = planilha_mestre.worksheet("INVENTÁRIO")
-                            aba.update_acell(f"C{lin_p}", real + vend_g)
-                            st.success("Corrigido!"); st.cache_resource.clear(); st.rerun()
+                            # 🚀 SPINNER
+                            with st.spinner("Sincronizando estoque... ⏳"):
+                                aba = planilha_mestre.worksheet("INVENTÁRIO")
+                                aba.update_acell(f"C{lin_p}", real + vend_g)
+                                
+                                # 📜 REGISTRO NO HISTÓRICO
+                                st.session_state['historico_estoque'].insert(0, {"Data": datetime.now().strftime("%d/%m %H:%M"), "Ação": "Correção", "Produto": nome_e, "Detalhe": f"Ajustado p/ {real}"})
+                                st.success("Corrigido!"); st.cache_resource.clear(); st.rerun()
 
     st.divider()
 
@@ -505,32 +513,44 @@ elif menu_selecionado == "📦 Estoque":
             n_q = c3.number_input("Qtd", 0)
             n_custo = c4.number_input("Custo (R$)", 0.0)
             n_v = c5.number_input("Venda (R$)", 0.0)
-            if st.form_submit_button("Salvar"):
+            if st.form_submit_button("Salvar Novo Produto"):
                 if not n_c or not n_n:
                     st.error("⚠️ Código e Nome são obrigatórios!")
                 else:
-                    aba = planilha_mestre.worksheet("INVENTÁRIO")
-                    
-                    # As Fórmulas Vivas da Planilha (Coluna E e H)
-                    f_total_e = '=SE(INDIRETO("C"&LIN())=""; ""; ARRED(INDIRETO("C"&LIN()) * INDIRETO("D"&LIN()); 2))'
-                    f_estoque_h = '=SE(INDIRETO("C"&LIN())=""; ""; INDIRETO("C"&LIN()) - INDIRETO("G"&LIN()))'
-                    linha_manual = [n_c, n_n, n_q, n_custo, f_total_e, 3, 0, f_estoque_h, n_v, datetime.now().strftime("%d/%m/%Y"), ""]
-                    
-                    # 🎯 O RADAR COM PARAQUEDAS
-                    celula_totais = aba.find("TOTAIS")
-                    if celula_totais:
-                        aba.insert_row(linha_manual, index=celula_totais.row, value_input_option='USER_ENTERED')
-                    else:
-                        aba.append_row(linha_manual, value_input_option='USER_ENTERED')
+                    # 🚀 SPINNER
+                    with st.spinner("Cadastrando produto e organizando planilha... ⏳"):
+                        aba = planilha_mestre.worksheet("INVENTÁRIO")
                         
-                    st.success("✅ Cadastrado!"); st.cache_resource.clear(); st.rerun()
-                    
-                    # 🎯 INSERT ROW
-                    aba.insert_row(linha_manual, index=idx_ins, value_input_option='USER_ENTERED')
-                    st.success("✅ Cadastrado!"); st.cache_resource.clear(); st.rerun()
+                        # As Fórmulas Vivas da Planilha (Coluna E e H)
+                        f_total_e = '=SE(INDIRETO("C"&LIN())=""; ""; ARRED(INDIRETO("C"&LIN()) * INDIRETO("D"&LIN()); 2))'
+                        f_estoque_h = '=SE(INDIRETO("C"&LIN())=""; ""; INDIRETO("C"&LIN()) - INDIRETO("G"&LIN()))'
+                        linha_manual = [n_c, n_n, n_q, n_custo, f_total_e, 3, 0, f_estoque_h, n_v, datetime.now().strftime("%d/%m/%Y"), ""]
+                        
+                        # 🎯 O RADAR COM PARAQUEDAS
+                        celula_totais = aba.find("TOTAIS")
+                        if celula_totais:
+                            aba.insert_row(linha_manual, index=celula_totais.row, value_input_option='USER_ENTERED')
+                        else:
+                            aba.append_row(linha_manual, value_input_option='USER_ENTERED')
+                            
+                        # 📜 REGISTRO NO HISTÓRICO
+                        st.session_state['historico_estoque'].insert(0, {"Data": datetime.now().strftime("%d/%m %H:%M"), "Ação": "Novo Produto", "Produto": n_n, "Detalhe": f"Cód: {n_c}"})
+                        st.success("✅ Cadastrado!"); st.cache_resource.clear(); st.rerun()
 
-    # --- 4. LISTA ORIGINAL ---
+    # --- 4. EXIBIÇÃO DO HISTÓRICO E LISTA ORIGINAL ---
     st.divider()
+    
+    # 📜 A GAVETA DO DIÁRIO DE BORDO
+    st.write("### 📜 Histórico de Movimentações (Sessão Atual)")
+    if st.session_state['historico_estoque']:
+        st.dataframe(st.session_state['historico_estoque'], use_container_width=True, hide_index=True)
+        if st.button("Limpar Histórico Local 🗑️", key="btn_limpar_hist_estoque"):
+            st.session_state['historico_estoque'] = []; st.rerun()
+    else:
+        st.info("Nenhuma movimentação realizada no estoque nesta sessão.")
+    
+    st.divider()
+    
     busca_lista = st.text_input("🔍 Buscar na Lista Abaixo")
     df_ver = df_full_inv.copy()
     if busca_lista:
