@@ -545,7 +545,83 @@ elif menu_selecionado == "📦 Estoque":
                 ])
                 
                 if acao != "Selecione...":
-                    st.warning("🚧 Área em construção! Em breve o robô fará essa conta matemática.")
+                    # --- O CÉREBRO MATEMÁTICO DO GUARDIÃO ---
+                    # Descobre em qual linha da planilha este produto mora
+                    linha_df = df_estoque[df_estoque['CÓD. PRÓDUTO'] == cod_escolhido].index[0]
+                    linha_planilha = int(linha_df) + 2  # +2 pois o índice do Python começa no 0 e a planilha tem cabeçalho
+                    
+                    # Pega as fotos atuais do produto
+                    qtd_atual_c = int(pd.to_numeric(df_estoque.loc[linha_df, 'QUANTIDADE'], errors='coerce') or 0)
+                    qtd_vendida_g = int(pd.to_numeric(df_estoque.loc[linha_df, 'QTD VENDIDA'], errors='coerce') or 0)
+                    estoque_atual_h = int(pd.to_numeric(df_estoque.loc[linha_df, 'ESTOQUE ATUAL'], errors='coerce') or 0)
+                    custo_atual = limpar_v(df_estoque.loc[linha_df, 'CUSTO UNITÁRIO R$'])
+                    preco_atual = limpar_v(df_estoque.loc[linha_df, 'VALOR DE VENDA'])
+                    
+                    aba_inv = planilha_mestre.worksheet("INVENTÁRIO")
+                    
+                    # -----------------------------------------
+                    # OPÇÃO 1: REPOSIÇÃO SIMPLES
+                    # -----------------------------------------
+                    if acao == "1. Reposição Simples (Chegou mais, mesmo custo e mesmo preço)":
+                        with st.form("form_rep_simples"):
+                            st.info(f"O sistema acusa **{estoque_atual_h} unidades** no estoque atual.")
+                            qtd_nova = st.number_input("Quantas unidades CHEGARAM da fábrica?", min_value=1, step=1)
+                            
+                            if st.form_submit_button("Confirmar Entrada de Mercadoria 📦"):
+                                try:
+                                    nova_qtd_total = qtd_atual_c + qtd_nova
+                                    aba_inv.update_acell(f"C{linha_planilha}", nova_qtd_total)
+                                    aba_inv.update_acell(f"J{linha_planilha}", datetime.now().strftime("%d/%m/%Y"))
+                                    st.success(f"✅ Sucesso! O estoque de {cod_escolhido} subiu para {estoque_atual_h + qtd_nova}.")
+                                    st.cache_resource.clear()
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao salvar: {e}")
+
+                    # -----------------------------------------
+                    # OPÇÃO 2: REAVALIAÇÃO DE LOTE (A sua sacada de mestre)
+                    # -----------------------------------------
+                    elif acao == "2. Mudança de Custo/Preço (Reavaliar e unificar lotes)":
+                        with st.form("form_mudanca_preco"):
+                            st.warning("⚠️ Atenção: Isso atualizará o custo e o preço de TODAS as unidades restantes na prateleira.")
+                            col1, col2, col3 = st.columns(3)
+                            
+                            qtd_nova = col1.number_input("Quantas unidades chegaram?", min_value=0, step=1)
+                            novo_custo = col2.number_input("Novo Custo (R$)", value=float(custo_atual), min_value=0.0)
+                            novo_preco = col3.number_input("Novo Preço Venda (R$)", value=float(preco_atual), min_value=0.0)
+                            
+                            if st.form_submit_button("Atualizar e Unificar Lote 🔄"):
+                                try:
+                                    nova_qtd_total = qtd_atual_c + qtd_nova
+                                    aba_inv.update_acell(f"C{linha_planilha}", nova_qtd_total) # Soma quantidade
+                                    aba_inv.update_acell(f"D{linha_planilha}", novo_custo)     # Subscreve Custo
+                                    aba_inv.update_acell(f"I{linha_planilha}", novo_preco)     # Subscreve Preço
+                                    aba_inv.update_acell(f"J{linha_planilha}", datetime.now().strftime("%d/%m/%Y"))
+                                    st.success("✅ Lote unificado com os novos valores!")
+                                    st.cache_resource.clear()
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao salvar: {e}")
+
+                    # -----------------------------------------
+                    # OPÇÃO 3: CORREÇÃO DE FURO (Malha Fina)
+                    # -----------------------------------------
+                    elif acao == "3. Correção de Inventário (Ajustar saldo errado)":
+                        with st.form("form_correcao"):
+                            st.info(f"O sistema acha que tem **{estoque_atual_h}**. Quantas peças existem FISICAMENTE na loja hoje?")
+                            estoque_real = st.number_input("Estoque Real (Contagem Física)", min_value=0, step=1, value=estoque_atual_h)
+                            
+                            if st.form_submit_button("Corrigir Furo de Estoque ⚖️"):
+                                try:
+                                    # A matemática reversa: Se C - G = H, então C = Novo H + G
+                                    nova_qtd_total = estoque_real + qtd_vendida_g
+                                    aba_inv.update_acell(f"C{linha_planilha}", nova_qtd_total)
+                                    aba_inv.update_acell(f"J{linha_planilha}", datetime.now().strftime("%d/%m/%Y"))
+                                    st.success(f"✅ Correção aplicada! O estoque agora crava exatamente {estoque_real} unidades.")
+                                    st.cache_resource.clear()
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao salvar: {e}")
                 
         else:
             st.warning("Não encontrei nada parecido. Parece ser um produto novo!")
