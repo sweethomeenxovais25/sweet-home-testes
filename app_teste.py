@@ -40,6 +40,57 @@ def limpar_texto(texto):
     return texto_sem_acento.lower().strip()
 
 # ==========================================
+# 🎨 1.5. IDENTIDADE VISUAL (CSS SWEET HOME)
+# ==========================================
+estilo_sweet = """
+<style>
+    /* Cor de fundo principal (Branco) */
+    .stApp {
+        background-color: #ffffff;
+    }
+    
+    /* Fundo da Barra Lateral (Creme) */
+    [data-testid="stSidebar"] {
+        background-color: #f6debc !important;
+    }
+
+    /* Cor dos Títulos e Textos Base (Café Intenso) */
+    h1, h2, h3 {
+        color: #31241b !important;
+        font-family: 'Georgia', serif; /* Dá um toque mais clássico/elegante */
+    }
+
+    /* Estilo dos Botões (Efeito Hover Inteligente) */
+    .stButton>button {
+        background-color: #31241b !important;
+        color: #ffffff !important;
+        border-radius: 8px !important;
+        border: none !important;
+        transition: all 0.3s ease;
+    }
+    .stButton>button:hover {
+        background-color: #f6debc !important;
+        color: #31241b !important;
+        border: 2px solid #31241b !important;
+        font-weight: bold;
+    }
+
+    /* Caixa do formulário de Login e Expander (Sombra chique) */
+    [data-testid="stForm"] {
+        border: 1px solid #f6debc;
+        border-radius: 12px;
+        box-shadow: 4px 4px 15px rgba(49, 36, 27, 0.08);
+    }
+    
+    /* Remover marca d'água e rodapé do Streamlit para ficar profissional */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+</style>
+"""
+st.markdown(estilo_sweet, unsafe_allow_html=True)
+
+# ==========================================
 # 🔒 2. FASE DE LOGIN & SEGURANÇA
 # ==========================================
 if not st.session_state['autenticado']:
