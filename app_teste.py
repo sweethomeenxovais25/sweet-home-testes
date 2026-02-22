@@ -450,6 +450,9 @@ elif menu_selecionado == "📦 Estoque":
                         if st.form_submit_button("Gerar Lote"):
                             aba = planilha_mestre.worksheet("INVENTÁRIO")
                             
+                            # 🎯 O RADAR QUE PROCURA O TOTAIS
+                            idx_ins = aba.find("TOTAIS").row
+                            
                             # As Fórmulas Vivas da Planilha (Coluna E e H)
                             f_total_e = '=SE(INDIRETO("C"&LIN())=""; ""; ARRED(INDIRETO("C"&LIN()) * INDIRETO("D"&LIN()); 2))'
                             f_estoque_h = '=SE(INDIRETO("C"&LIN())=""; ""; INDIRETO("C"&LIN()) - INDIRETO("G"&LIN()))'
@@ -459,7 +462,9 @@ elif menu_selecionado == "📦 Estoque":
                             if puxar: aba.update_acell(f"C{lin_p}", vend_g)
                             
                             nova_linha = [n_cod, f"{nome_e} (Lote {int(ext)+1})", q_l + (est_h if puxar else 0), cu_l, f_total_e, 3, 0, f_estoque_h, pr_l, datetime.now().strftime("%d/%m/%Y"), ""]
-                            aba.append_row(nova_linha, value_input_option='USER_ENTERED')
+                            
+                            # 🎯 TROCAMOS append_row POR insert_row
+                            aba.insert_row(nova_linha, index=idx_ins, value_input_option='USER_ENTERED')
                             st.success(f"Lote {n_cod} criado com inteligência!"); st.cache_resource.clear(); st.rerun()
 
                 elif acao == "3. Correção":
@@ -472,7 +477,7 @@ elif menu_selecionado == "📦 Estoque":
 
     st.divider()
 
-    # --- 3. CADASTRO ORIGINAL ---
+    # --- 3. CADASTRO ORIGINAL (COM TRAVA E INSERT ROW) ---
     with st.expander("➕ Cadastrar Novo Produto"):
         with st.form("f_est_original", clear_on_submit=True):
             c1, c2 = st.columns([1, 2])
@@ -487,11 +492,17 @@ elif menu_selecionado == "📦 Estoque":
                     st.error("⚠️ Código e Nome são obrigatórios!")
                 else:
                     aba = planilha_mestre.worksheet("INVENTÁRIO")
+                    
+                    # 🎯 RADAR DO TOTAIS
+                    idx_ins = aba.find("TOTAIS").row
+                    
                     # As Fórmulas Vivas da Planilha (Coluna E e H)
                     f_total_e = '=SE(INDIRETO("C"&LIN())=""; ""; ARRED(INDIRETO("C"&LIN()) * INDIRETO("D"&LIN()); 2))'
                     f_estoque_h = '=SE(INDIRETO("C"&LIN())=""; ""; INDIRETO("C"&LIN()) - INDIRETO("G"&LIN()))'
                     linha_manual = [n_c, n_n, n_q, n_custo, f_total_e, 3, 0, f_estoque_h, n_v, datetime.now().strftime("%d/%m/%Y"), ""]
-                    aba.append_row(linha_manual, value_input_option='USER_ENTERED')
+                    
+                    # 🎯 INSERT ROW
+                    aba.insert_row(linha_manual, index=idx_ins, value_input_option='USER_ENTERED')
                     st.success("✅ Cadastrado!"); st.cache_resource.clear(); st.rerun()
 
     # --- 4. LISTA ORIGINAL ---
