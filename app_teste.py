@@ -11,6 +11,36 @@ import cloudinary.uploader
 import io
 import google.generativeai as genai
 from PIL import Image
+import plotly.express as px  # Adicionado para os novos gráficos financeiros
+
+# ==========================================
+# 0. FUNÇÕES DE BUSCA E CONEXÃO
+# ==========================================
+
+def conectar_google_sheets():
+    # Use sua lógica de conexão existente aqui
+    # Exemplo base:
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
+    client = gspread.authorize(creds)
+    return client.open_by_key(st.secrets["id_planilha"])
+
+# Conexão Global
+try:
+    planilha_mestre = conectar_google_sheets()
+except:
+    st.error("Falha na conexão com o Banco de Dados Google.")
+
+def buscar_dados_usuario(nome_usuario):
+    try:
+        aba_u = planilha_mestre.worksheet("USUARIOS")
+        dados = aba_u.get_all_records()
+        for u in dados:
+            if u['USUARIO'] == nome_usuario:
+                return u
+        return None
+    except:
+        return None
 
 # ==========================================
 # 1. CONFIGURAÇÃO ÚNICA DA PÁGINA
@@ -32,8 +62,12 @@ if 'historico_estoque' not in st.session_state:
 # --- AUXILIARES TÉCNICOS ---
 def limpar_v(v):
     if pd.isna(v) or v == "": return 0.0
-    numero = pd.to_numeric(str(v).replace('R$', '').replace('.', '').replace(',', '.').strip(), errors='coerce') or 0.0
-    return round(numero, 2)
+    # Limpeza cirúrgica para evitar bugs de vírgula/ponto
+    numero = str(v).replace('R$', '').replace('.', '').replace(',', '.').strip()
+    try:
+        return round(float(numero), 2)
+    except:
+        return 0.0
 
 def limpar_texto(texto):
     if not isinstance(texto, str):
@@ -58,8 +92,7 @@ estilo_sweet_clean = """
         border-right: 1px solid #f6debc !important;
     }
 
-    /* ✨ O EXORCISMO DA SETA FANTASMA ✨ */
-    /* Pega a seta de abrir e a de fechar diretamente pelo código do Streamlit */
+    /* O EXORCISMO DA SETA FANTASMA */
     [data-testid="collapsedControl"] svg, 
     [data-testid="collapsedControl"] path,
     [data-testid="stSidebar"] button svg,
@@ -69,17 +102,14 @@ estilo_sweet_clean = """
         stroke: #31241b !important;
     }
 
-    /* Força os textos comuns a ficarem escuros (caso o navegador esteja no modo escuro) */
     .stMarkdown, p, span, label, div[data-testid="stMetricValue"] {
         color: #31241b !important;
     }
 
-    /* 3. Títulos na cor Café Intenso */
     h1, h2, h3, h4 {
         color: #31241b !important;
     }
 
-    /* 4. Botões Principais no tom Caramelo */
     .stButton>button {
         background-color: #A67B5B !important; 
         color: #ffffff !important;
@@ -96,12 +126,10 @@ estilo_sweet_clean = """
         transform: scale(1.02);
     }
     
-    /* Protege a letra do botão para continuar branca */
     .stButton>button p, .stButton>button span {
         color: #ffffff !important;
     }
 
-    /* Limpeza do cabeçalho e rodapé */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {background-color: transparent !important;}
@@ -142,6 +170,43 @@ if not st.session_state['autenticado']:
                 except Exception as e:
                     st.error("Erro ao acessar cofre de senhas. Verifique os Secrets.")
     st.stop()
+
+# ==========================================
+# 🛡️ 2.5. PÓS-LOGIN: REGISTRO DE ACESSO E PERFIL
+# ==========================================
+
+# 🕒 Registro de acesso automático (Executa uma vez por login)
+if 'acesso_registrado' not in st.session_state:
+    try:
+        aba_u = planilha_mestre.worksheet("USUARIOS")
+        lista_u = aba_u.col_values(1)
+        if st.session_state['usuario_logado'] in lista_u:
+            linha_u = lista_u.index(st.session_state['usuario_logado']) + 1
+            agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            aba_u.update_acell(f"F{linha_u}", agora) # F = ULTIMO_ACESSO
+            st.session_state['acesso_registrado'] = True
+    except:
+        pass # Silencioso para não interromper a entrada
+
+# 👤 Busca dados para a Sidebar
+dados_logado = buscar_dados_usuario(st.session_state['usuario_logado'])
+
+# --- SIDEBAR: IDENTIDADE VISUAL ---
+if dados_logado:
+    st.sidebar.markdown("<br>", unsafe_allow_html=True)
+    c_p1, c_p2 = st.sidebar.columns([1, 3])
+    
+    foto_u = dados_logado.get('FOTO_URL', "")
+    if foto_u:
+        c_p1.image(foto_u, width=65)
+    else:
+        c_p1.markdown("### 👤")
+        
+    c_p2.markdown(f"**{dados_logado.get('NOME_COMPLETO', 'Usuário')}**")
+    c_p2.caption(f"✨ {dados_logado.get('CARGO', 'Colaborador')}")
+    st.sidebar.markdown("---")
+
+# Daqui em diante segue o seu Menu (menu_selecionado = st.sidebar.selectbox...)
 
 # ==========================================
 # 🚀 3. SISTEMA LIBERADO (CONEXÕES E DADOS)
