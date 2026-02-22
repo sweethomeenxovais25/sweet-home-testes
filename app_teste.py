@@ -385,23 +385,65 @@ elif menu_selecionado == "💰 Financeiro":
             st.info("Nenhuma compra registrada para esta cliente ainda.")
 
 # ==========================================
-# --- SEÇÃO 3: ESTOQUE (COM FÓRMULAS VIVAS, SPINNER E HISTÓRICO) ---
+# --- SEÇÃO 3: ESTOQUE (COM DASHBOARD, FÓRMULAS VIVAS, SPINNER E HISTÓRICO) ---
 # ==========================================
 elif menu_selecionado == "📦 Estoque":
     st.subheader("📦 Gestão Inteligente de Estoque")
     df_estoque = df_full_inv.copy()
 
-    # --- 1. MALHA FINA ---
+    # ==========================================
+    # 🌟 NOVO: DASHBOARD E MALHA FINA PREMIUM
+    # ==========================================
     if not df_estoque.empty:
+        # Prepara os números para cálculo
         df_estoque['EST_NUM'] = pd.to_numeric(df_estoque['ESTOQUE ATUAL'], errors='coerce').fillna(0)
-        criticos = df_estoque[df_estoque['EST_NUM'] <= 0]
-        if not criticos.empty:
-            st.warning("⚠️ Produtos com estoque zerado ou negativo.")
-            with st.expander("Ver detalhes"):
-                for _, r in criticos.iterrows():
-                    st.write(f"🔹 {r['NOME DO PRODUTO']} (Estoque: {r['ESTOQUE ATUAL']})")
+        df_estoque['VENDAS_NUM'] = pd.to_numeric(df_estoque['QTD VENDIDA'], errors='coerce').fillna(0)
+        df_estoque['CUSTO_NUM'] = df_estoque['CUSTO UNITÁRIO R$'].apply(limpar_v)
+        
+        # 1. KPIs Rápidos (Métricas)
+        total_skus = len(df_estoque)
+        capital_parado = (df_estoque['EST_NUM'] * df_estoque['CUSTO_NUM']).sum()
+        qtd_furos = len(df_estoque[df_estoque['EST_NUM'] <= 0])
+        qtd_baixos = len(df_estoque[(df_estoque['EST_NUM'] > 0) & (df_estoque['EST_NUM'] <= 3)])
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("📦 Itens no Catálogo", total_skus)
+        c2.metric("💰 Capital na Prateleira", f"R$ {capital_parado:,.2f}")
+        c3.metric("🚨 Esgotados / Furos", qtd_furos)
+        c4.metric("⚠️ Estoque Baixo (≤3)", qtd_baixos)
+
+        # 2. Abas de Inteligência (Retrátil)
+        with st.expander("📊 Central de Reposição e Tendências (Clique para abrir)", expanded=False):
+            tab1, tab2 = st.tabs(["🚨 Malha Fina (Reposição Urgente)", "🏆 Campeões de Venda (Mais Saem)"])
+            
+            with tab1:
+                criticos_df = df_estoque[df_estoque['EST_NUM'] <= 3].copy()
+                if not criticos_df.empty:
+                    criticos_df['Status'] = criticos_df['EST_NUM'].apply(lambda x: "🔴 Esgotado" if x <= 0 else "🟡 Acabando")
+                    st.write("**Lista de produtos que precisam de pedido na fábrica:**")
+                    st.dataframe(
+                        criticos_df[['CÓD. PRÓDUTO', 'NOME DO PRODUTO', 'ESTOQUE ATUAL', 'Status']].sort_values('ESTOQUE ATUAL'), 
+                        use_container_width=True, hide_index=True
+                    )
+                else:
+                    st.success("✨ Tudo em ordem! Nenhum produto com estoque crítico no momento.")
+            
+            with tab2:
+                campeoes_df = df_estoque[df_estoque['VENDAS_NUM'] > 0].sort_values(by='VENDAS_NUM', ascending=False).head(10)
+                if not campeoes_df.empty:
+                    st.write("**O Top 10 de produtos que mais trazem fluxo para a loja:**")
+                    st.dataframe(
+                        campeoes_df[['CÓD. PRÓDUTO', 'NOME DO PRODUTO', 'QTD VENDIDA', 'ESTOQUE ATUAL']], 
+                        use_container_width=True, hide_index=True
+                    )
+                else:
+                    st.info("Ainda não há volume de vendas suficiente para traçar a Curva ABC.")
 
     st.divider()
+
+    # ==========================================
+    # 🎯 SEU CÓDIGO ORIGINAL (INTACTO A PARTIR DAQUI)
+    # ==========================================
 
     # --- 2. RADAR DE ENTRADA ---
     st.write("### 🔍 Radar de Entrada")
