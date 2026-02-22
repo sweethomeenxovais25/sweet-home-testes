@@ -485,19 +485,19 @@ elif menu_selecionado == "💰 Financeiro":
 elif menu_selecionado == "📦 Estoque":
     st.subheader("📦 Gestão Inteligente de Estoque")
     
-    # Puxa os dados da aba INVENTÁRIO (ajuste df_estoque conforme o seu código)
+    # Puxa os dados da aba INVENTÁRIO
     aba_i = planilha_mestre.worksheet("INVENTÁRIO")
     df_estoque = pd.DataFrame(aba_i.get_all_records())
     
     # --- 1. MALHA FINA (ALERTAS DE ESTOQUE NEGATIVO/BAIXO) ---
-    # Filtra produtos com estoque <= 0
-    produtos_criticos = df_estoque[df_estoque['Estoque'] <= 0]
+    # Filtra produtos com estoque <= 0 usando o nome exato da coluna
+    produtos_criticos = df_estoque[df_estoque['ESTOQUE ATUAL'] <= 0]
     
     if not produtos_criticos.empty:
         st.warning("⚠️ **ATENÇÃO: Existem produtos com estoque zerado ou negativo.**\nIsso ocorre se vendas foram feitas antes do registro da Nota Fiscal. Por favor, regularize as entradas.")
         with st.expander("Ver itens precisando de reposição urgente"):
             for index, row in produtos_criticos.iterrows():
-                st.write(f"🔹 {row['Produto']} (Estoque atual: **{row['Estoque']}**)")
+                st.write(f"🔹 {row['NOME DO PRODUTO']} (Estoque atual: **{row['ESTOQUE ATUAL']}**)")
     
     st.divider()
 
@@ -509,16 +509,17 @@ elif menu_selecionado == "📦 Estoque":
         termo_limpo = limpar_texto(termo_busca)
         
         # O robô procura em todo o banco de dados ignorando acentos
-        df_estoque['Produto_Limpo'] = df_estoque['Produto'].apply(limpar_texto)
+        df_estoque['Produto_Limpo'] = df_estoque['NOME DO PRODUTO'].apply(limpar_texto)
         resultados = df_estoque[df_estoque['Produto_Limpo'].str.contains(termo_limpo, na=False)]
         
         if not resultados.empty:
             st.success(f"Encontrei {len(resultados)} produto(s) parecido(s) no sistema!")
             
-            # Monta a lista de opções para a Bia
+            # Monta a lista de opções com os nomes corretos das colunas
             opcoes = ["Nenhum. É um produto 100% NOVO."]
             for _, row in resultados.iterrows():
-                opcoes.append(f"{row['Código']} - {row['Produto']} (Estoque: {row['Estoque']} | Custo: R$ {row.get('Custo', 0):.2f})")
+                # O row.get garante que se o custo estiver vazio, ele não quebra e assume 0
+                opcoes.append(f"{row['CÓD. PRÓDUTO']} - {row['NOME DO PRODUTO']} (Estoque: {row['ESTOQUE ATUAL']} | Custo: R$ {row.get('CUSTO UNITÁRIO R$', 0):.2f})")
             
             produto_selecionado = st.radio("É algum destes produtos?", opcoes)
             
