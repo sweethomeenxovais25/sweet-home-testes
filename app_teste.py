@@ -6,6 +6,9 @@ import os
 from datetime import datetime
 import urllib.parse
 import unicodedata
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
+import io
 
 # ==========================================
 # 1. CONFIGURAÇÃO ÚNICA DA PÁGINA
@@ -83,6 +86,28 @@ ESPECIFICACOES = [
     "https://www.googleapis.com/auth/drive"
 ]
 
+# 📂 ID DA PASTA QUE VOCÊ CRIOU (O código que fica no link após /folders/)
+ID_PASTA_MESTRE = "1p88VJcNVv4PuYnZgsbSiFF6Z2pY-cZjs"
+
+def upload_para_drive(file_bytes, file_name, file_type):
+    try:
+        # Usa as mesmas credenciais e especificações que você já tem
+        creds_info = st.secrets["gcp_service_account"]
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_info, ESPECIFICACOES)
+        service = build('drive', 'v3', credentials=creds)
+
+        file_metadata = {
+            'name': file_name,
+            'parents': [ID_PASTA_MESTRE]
+        }
+        
+        media = MediaIoBaseUpload(io.BytesIO(file_bytes), mimetype=file_type, resumable=True)
+        file = service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
+        return file.get('id'), file.get('webViewLink')
+    except Exception as e:
+        st.error(f"Erro técnico no Drive: {e}")
+        return None, None
+
 @st.cache_resource
 def conectar_google():
     try:
@@ -144,7 +169,7 @@ with st.sidebar:
     
     menu_selecionado = st.radio(
         "Navegação",
-        ["🛒 Vendas", "💰 Financeiro", "📦 Estoque", "👥 Clientes"],
+        ["🛒 Vendas", "💰 Financeiro", "📦 Estoque", "👥 Clientes", "📂 Documentos"], # Adicionado aqui
         key="navegacao_principal_sweet"
     )
     
@@ -737,3 +762,61 @@ elif menu_selecionado == "👥 Clientes":
                         
                     except Exception as e:
                         st.error(f"Erro ao salvar na planilha: {e}")
+
+# ==========================================
+# --- SEÇÃO 5: DOCUMENTOS (COFRE DIGITAL) ---
+# ==========================================
+elif menu_selecionado == "📂 Documentos":
+    st.subheader("📂 Cofre Digital Sweet Home")
+    
+    with st.expander("📤 Arquivar Novo Documento", expanded=True):
+        with st.form("form_upload_drive", clear_on_submit=True):
+            c1, c2 = st.columns([2, 1])
+            nome_doc = c1.text_input("Nome do Documento (Ex: NF Lote 800)")
+            tipo_doc = c2.selectbox("Categoria", ["Nota Fiscal", "Recibo", "Foto de Produto", "Contrato", "Outros"])
+            
+            arquivo_subido = st.file_uploader("Escolha o arquivo (Imagem ou PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
+            vinc_cli = st.selectbox("Vincular a uma Cliente? (Opcional)", ["Nenhum"] + [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
+            
+            if st.form_submit_button("Salvar no Cofre 🔒"):
+                if arquivo_subido and nome_doc:
+                    with st.spinner("Subindo para o Drive..."):
+                        f_id, f_link = upload_para_drive(arquivo_subido.getvalue(), f"{tipo_doc}_{nome_doc}", arquivo_subido.type)
+                        
+                        if f_id:
+                            try:
+                                aba_doc = planilha_mestre.worksheet("DOCUMENTOS")
+                                aba_doc.append_row([
+                                    datetime.now().strftime("%d/%m/%Y %H:%M"),
+                                    tipo_doc, nome_doc, f_id, f_link, vinc_cli
+                                ], value_input_option='USER_ENTERED')
+                                st.success("✅ Documento arquivado!"); st.cache_resource.clear(); st.rerun()
+                            except:
+                                st.error("Erro ao registrar na planilha. Verifique se a aba 'DOCUMENTOS' existe.")
+                else:
+                    st.warning("⚠️ Nome e arquivo são obrigatórios.")
+
+    st.divider()
+    st.write("### 🗂️ Histórico de Documentos")
+    
+    try:
+        aba_doc_leitura = planilha_mestre.worksheet("DOCUMENTOS")
+        dados_doc = aba_doc_leitura.get_all_values()
+        
+        if len(dados_doc) > 1:
+            df_docs = pd.DataFrame(dados_doc[1:], columns=dados_doc[0])
+            busca_doc = st.text_input("🔍 Pesquisar documento...")
+            if busca_doc:
+                df_docs = df_docs[df_docs.apply(lambda r: busca_doc.lower() in str(r).lower(), axis=1)]
+
+            for _, r in df_docs.sort_index(ascending=False).iterrows():
+                with st.container():
+                    col_a, col_b, col_c = st.columns([1, 3, 1])
+                    col_a.write(f"📅 {r['DATA'].split(' ')[0]}")
+                    col_b.write(f"**{r['TIPO']}**: {r['NOME']}")
+                    col_c.link_button("👁️ Abrir", r['LINK_DRIVE'], use_container_width=True)
+                    st.divider()
+        else:
+            st.info("Cofre vazio.")
+    except:
+        st.error("Aba 'DOCUMENTOS' não encontrada na planilha.")
