@@ -566,45 +566,47 @@ elif menu_selecionado == "💰 Financeiro":
     st.markdown("### 📈 Resumo Geral Sweet Home")
     if not df_vendas_hist.empty:
         try:
-            # 1. PROCESSAMENTO DE DADOS BASE
+            # 1. PROCESSAMENTO SEGURO POR POSIÇÃO (ILOC)
             df_fin = df_vendas_hist.copy()
-            df_fin['VALOR_NUM'] = df_fin['TOTAL R$'].apply(limpar_v)
-            df_fin['LUCRO_NUM'] = df_fin['LUCRO R$'].apply(limpar_v)
-            df_fin['SALDO_NUM'] = df_fin['SALDO DEVEDOR'].apply(limpar_v)
+            
+            # Mapeamento: Coluna L (11)=Total | M (12)=Lucro | O (14)=Pagto | U (20)=Saldo
+            df_fin['VALOR_NUM'] = df_fin.iloc[:, 11].apply(limpar_v)
+            df_fin['LUCRO_NUM'] = df_fin.iloc[:, 12].apply(limpar_v)
+            df_fin['FORMA_PG'] = df_fin.iloc[:, 14]
+            df_fin['SALDO_NUM'] = df_fin.iloc[:, 20].apply(limpar_v)
             
             vendas_brutas = df_fin['VALOR_NUM'].sum()
             lucro_bruto = df_fin['LUCRO_NUM'].sum()
             saldo_devedor = df_fin['SALDO_NUM'].sum()
             total_recebido = vendas_brutas - saldo_devedor
             
-            # 2. MÉTRICAS DE SAÚDE E LIQUIDEZ
-            # Cálculo de Liquidez: Dinheiro "na mão" (Pix, Dinheiro, Cartão) vs Futuro (Flex)
-            receita_imediata = df_fin[df_fin['FORMA DE PAGTO'] != 'Sweet Flex']['VALOR_NUM'].sum()
+            # Cálculo de Liquidez (O que já é dinheiro vivo vs. o que é Flex)
+            receita_imediata = df_fin[df_fin['FORMA_PG'] != 'Sweet Flex']['VALOR_NUM'].sum()
             indice_liquidez = (receita_imediata / vendas_brutas * 100) if vendas_brutas > 0 else 0
             
+            # 2. MÉTRICAS PRINCIPAIS
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Vendas Totais", f"R$ {vendas_brutas:,.2f}")
             c2.metric("Lucro Bruto", f"R$ {lucro_bruto:,.2f}")
             c3.metric("Total Recebido", f"R$ {total_recebido:,.2f}", delta="Dinheiro em Caixa")
             c4.metric("Saldo Devedor", f"R$ {saldo_devedor:,.2f}", delta=f"{(saldo_devedor/vendas_brutas*100):.1f}% pendente", delta_color="inverse")
 
-            # 3. TERMÔMETRO DE LIQUIDEZ (Visual)
+            # 3. TERMÔMETRO DE SAÚDE FINANCEIRA
             st.markdown("---")
             col_t1, col_t2 = st.columns([2, 1])
             with col_t1:
                 if indice_liquidez >= 70:
                     st.success(f"🟢 **Saúde de Caixa: EXCELENTE** ({indice_liquidez:.1f}% recebido à vista)")
                 elif indice_liquidez >= 40:
-                    st.warning(f"🟡 **Saúde de Caixa: ATENÇÃO** ({indice_liquidez:.1f}% à vista. Cuidado com o excesso de parcelamento)")
+                    st.warning(f"🟡 **Saúde de Caixa: ATENÇÃO** ({indice_liquidez:.1f}% à vista)")
                 else:
-                    st.error(f"🔴 **Saúde de Caixa: CRÍTICA** (Apenas {indice_liquidez:.1f}% à vista. Risco de falta de capital de giro!)")
+                    st.error(f"🔴 **Saúde de Caixa: CRÍTICA** (Apenas {indice_liquidez:.1f}% à vista)")
                 st.progress(min(indice_liquidez/100, 1.0))
             
             with col_t2:
-                # Projeção Simplificada de Recebíveis (Sweet Flex pendente)
-                st.metric("Recebíveis (Flex)", f"R$ {saldo_devedor:,.2f}", help="Dinheiro que ainda vai entrar das parcelas do Sweet Flex.")
+                st.metric("Recebíveis (Futuro)", f"R$ {saldo_devedor:,.2f}", help="Dinheiro que entrará via Sweet Flex.")
 
-            # 4. DASHBOARD DE DESEMPENHO (ABAS)
+            # 4. DASHBOARD DE ANÁLISE
             with st.expander("📊 Análise de Desempenho e Tendências", expanded=False):
                 t_faturamento, t_pagamentos, t_ticket = st.tabs(["📈 Faturamento", "💳 Meios de Pagamento", "🎟️ Ticket Médio"])
                 
@@ -617,8 +619,8 @@ elif menu_selecionado == "💰 Financeiro":
                 with t_pagamentos:
                     import plotly.express as px
                     st.write("#### Composição dos Recebimentos")
-                    vendas_meio = df_fin.groupby('FORMA DE PAGTO')['VALOR_NUM'].sum().reset_index()
-                    fig = px.pie(vendas_meio, values='VALOR_NUM', names='FORMA DE PAGTO', 
+                    vendas_meio = df_fin.groupby('FORMA_PG')['VALOR_NUM'].sum().reset_index()
+                    fig = px.pie(vendas_meio, values='VALOR_NUM', names='FORMA_PG', 
                                  color_discrete_sequence=['#C71585', '#FF69B4', '#DB7093', '#FFB6C1'],
                                  hole=.4)
                     fig.update_layout(showlegend=True, margin=dict(t=0, b=0, l=0, r=0))
@@ -626,14 +628,12 @@ elif menu_selecionado == "💰 Financeiro":
 
                 with t_ticket:
                     st.write("#### Valor Médio por Venda (Ticket Médio)")
-                    ticket_meio = df_fin.groupby('FORMA DE PAGTO')['VALOR_NUM'].mean().reset_index()
-                    st.bar_chart(ticket_meio.set_index('FORMA DE PAGTO'), color="#C71585")
-                    st.caption("💡 Indica qual meio de pagamento atrai compras de maior valor.")
+                    ticket_meio = df_fin.groupby('FORMA_PG')['VALOR_NUM'].mean().reset_index()
+                    st.bar_chart(ticket_meio.set_index('FORMA_PG'), color="#C71585")
+                    st.caption("💡 Mostra qual meio de pagamento gera compras de maior valor.")
 
         except Exception as e:
-            st.warning(f"Aguardando dados para processar o painel. (Erro: {e})")
-
-    st.divider()
+            st.error(f"⚠️ Erro ao processar o painel: {e}")
     
     with st.expander("➕ Lançar Novo Abatimento (Sistema FIFO)", expanded=False):
         with st.form("f_fifo_novo", clear_on_submit=True):
