@@ -26,10 +26,11 @@ def conectar_google_sheets():
     return client.open_by_key(st.secrets["id_planilha"])
 
 # Conexão Global
+# Altere o bloco de conexão para isso apenas para testar:
 try:
     planilha_mestre = conectar_google_sheets()
-except:
-    st.error("Falha na conexão com o Banco de Dados Google.")
+except Exception as e:
+    st.error(f"Erro real: {e}") # Isso vai nos dizer se é "Permission Denied", "File Not Found", etc.
 
 def buscar_dados_usuario(nome_usuario):
     try:
