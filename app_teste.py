@@ -639,12 +639,13 @@ elif menu_selecionado == "📦 Estoque":
                             estoque_real = st.number_input("Estoque Real (Contagem Física)", min_value=0, step=1, value=estoque_atual_h)
                             
                             if st.form_submit_button("Salvar"):
-                if not n_c or not n_n: # <--- A TRAVA DE SEGURANÇA
-                    st.error("⚠️ Erro: Você precisa digitar o CÓDIGO e o NOME do produto.")
+                if not n_c or not n_n: # <--- Linha 641
+                    st.error("⚠️ Erro: Você precisa digitar o CÓDIGO e o NOME do produto.") # <--- Linha 642 (RECUADA)
                 else:
                     aba_inv = planilha_mestre.worksheet("INVENTÁRIO")
                     aba_inv.append_row([n_c, n_n, n_q, n_custo, "", 3, 0, "", n_v, datetime.now().strftime("%d/%m/%Y"), ""], value_input_option='USER_ENTERED')
-                    st.success("✅ Cadastrado!"); st.cache_resource.clear()
+                    st.success("✅ Cadastrado!")
+                    st.cache_resource.clear()
                     st.rerun()
                 
         else:
