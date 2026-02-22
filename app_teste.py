@@ -302,7 +302,12 @@ if menu_selecionado == "🛒 Vendas":
 # ==========================================
 elif menu_selecionado == "💰 Financeiro":
     st.markdown(f"### <span style='color:{status_cor}'>{status_texto}</span>", unsafe_allow_html=True)
+            c4.metric("Saldo Devedor", f"R$ {saldo_devedor:,.2f}", delta=f"{percentual_pendente:.1f}% do total", delta_color="inverse")
+
+            st.markdown(f"### <span style='color:{status_cor}'>{status_texto}</span>", unsafe_allow_html=True)
             st.progress(min(percentual_pendente/100, 1.0)) 
+            
+            # Gráfico...
             
             # 👇 ADICIONE O GRÁFICO AQUI
             st.write("### 📊 Evolução de Faturamento (Diário)")
