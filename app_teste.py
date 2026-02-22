@@ -610,27 +610,49 @@ elif menu_selecionado == "💰 Financeiro":
             with st.expander("📊 Análise de Desempenho e Tendências", expanded=False):
                 t_faturamento, t_pagamentos, t_ticket = st.tabs(["📈 Faturamento", "💳 Meios de Pagamento", "🎟️ Ticket Médio"])
                 
+                import plotly.express as px
+                paleta_sweet = ['#31241b', '#8d5524', '#d4a373', '#f6debc'] # Marrons e Beges da marca
+
                 with t_faturamento:
                     st.write("#### Evolução de Vendas no Tempo")
                     df_fin['DATA_DT'] = pd.to_datetime(df_fin['DATA DA VENDA'], format='%d/%m/%Y', errors='coerce')
-                    vendas_dia = df_fin.groupby('DATA_DT')['VALOR_NUM'].sum()
-                    st.area_chart(vendas_dia, color="#FF69B4")
+                    vendas_dia = df_fin.groupby('DATA_DT')['VALOR_NUM'].sum().reset_index()
+                    
+                    # Gráfico de Área com Formatação de R$ no hover
+                    fig_fat = px.area(vendas_dia, x='DATA_DT', y='VALOR_NUM',
+                                     labels={'VALOR_NUM': 'Total Vendido', 'DATA_DT': 'Data'},
+                                     color_discrete_sequence=[paleta_sweet[0]])
+                    fig_fat.update_traces(hovertemplate='<b>Data:</b> %{x}<br><b>Vendido:</b> R$ %{y:,.2f}')
+                    fig_fat.update_layout(xaxis_title=None, yaxis_title="Total (R$)", margin=dict(t=10, b=10, l=0, r=0))
+                    st.plotly_chart(fig_fat, use_container_width=True)
                 
                 with t_pagamentos:
-                    import plotly.express as px
                     st.write("#### Composição dos Recebimentos")
                     vendas_meio = df_fin.groupby('FORMA_PG')['VALOR_NUM'].sum().reset_index()
-                    fig = px.pie(vendas_meio, values='VALOR_NUM', names='FORMA_PG', 
-                                 color_discrete_sequence=['#C71585', '#FF69B4', '#DB7093', '#FFB6C1'],
-                                 hole=.4)
-                    fig.update_layout(showlegend=True, margin=dict(t=0, b=0, l=0, r=0))
-                    st.plotly_chart(fig, use_container_width=True)
+                    fig_pie = px.pie(vendas_meio, values='VALOR_NUM', names='FORMA_PG', 
+                                    color_discrete_sequence=paleta_sweet,
+                                    hole=.4)
+                    fig_pie.update_traces(textposition='inside', textinfo='percent+label', 
+                                         hovertemplate='<b>%{label}</b><br>Total: R$ %{value:,.2f}')
+                    fig_pie.update_layout(showlegend=True, margin=dict(t=0, b=0, l=0, r=0))
+                    st.plotly_chart(fig_pie, use_container_width=True)
 
                 with t_ticket:
                     st.write("#### Valor Médio por Venda (Ticket Médio)")
-                    ticket_meio = df_fin.groupby('FORMA_PG')['VALOR_NUM'].mean().reset_index()
-                    st.bar_chart(ticket_meio.set_index('FORMA_PG'), color="#C71585")
-                    st.caption("💡 Mostra qual meio de pagamento gera compras de maior valor.")
+                    # Arredondando para 2 casas decimais para evitar o erro visual
+                    ticket_meio = df_fin.groupby('FORMA_PG')['VALOR_NUM'].mean().round(2).reset_index()
+                    
+                    fig_ticket = px.bar(ticket_meio, x='FORMA_PG', y='VALOR_NUM',
+                                       text='VALOR_NUM',
+                                       labels={'VALOR_NUM': 'Ticket Médio (R$)', 'FORMA_PG': 'Meio de Pagto'},
+                                       color='FORMA_PG',
+                                       color_discrete_sequence=paleta_sweet)
+                    
+                    fig_ticket.update_traces(texttemplate='R$ %{text:.2f}', textposition='outside',
+                                            hovertemplate='<b>%{x}</b><br>Média: R$ %{y:,.2f}')
+                    fig_ticket.update_layout(showlegend=False, yaxis_title="Valor (R$)", xaxis_title=None)
+                    st.plotly_chart(fig_ticket, use_container_width=True)
+                    st.caption("💡 O Ticket Médio ajuda a entender qual cliente gasta mais em cada modalidade.")
 
         except Exception as e:
             st.error(f"⚠️ Erro ao processar o painel: {e}")
