@@ -816,51 +816,76 @@ elif menu_selecionado == "📂 Documentos":
 
     st.divider()
 
-    # 📤 ÁREA DE UPLOAD (Roteamento Dinâmico)
+    # 📤 ÁREA DE UPLOAD (Roteamento Dinâmico e Nomenclatura Automática)
     st.write("### 📤 Enviar Arquivo")
     # A categoria fica fora do formulário para o sistema reagir a ela
     cat_escolhida = st.selectbox("Categoria do Documento", list(PASTAS_DRIVE.keys()))
     
     with st.form("form_upload_drive", clear_on_submit=True):
-        nome_doc = st.text_input("Nome/Descrição Breve")
-        arquivo_subido = st.file_uploader("Arquivo (Imagem/PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
         
         vinc_cli = "Nenhum"
         vinc_prod = "Nenhum"
+        nome_livre = ""
         
-        # O formulário pergunta coisas diferentes dependendo da categoria escolhida
-        if cat_escolhida == "Foto de Produto":
-            st.info("💡 Como é uma foto, vincule ao produto para tirá-lo da lista 'Falta Foto':")
+        # 🤖 INTELIGÊNCIA DE FORMULÁRIO
+        if cat_escolhida in ["Foto de Produto", "Nota Fiscal"]:
+            st.info("📦 O sistema dará o nome do arquivo automaticamente com base no produto.")
             vinc_prod = st.selectbox("Vincular a qual Produto?", ["Nenhum"] + [f"{k} - {v['nome']}" for k, v in banco_de_produtos.items()])
+        
+        elif cat_escolhida in ["Comprovante", "Recibo / Pgto"]:
+            st.info("👤 O sistema dará o nome do arquivo automaticamente com base na cliente.")
+            vinc_cli = st.selectbox("Vincular a uma Cliente?", ["Nenhum"] + [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
+        
         else:
-            vinc_cli = st.selectbox("Vincular a uma Cliente? (Opcional)", ["Nenhum"] + [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
+            nome_livre = st.text_input("Nome/Descrição Breve")
+
+        arquivo_subido = st.file_uploader("Arquivo (Imagem/PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
         
         if st.form_submit_button("Salvar no Cofre 🔒"):
-            if arquivo_subido and nome_doc:
-                if cat_escolhida == "Foto de Produto" and vinc_prod == "Nenhum":
-                    st.error("⚠️ Você precisa vincular a foto a um produto do estoque.")
+            erro = False
+            if not arquivo_subido:
+                st.error("⚠️ Você esqueceu de anexar o arquivo!"); erro = True
+            elif cat_escolhida in ["Foto de Produto", "Nota Fiscal"] and vinc_prod == "Nenhum":
+                st.error("⚠️ Para esta categoria, você deve selecionar um produto."); erro = True
+            elif cat_escolhida in ["Comprovante", "Recibo / Pgto"] and vinc_cli == "Nenhum":
+                st.error("⚠️ Para esta categoria, você deve selecionar uma cliente."); erro = True
+            elif cat_escolhida in ["Contrato", "Outros"] and not nome_livre:
+                st.error("⚠️ Por favor, digite um nome para o documento."); erro = True
+
+            if not erro:
+                # 🤖 O ROBÔ GERA O NOME (Com as informações integradas)
+                if vinc_prod != "Nenhum":
+                    nome_gerado = f"[{cat_escolhida.upper()}] {vinc_prod}"
+                    vinculo_final = vinc_prod
+                elif vinc_cli != "Nenhum":
+                    nome_gerado = f"[{cat_escolhida.upper()}] {vinc_cli}"
+                    vinculo_final = vinc_cli
                 else:
-                    with st.spinner(f"Subindo para a pasta '{cat_escolhida}'..."):
-                        target_id = PASTAS_DRIVE[cat_escolhida]
-                        f_id, f_link = upload_para_drive(arquivo_subido.getvalue(), nome_doc, arquivo_subido.type, target_id)
-                        
-                        if f_id:
-                            try:
-                                aba_doc = planilha_mestre.worksheet("DOCUMENTOS")
-                                # Se a aba for nova, cria o cabeçalho
-                                if len(aba_doc.get_all_values()) == 0:
-                                    aba_doc.append_row(["DATA", "TIPO", "NOME", "ID_ARQUIVO", "LINK_DRIVE", "VINCULO", "STATUS_ODOO"])
-                                
-                                vinculo_final = vinc_prod if cat_escolhida == "Foto de Produto" else vinc_cli
-                                status_odoo = "Pronto para Site" if cat_escolhida == "Foto de Produto" else "-"
-                                
-                                aba_doc.append_row([
-                                    datetime.now().strftime("%d/%m/%Y %H:%M"),
-                                    cat_escolhida, nome_doc, f_id, f_link, vinculo_final, status_odoo
-                                ], value_input_option='USER_ENTERED')
-                                st.success("✅ Arquivado na pasta certa!"); st.cache_resource.clear(); st.rerun()
-                            except Exception as e: st.error(f"Erro na planilha: {e}")
-            else: st.warning("⚠️ O nome e o arquivo são obrigatórios.")
+                    nome_gerado = f"[{cat_escolhida.upper()}] {nome_livre}"
+                    vinculo_final = "-"
+                
+                # Preserva a extensão do arquivo (.jpg, .pdf)
+                extensao = arquivo_subido.name.split('.')[-1]
+                nome_com_extensao = f"{nome_gerado}.{extensao}"
+
+                with st.spinner(f"Subindo para a pasta '{cat_escolhida}'..."):
+                    target_id = PASTAS_DRIVE[cat_escolhida]
+                    f_id, f_link = upload_para_drive(arquivo_subido.getvalue(), nome_com_extensao, arquivo_subido.type, target_id)
+                    
+                    if f_id:
+                        try:
+                            aba_doc = planilha_mestre.worksheet("DOCUMENTOS")
+                            if len(aba_doc.get_all_values()) == 0:
+                                aba_doc.append_row(["DATA", "TIPO", "NOME", "ID_ARQUIVO", "LINK_DRIVE", "VINCULO", "STATUS_ODOO"])
+                            
+                            status_odoo = "Pronto para Site" if cat_escolhida == "Foto de Produto" else "-"
+                            
+                            aba_doc.append_row([
+                                datetime.now().strftime("%d/%m/%Y %H:%M"),
+                                cat_escolhida, nome_com_extensao, f_id, f_link, vinculo_final, status_odoo
+                            ], value_input_option='USER_ENTERED')
+                            st.success(f"✅ Salvo como: {nome_com_extensao}"); st.cache_resource.clear(); st.rerun()
+                        except Exception as e: st.error(f"Erro na planilha: {e}")
 
     st.divider()
     st.write("### 🗂️ Histórico Geral de Documentos")
@@ -874,7 +899,7 @@ elif menu_selecionado == "📂 Documentos":
             with st.container():
                 col_a, col_b, col_c = st.columns([1, 3, 1])
                 col_a.write(f"📅 {r['DATA'].split(' ')[0]}")
-                col_b.write(f"**{r['TIPO']}**: {r['NOME']}")
+                col_b.write(f"**{r['TIPO']}**\n\n<small>{r['NOME']}</small>", unsafe_allow_html=True)
                 col_c.link_button("👁️ Abrir", r['LINK_DRIVE'], use_container_width=True)
                 st.divider()
     else:
