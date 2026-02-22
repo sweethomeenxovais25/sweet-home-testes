@@ -40,6 +40,55 @@ def limpar_texto(texto):
     return texto_sem_acento.lower().strip()
 
 # ==========================================
+# 🎨 1.5. IDENTIDADE VISUAL (SWEET CLEAN)
+# ==========================================
+estilo_sweet_clean = """
+<style>
+    /* 1. Tela Principal Branca com a Listra Café na Extrema Direita */
+    [data-testid="stAppViewContainer"] {
+        background-color: #ffffff !important;
+        border-right: 12px solid #31241b !important; /* Listra de Destaque */
+    }
+    
+    /* 2. Barra Lateral (Tom Areia Muito Claro) - Não esconde a seta! */
+    [data-testid="stSidebar"] {
+        background-color: #FCF8F2 !important;
+        border-right: 1px solid #f6debc !important; /* Linha sutil separando o menu */
+    }
+
+    /* 3. Títulos na cor Café Intenso para dar contraste chique */
+    h1, h2, h3, h4 {
+        color: #31241b !important;
+    }
+
+    /* 4. Botões no tom Doce de Leite/Caramelo (Elegante e super legível) */
+    .stButton>button {
+        background-color: #A67B5B !important; 
+        color: #ffffff !important;
+        font-weight: bold !important;
+        border-radius: 6px !important;
+        border: none !important;
+        box-shadow: 2px 2px 8px rgba(0,0,0,0.1) !important;
+        transition: all 0.2s ease-in-out !important;
+    }
+    
+    /* Botões: Efeito ao passar o mouse (Escurece levemente o caramelo) */
+    .stButton>button:hover {
+        background-color: #8B5A2B !important;
+        color: #ffffff !important;
+        border: none !important;
+        transform: scale(1.02); /* Dá uma leve "crescida" no botão */
+    }
+
+    /* Ocultar marca d'água do Streamlit para manter o visual de sistema próprio */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+</style>
+"""
+st.markdown(estilo_sweet_clean, unsafe_allow_html=True)
+
+# ==========================================
 # 🔒 2. FASE DE LOGIN & SEGURANÇA
 # ==========================================
 if not st.session_state['autenticado']:
