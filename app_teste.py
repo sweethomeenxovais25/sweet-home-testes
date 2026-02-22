@@ -21,6 +21,8 @@ if 'autenticado' not in st.session_state:
     st.session_state['autenticado'] = False
 if 'historico_sessao' not in st.session_state:
     st.session_state['historico_sessao'] = []
+if 'historico_estoque' not in st.session_state:
+    st.session_state['historico_estoque'] = []    
 
 # --- AUXILIARES TÉCNICOS ---
 def limpar_v(v):
