@@ -10,8 +10,8 @@ import urllib.parse
 # 1. CONFIGURAÇÃO ÚNICA DA PÁGINA
 # ==========================================
 st.set_page_config(
-    page_title="Gestão Sweet", 
-    page_icon="logo_sweet.png", 
+    page_title="🧪 TESTE - Sweet Home", 
+    page_icon="logo_sweet_teste.png", 
     layout="wide"
 )
 
@@ -28,7 +28,7 @@ if not st.session_state['autenticado']:
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
         try:
-            st.image("logo_sweet.png", use_container_width=True)
+            st.image("logo_sweet_teste.png", use_container_width=True)
         except:
             st.warning("🌸 Sweet Home Enxovais")
         
