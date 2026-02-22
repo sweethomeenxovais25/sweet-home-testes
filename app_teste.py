@@ -310,25 +310,28 @@ if menu_selecionado == "🛒 Vendas":
             zap_limpo = c_zap.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
             st.link_button("📲 Enviar Recibo para o WhatsApp", f"https://wa.me/55{zap_limpo}?text={urllib.parse.quote(recibo_texto)}", use_container_width=True, type="primary")
 
-    # 📝 HISTÓRICO REAL (Lê as últimas 10 vendas da planilha)
+    # 📝 HISTÓRICO REAL EM BLOCO EXPANSIVO (DIRETO DA PLANILHA)
     st.divider()
-    st.subheader("📝 Histórico de Registros (Banco de Dados)")
-    try:
-        dados_v = planilha_mestre.worksheet("VENDAS").get_all_values()
-        if len(dados_v) > 1:
-            df_v_real = pd.DataFrame(dados_v[1:], columns=dados_v[0])
-            # Remove linhas de Totais ou Vazias
-            df_v_real = df_v_real[~df_v_real['CLIENTE'].str.contains("TOTAIS", case=False, na=False)]
-            df_v_real = df_v_real[df_v_real['CLIENTE'] != ""]
-            
-            # Pega as últimas 10 e inverte para a mais nova ficar no topo
-            historico_display = df_v_real[['DATA DA VENDA', 'CLIENTE', 'PRODUTO', 'TOTAL R$', 'STATUS']].tail(10).iloc[::-1]
-            st.dataframe(historico_display, use_container_width=True, hide_index=True)
-            st.info("💡 Este histórico é permanente e reflete a planilha em tempo real.")
-        else:
-            st.info("Nenhuma venda registrada ainda.")
-    except:
-        st.warning("Aguardando carregamento da aba VENDAS...")
+    with st.expander("📝 Ver Histórico de Vendas Recentes (Últimas 10)", expanded=False):
+        try:
+            # Puxa os dados da aba VENDAS para conferência permanente
+            dados_v = planilha_mestre.worksheet("VENDAS").get_all_values()
+            if len(dados_v) > 1:
+                df_v_real = pd.DataFrame(dados_v[1:], columns=dados_v[0])
+                
+                # Limpeza rápida: remove linhas de totais e espaços vazios
+                df_v_real = df_v_real[~df_v_real['CLIENTE'].str.contains("TOTAIS", case=False, na=False)]
+                df_v_real = df_v_real[df_v_real['CLIENTE'] != ""]
+                
+                # Seleciona colunas essenciais e inverte para o topo ser a mais nova
+                historico_display = df_v_real[['DATA DA VENDA', 'CLIENTE', 'PRODUTO', 'TOTAL R$', 'STATUS']].tail(10).iloc[::-1]
+                
+                st.dataframe(historico_display, use_container_width=True, hide_index=True)
+                st.info("💡 Este histórico é permanente e reflete o que já está salvo no banco de dados.")
+            else:
+                st.info("Nenhuma venda registrada ainda.")
+        except Exception as e:
+            st.warning(f"Aguardando conexão com a planilha... ({e})")
 
 # ==========================================
 # --- SEÇÃO 2: FINANCEIRO ---
