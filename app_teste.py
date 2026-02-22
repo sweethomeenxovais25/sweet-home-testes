@@ -668,7 +668,7 @@ elif menu_selecionado == "👥 Clientes":
         
         sumidas = ultima_compra[ultima_compra['DIAS_AUSENTE'] >= 60].copy()
         
-        with st.expander(f"🎯 CRM: Radar de Retenção ({len(sumidas)} clientes ausentes há +60 dias)", expanded=True):
+        with st.expander(f"🎯 CRM: Radar de Retenção ({len(sumidas)} clientes ausentes há +60 dias)", expanded=False):
             if not sumidas.empty:
                 st.write("Estas clientes não compram há mais de 2 meses. Que tal enviar uma promoção?")
                 df_c_crm = df_clientes_full.rename(columns={df_clientes_full.columns[0]: 'CÓD. CLIENTE', df_clientes_full.columns[1]: 'NOME', df_clientes_full.columns[2]: 'ZAP'})
