@@ -86,10 +86,17 @@ ESPECIFICACOES = [
     "https://www.googleapis.com/auth/drive"
 ]
 
-# 📂 ID DA PASTA QUE VOCÊ CRIOU (O código que fica no link após /folders/)
-ID_PASTA_MESTRE = "1p88VJcNVv4PuYnZgsbSiFF6Z2pY-cZjs"
+# 📂 ROTEADOR DE PASTAS (GPS DO DRIVE)
+PASTAS_DRIVE = {
+    "Comprovante": "1D2zB-QTNhCXAEQpTTvX40YsBQGZAhg8C",
+    "Contrato": "13cd_xrNkZvbxVaVok0g7xBn898GEwbRi",
+    "Foto de Produto": "1KqNCo4i2OuSbXVN1lgIZ-TtW-H-_CFsg",
+    "Nota Fiscal": "1YPC1ZUsF3o0yZEOLGabF0ArMr4qd4x_L",
+    "Recibo / Pgto": "1rP2FhBnRC230oc0B8TgGm6QldGQm1xU4",
+    "Outros": "1gQiJAHzga7r-P7UJXRruJqx3NzCXImA1"
+}
 
-def upload_para_drive(file_bytes, file_name, file_type):
+def upload_para_drive(file_bytes, file_name, file_type, target_folder_id):
     try:
         # Usa as mesmas credenciais e especificações que você já tem
         creds_info = st.secrets["gcp_service_account"]
@@ -98,7 +105,7 @@ def upload_para_drive(file_bytes, file_name, file_type):
 
         file_metadata = {
             'name': file_name,
-            'parents': [ID_PASTA_MESTRE]
+            'parents': [target_folder_id]
         }
         
         media = MediaIoBaseUpload(io.BytesIO(file_bytes), mimetype=file_type, resumable=True)
@@ -650,7 +657,7 @@ elif menu_selecionado == "📦 Estoque":
 elif menu_selecionado == "👥 Clientes":
     st.subheader("👥 Gestão de Clientes e CRM")
 
-    # 🌟 NOVO: RADAR DE CLIENTES AUSENTES (CRM)
+    # 🌟 RADAR DE CLIENTES AUSENTES (CRM)
     if not df_vendas_hist.empty and not df_clientes_full.empty:
         df_v_crm = df_vendas_hist.copy()
         df_v_crm['DATA_DATETIME'] = pd.to_datetime(df_v_crm['DATA DA VENDA'], format='%d/%m/%Y', errors='coerce')
@@ -762,59 +769,113 @@ elif menu_selecionado == "👥 Clientes":
                         st.error(f"Erro ao salvar na planilha: {e}")
 
 # ==========================================
-# --- SEÇÃO 5: DOCUMENTOS (COFRE DIGITAL) ---
+# 🌟 SEÇÃO 5: DOCUMENTOS & FILA ODOO 🌟
 # ==========================================
 elif menu_selecionado == "📂 Documentos":
-    st.subheader("📂 Cofre Digital Sweet Home")
+    st.subheader("📂 Cofre Digital & Fila Odoo")
+
+    # Tenta ler a aba de documentos
+    try:
+        dados_doc = planilha_mestre.worksheet("DOCUMENTOS").get_all_values()
+        df_docs = pd.DataFrame(dados_doc[1:], columns=dados_doc[0]) if len(dados_doc) > 1 else pd.DataFrame()
+    except: df_docs = pd.DataFrame()
+
+    # 🚀 O MOTOR ODOO (Linha de Montagem)
+    with st.expander("🚀 Linha de Montagem Odoo (Site)", expanded=True):
+        t_falta, t_pronto = st.tabs(["🔴 1. Falta Foto (Bia)", "🟢 2. Pronto p/ Site (Você)"])
+        
+        with t_falta:
+            st.write("**Produtos no estoque aguardando foto para o site:**")
+            if not df_full_inv.empty:
+                prods_com_foto = []
+                if not df_docs.empty and 'VINCULO' in df_docs.columns:
+                    fotos = df_docs[df_docs['TIPO'] == "Foto de Produto"]
+                    prods_com_foto = [p.split(" - ")[0] for p in fotos['VINCULO'].dropna() if " - " in p]
+                
+                df_falta = df_full_inv[~df_full_inv['CÓD. PRÓDUTO'].astype(str).isin(prods_com_foto)]
+                if not df_falta.empty:
+                    st.dataframe(df_falta[['CÓD. PRÓDUTO', 'NOME DO PRODUTO', 'ESTOQUE ATUAL']], hide_index=True)
+                else: st.success("🎉 Nenhuma pendência!")
+
+        with t_pronto:
+            st.write("**Fotos tiradas! Coloque no site e marque como publicado:**")
+            if not df_docs.empty and 'STATUS_ODOO' in df_docs.columns:
+                prontos = df_docs[(df_docs['TIPO'] == "Foto de Produto") & (df_docs['STATUS_ODOO'] == "Pronto para Site")]
+                if not prontos.empty:
+                    for idx, r in prontos.iterrows():
+                        c1, c2, c3 = st.columns([3, 1, 1])
+                        c1.write(f"📦 **{r['VINCULO']}**")
+                        c2.link_button("🖼️ Ver Foto", r['LINK_DRIVE'], use_container_width=True)
+                        if c3.button("✅ Publicado", key=f"btn_odoo_{idx}"):
+                            aba_doc = planilha_mestre.worksheet("DOCUMENTOS")
+                            cell = aba_doc.find(r['ID_ARQUIVO'])
+                            aba_doc.update_cell(cell.row, 7, "Publicado no Odoo")
+                            st.success("Atualizado!"); st.cache_resource.clear(); st.rerun()
+                        st.divider()
+                else: st.info("Sua fila de trabalho está limpa.")
+
+    st.divider()
+
+    # 📤 ÁREA DE UPLOAD (Roteamento Dinâmico)
+    st.write("### 📤 Enviar Arquivo")
+    # A categoria fica fora do formulário para o sistema reagir a ela
+    cat_escolhida = st.selectbox("Categoria do Documento", list(PASTAS_DRIVE.keys()))
     
-    with st.expander("📤 Arquivar Novo Documento", expanded=True):
-        with st.form("form_upload_drive", clear_on_submit=True):
-            c1, c2 = st.columns([2, 1])
-            nome_doc = c1.text_input("Nome do Documento (Ex: NF Lote 800)")
-            tipo_doc = c2.selectbox("Categoria", ["Nota Fiscal", "Recibo", "Foto de Produto", "Contrato", "Outros"])
-            
-            arquivo_subido = st.file_uploader("Escolha o arquivo (Imagem ou PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
+    with st.form("form_upload_drive", clear_on_submit=True):
+        nome_doc = st.text_input("Nome/Descrição Breve")
+        arquivo_subido = st.file_uploader("Arquivo (Imagem/PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
+        
+        vinc_cli = "Nenhum"
+        vinc_prod = "Nenhum"
+        
+        # O formulário pergunta coisas diferentes dependendo da categoria escolhida
+        if cat_escolhida == "Foto de Produto":
+            st.info("💡 Como é uma foto, vincule ao produto para tirá-lo da lista 'Falta Foto':")
+            vinc_prod = st.selectbox("Vincular a qual Produto?", ["Nenhum"] + [f"{k} - {v['nome']}" for k, v in banco_de_produtos.items()])
+        else:
             vinc_cli = st.selectbox("Vincular a uma Cliente? (Opcional)", ["Nenhum"] + [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
-            
-            if st.form_submit_button("Salvar no Cofre 🔒"):
-                if arquivo_subido and nome_doc:
-                    with st.spinner("Subindo para o Drive..."):
-                        f_id, f_link = upload_para_drive(arquivo_subido.getvalue(), f"{tipo_doc}_{nome_doc}", arquivo_subido.type)
+        
+        if st.form_submit_button("Salvar no Cofre 🔒"):
+            if arquivo_subido and nome_doc:
+                if cat_escolhida == "Foto de Produto" and vinc_prod == "Nenhum":
+                    st.error("⚠️ Você precisa vincular a foto a um produto do estoque.")
+                else:
+                    with st.spinner(f"Subindo para a pasta '{cat_escolhida}'..."):
+                        target_id = PASTAS_DRIVE[cat_escolhida]
+                        f_id, f_link = upload_para_drive(arquivo_subido.getvalue(), nome_doc, arquivo_subido.type, target_id)
                         
                         if f_id:
                             try:
                                 aba_doc = planilha_mestre.worksheet("DOCUMENTOS")
+                                # Se a aba for nova, cria o cabeçalho
+                                if len(aba_doc.get_all_values()) == 0:
+                                    aba_doc.append_row(["DATA", "TIPO", "NOME", "ID_ARQUIVO", "LINK_DRIVE", "VINCULO", "STATUS_ODOO"])
+                                
+                                vinculo_final = vinc_prod if cat_escolhida == "Foto de Produto" else vinc_cli
+                                status_odoo = "Pronto para Site" if cat_escolhida == "Foto de Produto" else "-"
+                                
                                 aba_doc.append_row([
                                     datetime.now().strftime("%d/%m/%Y %H:%M"),
-                                    tipo_doc, nome_doc, f_id, f_link, vinc_cli
+                                    cat_escolhida, nome_doc, f_id, f_link, vinculo_final, status_odoo
                                 ], value_input_option='USER_ENTERED')
-                                st.success("✅ Documento arquivado!"); st.cache_resource.clear(); st.rerun()
-                            except:
-                                st.error("Erro ao registrar na planilha. Verifique se a aba 'DOCUMENTOS' existe.")
-                else:
-                    st.warning("⚠️ Nome e arquivo são obrigatórios.")
+                                st.success("✅ Arquivado na pasta certa!"); st.cache_resource.clear(); st.rerun()
+                            except Exception as e: st.error(f"Erro na planilha: {e}")
+            else: st.warning("⚠️ O nome e o arquivo são obrigatórios.")
 
     st.divider()
-    st.write("### 🗂️ Histórico de Documentos")
+    st.write("### 🗂️ Histórico Geral de Documentos")
     
-    try:
-        aba_doc_leitura = planilha_mestre.worksheet("DOCUMENTOS")
-        dados_doc = aba_doc_leitura.get_all_values()
-        
-        if len(dados_doc) > 1:
-            df_docs = pd.DataFrame(dados_doc[1:], columns=dados_doc[0])
-            busca_doc = st.text_input("🔍 Pesquisar documento...")
-            if busca_doc:
-                df_docs = df_docs[df_docs.apply(lambda r: busca_doc.lower() in str(r).lower(), axis=1)]
+    if not df_docs.empty:
+        busca_doc = st.text_input("🔍 Pesquisar documento...")
+        if busca_doc:
+            df_docs = df_docs[df_docs.apply(lambda r: busca_doc.lower() in str(r).lower(), axis=1)]
 
-            for _, r in df_docs.sort_index(ascending=False).iterrows():
-                with st.container():
-                    col_a, col_b, col_c = st.columns([1, 3, 1])
-                    col_a.write(f"📅 {r['DATA'].split(' ')[0]}")
-                    col_b.write(f"**{r['TIPO']}**: {r['NOME']}")
-                    col_c.link_button("👁️ Abrir", r['LINK_DRIVE'], use_container_width=True)
-                    st.divider()
-        else:
-            st.info("Cofre vazio.")
-    except:
-        st.error("Aba 'DOCUMENTOS' não encontrada na planilha.")
+        for _, r in df_docs.sort_index(ascending=False).iterrows():
+            with st.container():
+                col_a, col_b, col_c = st.columns([1, 3, 1])
+                col_a.write(f"📅 {r['DATA'].split(' ')[0]}")
+                col_b.write(f"**{r['TIPO']}**: {r['NOME']}")
+                col_c.link_button("👁️ Abrir", r['LINK_DRIVE'], use_container_width=True)
+                st.divider()
+    else:
+        st.info("O cofre geral está vazio.")
