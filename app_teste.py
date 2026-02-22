@@ -56,14 +56,23 @@ estilo_sweet_clean = """
         border-right: 1px solid #f6debc !important;
     }
 
-    /* ✨ CORREÇÃO DA SETA FANTASMA ✨ */
-    /* Força a seta do menu e outros controles a ficarem na cor Café */
-    button svg {
+    /* ✨ O EXORCISMO DA SETA FANTASMA ✨ */
+    /* Pega a seta de abrir e a de fechar diretamente pelo código do Streamlit */
+    [data-testid="collapsedControl"] svg, 
+    [data-testid="collapsedControl"] path,
+    [data-testid="stSidebar"] button svg,
+    [data-testid="stSidebar"] button path {
         color: #31241b !important;
         fill: #31241b !important;
+        stroke: #31241b !important;
     }
 
-    /* 3. Títulos na cor Café Intenso para dar contraste chique */
+    /* Força os textos comuns a ficarem escuros (caso o navegador esteja no modo escuro) */
+    .stMarkdown, p, span, label, div[data-testid="stMetricValue"] {
+        color: #31241b !important;
+    }
+
+    /* 3. Títulos na cor Café Intenso */
     h1, h2, h3, h4 {
         color: #31241b !important;
     }
@@ -85,16 +94,15 @@ estilo_sweet_clean = """
         transform: scale(1.02);
     }
     
-    /* Mantém os ícones dentro dos botões Caramelo na cor branca */
-    .stButton>button svg {
+    /* Protege a letra do botão para continuar branca */
+    .stButton>button p, .stButton>button span {
         color: #ffffff !important;
-        fill: #ffffff !important;
     }
 
-    /* Ocultar marca d'água do Streamlit para manter o visual de sistema próprio */
+    /* Limpeza do cabeçalho e rodapé */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    header {visibility: hidden;}
+    header {background-color: transparent !important;}
 </style>
 """
 st.markdown(estilo_sweet_clean, unsafe_allow_html=True)
