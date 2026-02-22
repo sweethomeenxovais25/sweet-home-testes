@@ -402,13 +402,23 @@ elif menu_selecionado == "📦 Estoque":
     st.divider()
 
     # --- 2. RADAR DE ENTRADA ---
+    # --- 2. RADAR DE ENTRADA ---
     st.write("### 🔍 Radar de Entrada")
-    busca_radar = st.text_input("Pesquisar produto para atualizar", placeholder="Ex: lencol casal")
+    # Atualizei o placeholder para dar a dica visual de que aceita código também!
+    busca_radar = st.text_input("Pesquisar produto para atualizar", placeholder="Ex: lencol casal ou 800")
     
     if busca_radar and not df_estoque.empty:
         t_limpo = limpar_texto(busca_radar)
+        
+        # Prepara as duas colunas para a busca (Nome e Código)
         df_estoque['Nome_L'] = df_estoque['NOME DO PRODUTO'].apply(limpar_texto)
-        res = df_estoque[df_estoque['Nome_L'].str.contains(t_limpo, na=False)]
+        df_estoque['Cod_L'] = df_estoque['CÓD. PRÓDUTO'].astype(str).str.lower().str.strip()
+        
+        # 🎯 O NOVO FILTRO: Procura no Nome OU (|) no Código
+        res = df_estoque[
+            df_estoque['Nome_L'].str.contains(t_limpo, na=False) | 
+            df_estoque['Cod_L'].str.contains(t_limpo, na=False)
+        ]
         
         if not res.empty:
             opcs = ["Nenhum. É um produto 100% NOVO."]
