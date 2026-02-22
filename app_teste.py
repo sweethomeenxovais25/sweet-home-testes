@@ -1,10 +1,22 @@
 import streamlit as st
 import pandas as pd
+import unicodedata #
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import os
 from datetime import datetime
 import urllib.parse
+
+# --- AUXILIARES TÉCNICOS ---
+def limpar_texto(texto):
+    if not isinstance(texto, str):
+        return ""
+    # Remove acentos, cedilhas e deixa tudo minúsculo para a busca não falhar
+    texto_sem_acento = unicodedata.normalize('NFD', texto).encode('ascii', 'ignore').decode("utf-8")
+    return texto_sem_acento.lower().strip()
+
+def limpar_v(v):
+    # ... (sua função de arredondar centavos continua aqui normal) ...
 
 # ==========================================
 # 1. CONFIGURAÇÃO ÚNICA DA PÁGINA
@@ -465,36 +477,71 @@ elif menu_selecionado == "💰 Financeiro":
             st.info("Nenhuma compra registrada para esta cliente ainda.")
 
 # ==========================================
-# --- SEÇÃO 3: ESTOQUE ---
+# --- SEÇÃO 3: ESTOQUE (O GUARDIÃO) ---
 # ==========================================
 elif menu_selecionado == "📦 Estoque":
-    st.subheader("📦 Gestão de Itens")
-    with st.expander("➕ Cadastrar Novo Produto"):
-        with st.form("f_est", clear_on_submit=True):
-            c1, c2 = st.columns([1, 2])
-            n_c = c1.text_input("Cód.")
-            n_n = c2.text_input("Nome")
-            
-            c3, c4, c5 = st.columns(3)
-            n_q = c3.number_input("Qtd", 0)
-            n_custo = c4.number_input("Custo (R$)", 0.0) # <-- CAMPO NOVO AQUI
-            n_v = c5.number_input("Venda (R$)", 0.0)
-            
-            if st.form_submit_button("Salvar"):
-                aba_inv = planilha_mestre.worksheet("INVENTÁRIO")
-                # Agora o 'n_custo' vai para a Coluna D (4ª posição do array)
-                aba_inv.append_row([n_c, n_n, n_q, n_custo, "", 3, 0, "", n_v, datetime.now().strftime("%d/%m/%Y"), ""], value_input_option='USER_ENTERED')
-                st.success("✅ Cadastrado!"); st.cache_resource.clear()
+    st.subheader("📦 Gestão Inteligente de Estoque")
+    
+    # Puxa os dados da aba INVENTÁRIO (ajuste df_estoque conforme o seu código)
+    aba_i = planilha_mestre.worksheet("INVENTÁRIO")
+    df_estoque = pd.DataFrame(aba_i.get_all_records())
+    
+    # --- 1. MALHA FINA (ALERTAS DE ESTOQUE NEGATIVO/BAIXO) ---
+    # Filtra produtos com estoque <= 0
+    produtos_criticos = df_estoque[df_estoque['Estoque'] <= 0]
+    
+    if not produtos_criticos.empty:
+        st.warning("⚠️ **ATENÇÃO: Existem produtos com estoque zerado ou negativo.**\nIsso ocorre se vendas foram feitas antes do registro da Nota Fiscal. Por favor, regularize as entradas.")
+        with st.expander("Ver itens precisando de reposição urgente"):
+            for index, row in produtos_criticos.iterrows():
+                st.write(f"🔹 {row['Produto']} (Estoque atual: **{row['Estoque']}**)")
     
     st.divider()
-    busca = st.text_input("🔍 Buscar (Nome, Código ou Data)", key="busca_estoque_input")
-    df_e = df_full_inv.copy()
-    if not df_e.empty:
-        df_e['QUANTIDADE'] = pd.to_numeric(df_e['QUANTIDADE'], errors='coerce')
-        baixos = df_e[df_e['QUANTIDADE'] <= 3]
-        if not baixos.empty: st.warning(f"🚨 {len(baixos)} itens com estoque baixo!")
-    if busca: df_e = df_e[df_e.apply(lambda r: busca.lower() in str(r).lower(), axis=1)]
-    st.dataframe(df_e, use_container_width=True, hide_index=True)
+
+    # --- 2. O RADAR DE SEMELHANÇA ---
+    st.write("### 🔍 Radar de Entrada")
+    termo_busca = st.text_input("O que chegou da fábrica? (Digite parte do nome para buscar)", placeholder="Ex: lencol casal")
+    
+    if termo_busca:
+        termo_limpo = limpar_texto(termo_busca)
+        
+        # O robô procura em todo o banco de dados ignorando acentos
+        df_estoque['Produto_Limpo'] = df_estoque['Produto'].apply(limpar_texto)
+        resultados = df_estoque[df_estoque['Produto_Limpo'].str.contains(termo_limpo, na=False)]
+        
+        if not resultados.empty:
+            st.success(f"Encontrei {len(resultados)} produto(s) parecido(s) no sistema!")
+            
+            # Monta a lista de opções para a Bia
+            opcoes = ["Nenhum. É um produto 100% NOVO."]
+            for _, row in resultados.iterrows():
+                opcoes.append(f"{row['Código']} - {row['Produto']} (Estoque: {row['Estoque']} | Custo: R$ {row.get('Custo', 0):.2f})")
+            
+            produto_selecionado = st.radio("É algum destes produtos?", opcoes)
+            
+            if produto_selecionado == "Nenhum. É um produto 100% NOVO.":
+                st.info("Ok! Vamos cadastrar um item totalmente novo no catálogo.")
+                # TODO: Aqui entrará o formulário antigo de NOVO PRODUTO
+                
+            else:
+                cod_escolhido = produto_selecionado.split(" - ")[0]
+                st.info(f"Você selecionou o código **{cod_escolhido}**. O que aconteceu?")
+                
+                # A Árvore de Decisão
+                acao = st.selectbox("Selecione a operação:", [
+                    "Selecione...",
+                    "1. Reposição Simples (Chegou mais, mesmo custo e mesmo preço)",
+                    "2. Mudança de Custo/Preço (Reavaliar e unificar lotes)",
+                    "3. Correção de Inventário (Ajustar saldo errado)"
+                ])
+                
+                if acao != "Selecione...":
+                    st.warning("🚧 Área em construção! Em breve o robô fará essa conta matemática.")
+                
+        else:
+            st.warning("Não encontrei nada parecido. Parece ser um produto novo!")
+            st.info("Vamos cadastrar este item no catálogo.")
+            # TODO: Aqui entrará o formulário antigo de NOVO PRODUTO
 
 # ==========================================
 # --- SEÇÃO 4: CLIENTES ---
