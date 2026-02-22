@@ -581,101 +581,122 @@ elif menu_selecionado == "📦 Estoque":
                     # -----------------------------------------
                     # OPÇÃO 2: REAVALIAÇÃO DE LOTE (A sua sacada de mestre)
                     # -----------------------------------------
-                    elif acao == "2. Mudança de Custo/Preço (Reavaliar e unificar lotes)":
-                        with st.form("form_mudanca_preco"):
-                            st.warning("🆕 Esta ação criará um NOVO LOTE para não afetar o histórico.")
-                            col1, col2, col3 = st.columns(3)
-                            
-                            qtd_nova = col1.number_input("Quantas unidades chegaram?", min_value=0, step=1)
-                            novo_custo = col2.number_input("Novo Custo (R$)", value=float(custo_atual), min_value=0.0)
-                            novo_preco = col3.number_input("Novo Preço Venda (R$)", value=float(preco_atual), min_value=0.0)
-                            
-                            puxar_estoque = st.checkbox(f"Puxar as {estoque_atual_h} unidades antigas para este novo preço?", value=True)
-                            
-                            if st.form_submit_button("Gerar Novo Lote 🚀"):
-                                try:
-                                    # 1. Gerar o Novo Código (Ex: 800 -> 800.1)
-                                    if "." in str(cod_escolhido):
-                                        partes = str(cod_escolhido).split(".")
-                                        novo_cod = f"{partes[0]}.{int(partes[1]) + 1}"
-                                    else:
-                                        novo_cod = f"{cod_escolhido}.1"
-                                    
-                                    # 2. Calcular Quantidade Inicial do Lote Novo
-                                    qtd_inicial_novo_lote = qtd_nova + (estoque_atual_h if puxar_estoque else 0)
-                                    
-                                    # 3. Se puxou o estoque, precisamos ZERAR a linha antiga para não duplicar mercadoria
-                                    if puxar_estoque:
-                                        # Ajustamos a quantidade comprada (C) para que o estoque atual (H) vire 0
-                                        # Se H = C - G, então para H ser 0, C deve ser igual a G (Vendido)
-                                        aba_inv.update_acell(f"C{linha_planilha}", qtd_vendida_g)
-                                        st.toast("Estoque antigo zerado e transferido!")
+                    elif menu_selecionado == "📦 Estoque":
+    st.subheader("📦 Gestão Inteligente de Estoque")
+    
+    # Dados carregados
+    df_estoque = df_full_inv.copy()
+    
+    # --- 1. MALHA FINA (ALERTAS) ---
+    if not df_estoque.empty:
+        df_estoque['ESTOQUE_NUM'] = pd.to_numeric(df_estoque['ESTOQUE ATUAL'], errors='coerce').fillna(0)
+        produtos_criticos = df_estoque[df_estoque['ESTOQUE_NUM'] <= 0]
+        if not produtos_criticos.empty:
+            st.warning("⚠️ **Itens com estoque zerado ou negativo.**")
+            with st.expander("Ver itens críticos"):
+                for _, row in produtos_criticos.iterrows():
+                    st.write(f"🔹 {row['NOME DO PRODUTO']} (Estoque: {row['ESTOQUE ATUAL']})")
+    
+    st.divider()
 
-                                    # 4. Criar a nova linha na planilha (Injetando o novo lote)
-                                    # Ordem: Cód, Nome, Qtd, Custo, ..., Venda, Data...
-                                    nova_linha = [
-                                        novo_cod, 
-                                        f"{nome_escolhido} (Lote Novo)", 
-                                        qtd_inicial_novo_lote, 
-                                        novo_custo, 
-                                        "", 3, 0, "", # Colunas vazias/padrão
-                                        novo_preco, 
-                                        datetime.now().strftime("%d/%m/%Y")
-                                    ]
-                                    aba_inv.append_row(nova_linha, value_input_option='USER_ENTERED')
-                                    
-                                    st.success(f"✅ Lote {novo_cod} criado com sucesso!")
-                                    st.cache_resource.clear()
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Erro na criação do lote: {e}")
-
-                    # -----------------------------------------
-                    # OPÇÃO 3: CORREÇÃO DE FURO (Malha Fina)
-                    # -----------------------------------------
-                    elif acao == "3. Correção de Inventário (Ajustar saldo errado)":
-                        with st.form("form_correcao"):
-                            st.info(f"O sistema acha que tem **{estoque_atual_h}**. Quantas peças existem FISICAMENTE na loja hoje?")
-                            estoque_real = st.number_input("Estoque Real (Contagem Física)", min_value=0, step=1, value=estoque_atual_h)
-                            
-               if st.form_submit_button("Salvar"):
-                if not n_c or not n_n: # Esta é a linha 641
-                    # A linha abaixo (642) precisa de 4 espaços extras à frente do 'if'
-                    st.error("⚠️ Erro: Você precisa digitar o CÓDIGO e o NOME do produto.")
-                else:
-                    # O bloco abaixo também precisa estar alinhado dentro do 'else'
-                    aba_inv = planilha_mestre.worksheet("INVENTÁRIO")
-                    aba_inv.append_row([n_c, n_n, n_q, n_custo, "", 3, 0, "", n_v, datetime.now().strftime("%d/%m/%Y"), ""], value_input_option='USER_ENTERED')
-                    st.success("✅ Cadastrado!")
-                    st.cache_resource.clear()
-                    st.rerun()
+    # --- 2. RADAR E ATUALIZAÇÃO DE LOTES ---
+    st.write("### 🔍 Radar de Entrada")
+    termo_busca = st.text_input("Buscar produto existente para atualizar", placeholder="Ex: lencol casal")
+    
+    if termo_busca and not df_estoque.empty:
+        termo_limpo = limpar_texto(termo_busca)
+        df_estoque['Produto_Limpo'] = df_estoque['NOME DO PRODUTO'].apply(limpar_texto)
+        resultados = df_estoque[df_estoque['Produto_Limpo'].str.contains(termo_limpo, na=False)]
+        
+        if not resultados.empty:
+            opcoes_radar = ["Nenhum. É um produto 100% NOVO."]
+            for _, row in resultados.iterrows():
+                c_l = limpar_v(row.get('CUSTO UNITÁRIO R$', 0))
+                opcoes_radar.append(f"{row['CÓD. PRÓDUTO']} - {row['NOME DO PRODUTO']} (Estoque: {row['ESTOQUE ATUAL']} | R$ {c_l:.2f})")
+            
+            p_sel_radar = st.radio("Selecione o produto alvo:", opcoes_radar)
+            
+            if p_sel_radar != "Nenhum. É um produto 100% NOVO.":
+                cod_escolhido = p_sel_radar.split(" - ")[0]
+                linha_df = df_estoque[df_estoque['CÓD. PRÓDUTO'] == cod_escolhido].index[0]
+                linha_planilha = int(linha_df) + 2
                 
+                # Dados para as fórmulas
+                nome_escolhido = df_estoque.loc[linha_df, 'NOME DO PRODUTO']
+                estoque_atual_h = int(pd.to_numeric(df_estoque.loc[linha_df, 'ESTOQUE ATUAL'], errors='coerce') or 0)
+                qtd_vendida_g = int(pd.to_numeric(df_estoque.loc[linha_df, 'QTD VENDIDA'], errors='coerce') or 0)
+                comprado_c = int(pd.to_numeric(df_estoque.loc[linha_df, 'QUANTIDADE'], errors='coerce') or 0)
+                custo_atual = limpar_v(df_estoque.loc[linha_df, 'CUSTO UNITÁRIO R$'])
+                preco_atual = limpar_v(df_estoque.loc[linha_df, 'VALOR DE VENDA'])
+
+                acao = st.selectbox("O que deseja fazer?", ["Selecione...", "1. Reposição Simples", "2. Mudança de Custo/Preço (Novo Lote)", "3. Correção de Inventário"])
+
+                if acao == "1. Reposição Simples":
+                    with st.form("f_rep_simples"):
+                        qtd_mais = st.number_input("Qtd recebida", min_value=1, step=1)
+                        if st.form_submit_button("Confirmar Entrada"):
+                            aba_inv = planilha_mestre.worksheet("INVENTÁRIO")
+                            aba_inv.update_acell(f"C{linha_planilha}", comprado_c + qtd_mais)
+                            aba_inv.update_acell(f"J{linha_planilha}", datetime.now().strftime("%d/%m/%Y"))
+                            st.success("Estoque atualizado!"); st.cache_resource.clear(); st.rerun()
+
+                elif acao == "2. Mudança de Custo/Preço (Novo Lote)":
+                    with st.form("f_mudanca_preco"):
+                        st.warning("🆕 Esta ação criará um NOVO LOTE para não afetar o histórico.")
+                        c1, c2, c3 = st.columns(3)
+                        qtd_nova = c1.number_input("Qtd nova remessa", min_value=0)
+                        n_custo = c2.number_input("Novo Custo (R$)", value=float(custo_atual))
+                        n_preco = c3.number_input("Novo Preço Venda (R$)", value=float(preco_atual))
+                        puxar_estoque = st.checkbox(f"Puxar as {estoque_atual_h} unidades antigas para este preço?", value=True)
+                        
+                        if st.form_submit_button("Gerar Novo Lote 🚀"):
+                            aba_inv = planilha_mestre.worksheet("INVENTÁRIO")
+                            # Lógica do Código .1, .2
+                            base = str(cod_escolhido).split(".")[0]
+                            ext = str(cod_escolhido).split(".")[1] if "." in str(cod_escolhido) else "0"
+                            novo_cod = f"{base}.{int(ext)+1}"
+                            
+                            if puxar_estoque:
+                                aba_inv.update_acell(f"C{linha_planilha}", qtd_vendida_g) # Zera o estoque antigo (C=G)
+                            
+                            nova_linha = [novo_cod, f"{nome_escolhido} (Lote {int(ext)+1})", qtd_nova + (estoque_atual_h if puxar_estoque else 0), n_custo, "", 3, 0, "", n_preco, datetime.now().strftime("%d/%m/%Y")]
+                            aba_inv.append_row(nova_linha, value_input_option='USER_ENTERED')
+                            st.success(f"Lote {novo_cod} criado!"); st.cache_resource.clear(); st.rerun()
+
+                elif acao == "3. Correção de Inventário":
+                    with st.form("f_correcao"):
+                        real = st.number_input("Qtd física na loja hoje", value=estoque_atual_h)
+                        if st.form_submit_button("Salvar Correção"):
+                            aba_inv = planilha_mestre.worksheet("INVENTÁRIO")
+                            aba_inv.update_acell(f"C{linha_planilha}", real + qtd_vendida_g)
+                            st.success("Estoque corrigido!"); st.cache_resource.clear(); st.rerun()
         else:
-            st.warning("Não encontrei nada parecido. Parece ser um produto novo!")
-            st.info("Utilize o menu '➕ Cadastrar Novo Produto' logo abaixo para inserir no catálogo.")
+            st.info("Nenhum similar encontrado. Use o cadastro manual abaixo.")
 
     st.divider()
 
-    # --- 3. SEU FORMULÁRIO ORIGINAL INTACTO ---
+    # --- 3. SEU FORMULÁRIO ORIGINAL (AGORA COM TRAVA) ---
     with st.expander("➕ Cadastrar Novo Produto"):
         with st.form("f_est", clear_on_submit=True):
             c1, c2 = st.columns([1, 2])
             n_c = c1.text_input("Cód.")
             n_n = c2.text_input("Nome")
-            
             c3, c4, c5 = st.columns(3)
             n_q = c3.number_input("Qtd", 0)
-            n_custo = c4.number_input("Custo (R$)", 0.0) 
+            n_custo = c4.number_input("Custo (R$)", 0.0)
             n_v = c5.number_input("Venda (R$)", 0.0)
             
             if st.form_submit_button("Salvar"):
-                aba_inv = planilha_mestre.worksheet("INVENTÁRIO")
-                aba_inv.append_row([n_c, n_n, n_q, n_custo, "", 3, 0, "", n_v, datetime.now().strftime("%d/%m/%Y"), ""], value_input_option='USER_ENTERED')
-                st.success("✅ Cadastrado!"); st.cache_resource.clear()
+                if not n_c or not n_n:
+                    st.error("⚠️ Erro: Código e Nome são obrigatórios!")
+                else:
+                    aba_inv = planilha_mestre.worksheet("INVENTÁRIO")
+                    aba_inv.append_row([n_c, n_n, n_q, n_custo, "", 3, 0, "", n_v, datetime.now().strftime("%d/%m/%Y"), ""], value_input_option='USER_ENTERED')
+                    st.success("✅ Cadastrado!"); st.cache_resource.clear(); st.rerun()
     
-    # --- 4. SUA LISTA/BUSCA ORIGINAL INTACTA ---
+    # --- 4. SUA LISTA ORIGINAL ---
     st.divider()
-    busca = st.text_input("🔍 Buscar no Estoque (Nome, Código ou Data)", key="busca_estoque_input")
+    busca = st.text_input("🔍 Buscar na Lista (Filtro rápido)", key="busca_estoque_input")
     df_e = df_full_inv.copy()
     if not df_e.empty:
         df_e['QUANTIDADE'] = pd.to_numeric(df_e['QUANTIDADE'], errors='coerce')
@@ -683,7 +704,6 @@ elif menu_selecionado == "📦 Estoque":
         if not baixos.empty: st.warning(f"🚨 {len(baixos)} itens com estoque baixo!")
     if busca: df_e = df_e[df_e.apply(lambda r: busca.lower() in str(r).lower(), axis=1)]
     st.dataframe(df_e, use_container_width=True, hide_index=True)
-
 # ==========================================
 # --- SEÇÃO 4: CLIENTES ---
 # ==========================================
