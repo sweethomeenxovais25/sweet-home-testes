@@ -166,6 +166,9 @@ with st.sidebar:
                 st.download_button("📥 Baixar Estoque", df_full_inv.to_csv(index=False).encode('utf-8'), f"Estoque_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
             if not df_clientes_full.empty:
                 st.download_button("📥 Baixar Clientes", df_clientes_full.to_csv(index=False).encode('utf-8'), f"Clientes_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
+            # 👇 Adicionado o botão do Financeiro aqui:
+            if not df_financeiro.empty:
+                st.download_button("📥 Baixar Financeiro", df_financeiro.to_csv(index=False).encode('utf-8'), f"Financeiro_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
         except Exception as e:
             st.error("Sincronize a planilha para gerar o backup.")
 
