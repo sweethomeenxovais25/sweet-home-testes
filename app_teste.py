@@ -415,13 +415,12 @@ if menu_selecionado == "🛒 Vendas":
             
             if len(dados_v) > 1:
                 vendas_recentes = []
-                # Pega as últimas 20 vendas, de trás para frente
                 for i in range(len(dados_v)-1, max(0, len(dados_v)-21), -1):
                     linha = dados_v[i]
                     if "TOTAIS" not in str(linha[3]).upper() and linha[3] != "":
                         vendas_recentes.append(f"Linha {i+1} | Data: {linha[1]} | Cliente: {linha[3]} | Item: {linha[5]}")
                 
-                venda_selecionada = st.selectbox("Selecione a venda com erro:", ["---"] + vendas_recentes, help="Mostra apenas as últimas 20 vendas para facilitar a busca.")
+                venda_selecionada = st.selectbox("Selecione a venda com erro:", ["---"] + vendas_recentes, help="Mostra apenas as últimas 20 vendas.")
                 
                 if venda_selecionada != "---":
                     linha_real = int(venda_selecionada.split(" | ")[0].replace("Linha ", ""))
@@ -432,7 +431,6 @@ if menu_selecionado == "🛒 Vendas":
                     cod_prod_atual = linha_dados[4]
                     nome_prod_atual = linha_dados[5]
                     
-                    # Limpeza inteligente de números (Evita o bug do valor gigante)
                     def limpar_para_editar(val_str, is_perc=False):
                         try:
                             v = str(val_str).replace("R$", "").strip()
@@ -518,7 +516,6 @@ if menu_selecionado == "🛒 Vendas":
                                 ]
                                 aba_vendas.batch_update(atualizacoes, value_input_option='RAW')
                                 
-                                # Salva o recibo temporário na memória antes de recarregar a tela
                                 st.session_state['recibo_correcao'] = {
                                     "cliente": n_nome_cli,
                                     "produto": f"{nova_qtd}x {n_nome_prod}",
@@ -545,11 +542,6 @@ if menu_selecionado == "🛒 Vendas":
         if st.button("✖️ Fechar Aviso", key="fechar_aviso_correcao"):
             del st.session_state['recibo_correcao']
             st.rerun()
-                                
-                            except Exception as e:
-                                st.error(f"⚠️ Erro ao salvar: {e}")
-        except Exception as e:
-            st.info("Aguardando carregamento dos dados para edição.")
 
 # ==========================================
 # --- SEÇÃO 2: FINANCEIRO (COM RASTRO FIFO) ---
