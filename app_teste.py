@@ -88,11 +88,12 @@ ESPECIFICACOES = [
 # ☁️ Função de Upload Rápido para Cloudinary (Nova Engine de Arquivos)
 def upload_para_cloudinary(file_bytes, file_name, pasta_destino):
     try:
+        try:
         # Puxa as senhas dos secrets
         cloudinary.config(
-            cloud_name = st.secrets["cloudinary"]["Sweetdriver"],
-            api_key = st.secrets["cloudinary"]["715775131582898"],
-            api_secret = st.secrets["cloudinary"]["aHAhF_6BTj7xcooPOjxdWGX5iqU"],
+            cloud_name = st.secrets["cloudinary"]["cloud_name"],
+            api_key = st.secrets["cloudinary"]["api_key"],
+            api_secret = st.secrets["cloudinary"]["api_secret"],
             secure = True
         )
         
