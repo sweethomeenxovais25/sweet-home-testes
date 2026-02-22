@@ -88,7 +88,6 @@ ESPECIFICACOES = [
 # ☁️ Função de Upload Rápido para Cloudinary (Nova Engine de Arquivos)
 def upload_para_cloudinary(file_bytes, file_name, pasta_destino):
     try:
-        try:
         # Puxa as senhas dos secrets
         cloudinary.config(
             cloud_name = st.secrets["cloudinary"]["cloud_name"],
@@ -104,7 +103,7 @@ def upload_para_cloudinary(file_bytes, file_name, pasta_destino):
             file_bytes,
             folder=caminho_pasta,
             public_id=file_name,
-            resource_type="auto" # Mágica: Aceita PDF e Imagem automaticamente
+            resource_type="auto"
         )
         # Retorna o ID único e o link direto
         return resposta.get('public_id'), resposta.get('secure_url')
