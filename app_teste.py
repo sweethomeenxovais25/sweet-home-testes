@@ -541,7 +541,7 @@ elif menu_selecionado == "📦 Estoque":
     st.divider()
     
     # 📜 A GAVETA DO DIÁRIO DE BORDO
-    st.write("### 📜 Histórico de Movimentações (Sessão Atual)")
+    st.write("### 📜 Histórico de Movimentações")
     if st.session_state['historico_estoque']:
         st.dataframe(st.session_state['historico_estoque'], use_container_width=True, hide_index=True)
         if st.button("Limpar Histórico Local 🗑️", key="btn_limpar_hist_estoque"):
