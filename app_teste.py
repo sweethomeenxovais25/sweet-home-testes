@@ -99,7 +99,6 @@ with st.sidebar:
     modo_teste = st.toggle("🔬 Modo de Teste", value=False, key="toggle_teste")
     
     if st.button("🔄 Sincronizar Planilha", key="btn_sincronizar"):
-        if st.button("🔄 Sincronizar Planilha", key="btn_sincronizar"):
         st.cache_resource.clear()
         st.rerun()
 
