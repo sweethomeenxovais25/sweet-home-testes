@@ -169,7 +169,7 @@ with st.sidebar:
     
     menu_selecionado = st.radio(
         "Navegação",
-        ["🛒 Vendas", "💰 Financeiro", "📦 Estoque", "👥 Clientes", "📂 Documentos"], # Adicionado aqui
+        ["🛒 Vendas", "💰 Financeiro", "📦 Estoque", "👥 Clientes", "📂 Documentos"], 
         key="navegacao_principal_sweet"
     )
     
