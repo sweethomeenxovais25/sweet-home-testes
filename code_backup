@@ -560,58 +560,103 @@ if menu_selecionado == "🛒 Vendas":
             st.rerun()
 
 # ==========================================
-# --- SEÇÃO 2: FINANCEIRO (COM RASTRO FIFO) ---
+# --- SEÇÃO 2: FINANCEIRO (INTELIGÊNCIA 360) ---
 # ==========================================
 elif menu_selecionado == "💰 Financeiro":
     st.markdown("### 📈 Resumo Geral Sweet Home")
     if not df_vendas_hist.empty:
         try:
-            vendas_brutas = df_vendas_hist.iloc[:, 11].apply(limpar_v).sum()
-            lucro_bruto = df_vendas_hist.iloc[:, 12].apply(limpar_v).sum()
-            saldo_devedor = df_vendas_hist.iloc[:, 20].apply(limpar_v).sum()
-            total_recebido = vendas_brutas - saldo_devedor
-            percentual_pendente = (saldo_devedor / vendas_brutas) * 100 if vendas_brutas > 0 else 0
+            # 1. PROCESSAMENTO SEGURO POR POSIÇÃO (ILOC)
+            df_fin = df_vendas_hist.copy()
             
-            if percentual_pendente <= 20:
-                status_cor = "green"; status_texto = "✨ Saúde Financeira: EXCELENTE"
-            elif percentual_pendente <= 40:
-                status_cor = "orange"; status_texto = "⚠️ Saúde Financeira: ATENÇÃO (Cobrar mais)"
-            else:
-                status_cor = "red"; status_texto = "🚨 Saúde Financeira: CRÍTICA (Risco de Caixa)"
-
+            # Mapeamento: Coluna L (11)=Total | M (12)=Lucro | O (14)=Pagto | U (20)=Saldo
+            df_fin['VALOR_NUM'] = df_fin.iloc[:, 11].apply(limpar_v)
+            df_fin['LUCRO_NUM'] = df_fin.iloc[:, 12].apply(limpar_v)
+            df_fin['FORMA_PG'] = df_fin.iloc[:, 14]
+            df_fin['SALDO_NUM'] = df_fin.iloc[:, 20].apply(limpar_v)
+            
+            vendas_brutas = df_fin['VALOR_NUM'].sum()
+            lucro_bruto = df_fin['LUCRO_NUM'].sum()
+            saldo_devedor = df_fin['SALDO_NUM'].sum()
+            total_recebido = vendas_brutas - saldo_devedor
+            
+            # Cálculo de Liquidez (O que já é dinheiro vivo vs. o que é Flex)
+            receita_imediata = df_fin[df_fin['FORMA_PG'] != 'Sweet Flex']['VALOR_NUM'].sum()
+            indice_liquidez = (receita_imediata / vendas_brutas * 100) if vendas_brutas > 0 else 0
+            
+            # 2. MÉTRICAS PRINCIPAIS
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Vendas Totais", f"R$ {vendas_brutas:,.2f}")
-            c2.metric("Lucro Bruto", f"R$ {lucro_bruto:,.2f}", delta="Margem Real")
-            c3.metric("Total Recebido", f"R$ {total_recebido:,.2f}", delta="Dinheiro no Bolso")
-            c4.metric("Saldo Devedor", f"R$ {saldo_devedor:,.2f}", delta=f"{percentual_pendente:.1f}% do total", delta_color="inverse")
+            c2.metric("Lucro Bruto", f"R$ {lucro_bruto:,.2f}")
+            c3.metric("Total Recebido", f"R$ {total_recebido:,.2f}", delta="Dinheiro em Caixa")
+            c4.metric("Saldo Devedor", f"R$ {saldo_devedor:,.2f}", delta=f"{(saldo_devedor/vendas_brutas*100):.1f}% pendente", delta_color="inverse")
 
-            st.markdown(f"### <span style='color:{status_cor}'>{status_texto}</span>", unsafe_allow_html=True)
-            st.progress(min(percentual_pendente/100, 1.0)) 
+            # 3. TERMÔMETRO DE SAÚDE FINANCEIRA
+            st.markdown("---")
+            col_t1, col_t2 = st.columns([2, 1])
+            with col_t1:
+                if indice_liquidez >= 70:
+                    st.success(f"🟢 **Saúde de Caixa: EXCELENTE** ({indice_liquidez:.1f}% recebido à vista)")
+                elif indice_liquidez >= 40:
+                    st.warning(f"🟡 **Saúde de Caixa: ATENÇÃO** ({indice_liquidez:.1f}% à vista)")
+                else:
+                    st.error(f"🔴 **Saúde de Caixa: CRÍTICA** (Apenas {indice_liquidez:.1f}% à vista)")
+                st.progress(min(indice_liquidez/100, 1.0))
+            
+            with col_t2:
+                st.metric("Recebíveis (Futuro)", f"R$ {saldo_devedor:,.2f}", help="Dinheiro que entrará via Sweet Flex.")
 
+            # 4. DASHBOARD DE ANÁLISE
             with st.expander("📊 Análise de Desempenho e Tendências", expanded=False):
-                t_faturamento, t_pagamentos = st.tabs(["📈 Faturamento Diário", "💳 Meios de Pagamento"])
+                t_faturamento, t_pagamentos, t_ticket = st.tabs(["📈 Faturamento", "💳 Meios de Pagamento", "🎟️ Ticket Médio"])
+                
+                import plotly.express as px
+                paleta_sweet = ['#31241b', '#8d5524', '#d4a373', '#f6debc'] # Marrons e Beges da marca
+
                 with t_faturamento:
                     st.write("#### Evolução de Vendas no Tempo")
-                    df_grafico = df_vendas_hist.copy()
-                    df_grafico['DATA_DATETIME'] = pd.to_datetime(df_grafico['DATA DA VENDA'], format='%d/%m/%Y', errors='coerce')
-                    df_grafico['VALOR_NUM'] = df_grafico['TOTAL R$'].apply(limpar_v)
-                    vendas_por_dia = df_grafico.groupby('DATA_DATETIME')['VALOR_NUM'].sum().reset_index()
-                    if not vendas_por_dia.empty:
-                        vendas_por_dia.set_index('DATA_DATETIME', inplace=True)
-                        st.bar_chart(vendas_por_dia['VALOR_NUM'], color="#FF69B4")
-                    else: st.info("Aguardando mais dados.")
+                    df_fin['DATA_DT'] = pd.to_datetime(df_fin['DATA DA VENDA'], format='%d/%m/%Y', errors='coerce')
+                    vendas_dia = df_fin.groupby('DATA_DT')['VALOR_NUM'].sum().reset_index()
+                    
+                    # Gráfico de Área com Formatação de R$ no hover
+                    fig_fat = px.area(vendas_dia, x='DATA_DT', y='VALOR_NUM',
+                                     labels={'VALOR_NUM': 'Total Vendido', 'DATA_DT': 'Data'},
+                                     color_discrete_sequence=[paleta_sweet[0]])
+                    fig_fat.update_traces(hovertemplate='<b>Data:</b> %{x}<br><b>Vendido:</b> R$ %{y:,.2f}')
+                    fig_fat.update_layout(xaxis_title=None, yaxis_title="Total (R$)", margin=dict(t=10, b=10, l=0, r=0))
+                    st.plotly_chart(fig_fat, use_container_width=True)
+                
                 with t_pagamentos:
-                    st.write("#### Divisão por Meio de Recebimento")
-                    df_meio = df_vendas_hist.copy()
-                    df_meio['VALOR_NUM'] = df_meio['TOTAL R$'].apply(limpar_v)
-                    vendas_meio = df_meio.groupby('FORMA DE PAGTO')['VALOR_NUM'].sum().sort_values(ascending=False)
-                    if not vendas_meio.empty: st.bar_chart(vendas_meio, color="#C71585")
-                    else: st.info("Aguardando registros.")
+                    st.write("#### Composição dos Recebimentos")
+                    vendas_meio = df_fin.groupby('FORMA_PG')['VALOR_NUM'].sum().reset_index()
+                    fig_pie = px.pie(vendas_meio, values='VALOR_NUM', names='FORMA_PG', 
+                                    color_discrete_sequence=paleta_sweet,
+                                    hole=.4)
+                    fig_pie.update_traces(textposition='inside', textinfo='percent+label', 
+                                         hovertemplate='<b>%{label}</b><br>Total: R$ %{value:,.2f}')
+                    fig_pie.update_layout(showlegend=True, margin=dict(t=0, b=0, l=0, r=0))
+                    st.plotly_chart(fig_pie, use_container_width=True)
+
+                with t_ticket:
+                    st.write("#### Valor Médio por Venda (Ticket Médio)")
+                    # Arredondando para 2 casas decimais para evitar o erro visual
+                    ticket_meio = df_fin.groupby('FORMA_PG')['VALOR_NUM'].mean().round(2).reset_index()
+                    
+                    fig_ticket = px.bar(ticket_meio, x='FORMA_PG', y='VALOR_NUM',
+                                       text='VALOR_NUM',
+                                       labels={'VALOR_NUM': 'Ticket Médio (R$)', 'FORMA_PG': 'Meio de Pagto'},
+                                       color='FORMA_PG',
+                                       color_discrete_sequence=paleta_sweet)
+                    
+                    fig_ticket.update_traces(texttemplate='R$ %{text:.2f}', textposition='outside',
+                                            hovertemplate='<b>%{x}</b><br>Média: R$ %{y:,.2f}')
+                    fig_ticket.update_layout(showlegend=False, yaxis_title="Valor (R$)", xaxis_title=None)
+                    st.plotly_chart(fig_ticket, use_container_width=True)
+                    st.caption("💡 O Ticket Médio ajuda a entender qual cliente gasta mais em cada modalidade.")
+
         except Exception as e:
-            st.warning(f"Aguardando dados para processar o painel. (Erro: {e})")
-
-    st.divider()
-
+            st.error(f"⚠️ Erro ao processar o painel: {e}")
+    
     with st.expander("➕ Lançar Novo Abatimento (Sistema FIFO)", expanded=False):
         with st.form("f_fifo_novo", clear_on_submit=True):
             lista_todas_clientes = sorted([f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
