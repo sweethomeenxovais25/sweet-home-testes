@@ -40,6 +40,74 @@ def limpar_texto(texto):
     return texto_sem_acento.lower().strip()
 
 # ==========================================
+# 🎨 1.5. IDENTIDADE VISUAL (SWEET CLEAN)
+# ==========================================
+estilo_sweet_clean = """
+<style>
+    /* 1. Tela Principal Branca com a Listra Café na Extrema Direita */
+    [data-testid="stAppViewContainer"] {
+        background-color: #ffffff !important;
+        border-right: 12px solid #31241b !important;
+    }
+    
+    /* 2. Barra Lateral (Tom Areia Muito Claro) */
+    [data-testid="stSidebar"] {
+        background-color: #FCF8F2 !important;
+        border-right: 1px solid #f6debc !important;
+    }
+
+    /* ✨ O EXORCISMO DA SETA FANTASMA ✨ */
+    /* Pega a seta de abrir e a de fechar diretamente pelo código do Streamlit */
+    [data-testid="collapsedControl"] svg, 
+    [data-testid="collapsedControl"] path,
+    [data-testid="stSidebar"] button svg,
+    [data-testid="stSidebar"] button path {
+        color: #31241b !important;
+        fill: #31241b !important;
+        stroke: #31241b !important;
+    }
+
+    /* Força os textos comuns a ficarem escuros (caso o navegador esteja no modo escuro) */
+    .stMarkdown, p, span, label, div[data-testid="stMetricValue"] {
+        color: #31241b !important;
+    }
+
+    /* 3. Títulos na cor Café Intenso */
+    h1, h2, h3, h4 {
+        color: #31241b !important;
+    }
+
+    /* 4. Botões Principais no tom Caramelo */
+    .stButton>button {
+        background-color: #A67B5B !important; 
+        color: #ffffff !important;
+        font-weight: bold !important;
+        border-radius: 6px !important;
+        border: none !important;
+        box-shadow: 2px 2px 8px rgba(0,0,0,0.1) !important;
+        transition: all 0.2s ease-in-out !important;
+    }
+    
+    .stButton>button:hover {
+        background-color: #8B5A2B !important;
+        color: #ffffff !important;
+        transform: scale(1.02);
+    }
+    
+    /* Protege a letra do botão para continuar branca */
+    .stButton>button p, .stButton>button span {
+        color: #ffffff !important;
+    }
+
+    /* Limpeza do cabeçalho e rodapé */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {background-color: transparent !important;}
+</style>
+"""
+st.markdown(estilo_sweet_clean, unsafe_allow_html=True)
+
+# ==========================================
 # 🔒 2. FASE DE LOGIN & SEGURANÇA
 # ==========================================
 if not st.session_state['autenticado']:
