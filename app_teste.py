@@ -301,12 +301,13 @@ if menu_selecionado == "🛒 Vendas":
             st.session_state['historico_sessao'] = []; st.rerun()
 
 # ==========================================
-# --- SEÇÃO 2: FINANCEIRO (COMPLETO E COM GRÁFICO) ---
+# --- SEÇÃO 2: FINANCEIRO (DASHBOARD ANALÍTICO) ---
 # ==========================================
 elif menu_selecionado == "💰 Financeiro":
     st.markdown("### 📈 Resumo Geral Sweet Home")
     if not df_vendas_hist.empty:
         try:
+            # 1. CÁLCULOS TÉCNICOS (Mantidos conforme sua lógica)
             vendas_brutas = df_vendas_hist.iloc[:, 11].apply(limpar_v).sum()
             lucro_bruto = df_vendas_hist.iloc[:, 12].apply(limpar_v).sum()
             saldo_devedor = df_vendas_hist.iloc[:, 20].apply(limpar_v).sum()
@@ -320,6 +321,7 @@ elif menu_selecionado == "💰 Financeiro":
             else:
                 status_cor = "red"; status_texto = "🚨 Saúde Financeira: CRÍTICA (Risco de Caixa)"
 
+            # 2. BLOCOS DE MÉTRICAS (KPIs)
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Vendas Totais", f"R$ {vendas_brutas:,.2f}")
             c2.metric("Lucro Bruto", f"R$ {lucro_bruto:,.2f}", delta="Margem Real")
@@ -328,25 +330,42 @@ elif menu_selecionado == "💰 Financeiro":
 
             st.markdown(f"### <span style='color:{status_cor}'>{status_texto}</span>", unsafe_allow_html=True)
             st.progress(min(percentual_pendente/100, 1.0)) 
-            
-            # 🌟 NOVO: O GRÁFICO DE EVOLUÇÃO
-            st.write("### 📊 Evolução de Faturamento (Diário)")
-            df_grafico = df_vendas_hist.copy()
-            df_grafico['DATA_DATETIME'] = pd.to_datetime(df_grafico['DATA DA VENDA'], format='%d/%m/%Y', errors='coerce')
-            df_grafico['VALOR_NUM'] = df_grafico['TOTAL R$'].apply(limpar_v)
-            
-            vendas_por_dia = df_grafico.groupby('DATA_DATETIME')['VALOR_NUM'].sum().reset_index()
-            if not vendas_por_dia.empty:
-                vendas_por_dia.set_index('DATA_DATETIME', inplace=True)
-                st.bar_chart(vendas_por_dia['VALOR_NUM'], color="#FF69B4") 
-            else:
-                st.info("Aguardando mais dados de vendas para gerar o gráfico.")
+
+            # 🌟 NOVO: CENTRAL DE INTELIGÊNCIA VISUAL (Expander)
+            with st.expander("📊 Análise de Desempenho e Tendências", expanded=False):
+                t_faturamento, t_pagamentos = st.tabs(["📈 Faturamento Diário", "💳 Meios de Pagamento"])
+                
+                with t_faturamento:
+                    st.write("#### Evolução de Vendas no Tempo")
+                    df_grafico = df_vendas_hist.copy()
+                    df_grafico['DATA_DATETIME'] = pd.to_datetime(df_grafico['DATA DA VENDA'], format='%d/%m/%Y', errors='coerce')
+                    df_grafico['VALOR_NUM'] = df_grafico['TOTAL R$'].apply(limpar_v)
+                    
+                    vendas_por_dia = df_grafico.groupby('DATA_DATETIME')['VALOR_NUM'].sum().reset_index()
+                    if not vendas_por_dia.empty:
+                        vendas_por_dia.set_index('DATA_DATETIME', inplace=True)
+                        st.bar_chart(vendas_por_dia['VALOR_NUM'], color="#FF69B4")
+                    else:
+                        st.info("Aguardando mais dados para gerar o gráfico diário.")
+
+                with t_pagamentos:
+                    st.write("#### Divisão por Meio de Recebimento")
+                    df_meio = df_vendas_hist.copy()
+                    df_meio['VALOR_NUM'] = df_meio['TOTAL R$'].apply(limpar_v)
+                    
+                    # Agrupa por Forma de Pagamento
+                    vendas_meio = df_meio.groupby('FORMA DE PAGTO')['VALOR_NUM'].sum().sort_values(ascending=False)
+                    if not vendas_meio.empty:
+                        st.bar_chart(vendas_meio, color="#C71585") # Um tom de rosa mais escuro para diferenciar
+                    else:
+                        st.info("Aguardando registros para análise de pagamentos.")
 
         except Exception as e:
             st.warning(f"Aguardando dados para processar o painel. (Erro: {e})")
 
     st.divider()
 
+    # --- ABAIXO DAQUI SEGUE O SEU CÓDIGO FIFO E FICHA DE CLIENTE (Mantidos Intactos) ---
     with st.expander("➕ Lançar Novo Abatimento (Sistema FIFO)", expanded=False):
         with st.form("f_fifo_novo", clear_on_submit=True):
             lista_todas_clientes = sorted([f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
