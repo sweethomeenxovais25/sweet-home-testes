@@ -252,7 +252,7 @@ if menu_selecionado == "🛒 Vendas":
                             cod_cli = dados_c[nomes_up.index(nome_cli.upper())+1][0]
                         else:
                             cod_cli = f"CLI-{len(dados_c):03d}"
-                            aba_cli.append_row([cod_cli, nome_cli, c_zap.strip(), "", datetime.now().strftime("%d/%m/%Y"), 0, "", "Incompleto"], value_input_option='USER_ENTERED')
+                            aba_cli.append_row([cod_cli, nome_cli, c_zap.strip(), "", datetime.now().strftime("%d/%m/%Y"), 0, "", "Incompleto"], value_input_option='RAW')
                             st.toast(f"👤 {nome_cli} cadastrada!")
                     except Exception as e: 
                         st.error(f"Erro no cadastro: {e}"); st.stop()
@@ -290,7 +290,7 @@ if menu_selecionado == "🛒 Vendas":
                     f_r = '=SE(INDIRETO("L"&LIN())=""; ""; SE(INDIRETO("P"&LIN())="Não"; INDIRETO("L"&LIN()); 0))'
                     
                     linha = ["", datetime.now().strftime("%d/%m/%Y"), cod_cli, nome_cli, cod_p, nome_p, custo_un, qtd_v, val_v, desc_percentual, f_k, f_l, f_m, f_n, metodo, eh_parc, n_p, f_r, t_liq/n_p if eh_parc=="Sim" else 0, t_liq if eh_parc=="Não" else 0, t_liq if eh_parc=="Sim" else 0, detalhes_p[0] if (eh_parc=="Sim" and detalhes_p) else "", "Pendente" if eh_parc=="Sim" else "Pago", f_atraso]
-                    aba_v.insert_row(linha, index=idx_ins, value_input_option='USER_ENTERED')
+                    aba_v.insert_row(linha, index=idx_ins, value_input_option='RAW')
                     st.success("✅ Venda registrada com sucesso!")
                     st.cache_resource.clear() 
                 except Exception as e:
@@ -421,7 +421,7 @@ elif menu_selecionado == "💰 Financeiro":
                                 sobra = 0
                         
                         aba_f = planilha_mestre.worksheet("FINANCEIRO")
-                        aba_f.append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), c_pg.split(" - ")[0], nome_c_alvo, 0, v_pg, "PAGO", f"{meio}: {obs}"], value_input_option='USER_ENTERED')
+                        aba_f.append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), c_pg.split(" - ")[0], nome_c_alvo, 0, v_pg, "PAGO", f"{meio}: {obs}"], value_input_option='RAW')
                         st.success(f"✅ Recebido de {nome_c_alvo} processado!")
                         st.cache_resource.clear(); st.rerun()
                     except Exception as e: st.error(f"Erro no FIFO: {e}")
@@ -455,7 +455,7 @@ elif menu_selecionado == "💰 Financeiro":
             st.info("Nenhuma compra registrada para esta cliente ainda.")
 
 # ==========================================
-# --- SEÇÃO 3: ESTOQUE ---
+# --- SEÇÃO 3: ESTOQUE (MEMÓRIA ETERNA) ---
 # ==========================================
 elif menu_selecionado == "📦 Estoque":
     st.subheader("📦 Gestão Inteligente de Estoque")
@@ -477,66 +477,41 @@ elif menu_selecionado == "📦 Estoque":
         c3.metric("🚨 Esgotados / Furos", qtd_furos)
         c4.metric("⚠️ Estoque Baixo (≤3)", qtd_baixos)
 
-        with st.expander("📊 Central de Reposição e Tendências (Clique para abrir)", expanded=False):
-            tab1, tab2 = st.tabs(["🚨 Malha Fina (Reposição Urgente)", "🏆 Campeões de Venda (Mais Saem)"])
-            
+        with st.expander("📊 Central de Reposição e Tendências", expanded=False):
+            tab1, tab2 = st.tabs(["🚨 Malha Fina", "🏆 Campeões de Venda"])
             with tab1:
                 criticos_df = df_estoque[df_estoque['EST_NUM'] <= 3].copy()
                 if not criticos_df.empty:
                     criticos_df['Status'] = criticos_df['EST_NUM'].apply(lambda x: "🔴 Esgotado" if x <= 0 else "🟡 Acabando")
-                    st.write("**Lista de produtos que precisam de pedido na fábrica:**")
-                    st.dataframe(
-                        criticos_df[['CÓD. PRÓDUTO', 'NOME DO PRODUTO', 'ESTOQUE ATUAL', 'Status']].sort_values('ESTOQUE ATUAL'), 
-                        use_container_width=True, hide_index=True
-                    )
-                else:
-                    st.success("✨ Tudo em ordem! Nenhum produto com estoque crítico no momento.")
-            
+                    st.dataframe(criticos_df[['CÓD. PRÓDUTO', 'NOME DO PRODUTO', 'ESTOQUE ATUAL', 'Status']].sort_values('ESTOQUE ATUAL'), use_container_width=True, hide_index=True)
+                else: st.success("✨ Tudo em ordem!")
             with tab2:
                 campeoes_df = df_estoque[df_estoque['VENDAS_NUM'] > 0].sort_values(by='VENDAS_NUM', ascending=False).head(10)
                 if not campeoes_df.empty:
-                    st.write("**O Top 10 de produtos que mais trazem fluxo para a loja:**")
-                    st.dataframe(
-                        campeoes_df[['CÓD. PRÓDUTO', 'NOME DO PRODUTO', 'QTD VENDIDA', 'ESTOQUE ATUAL']], 
-                        use_container_width=True, hide_index=True
-                    )
-                else:
-                    st.info("Ainda não há volume de vendas suficiente para traçar a Curva ABC.")
+                    st.dataframe(campeoes_df[['CÓD. PRÓDUTO', 'NOME DO PRODUTO', 'QTD VENDIDA', 'ESTOQUE ATUAL']], use_container_width=True, hide_index=True)
+                else: st.info("Aguardando volume de vendas.")
 
     st.divider()
-
     st.write("### 🔍 Radar de Entrada")
     busca_radar = st.text_input("Pesquisar produto para atualizar", placeholder="Ex: lencol casal ou 800")
     
     if busca_radar and not df_estoque.empty:
         t_limpo = limpar_texto(busca_radar)
-        
         df_estoque['Nome_L'] = df_estoque['NOME DO PRODUTO'].apply(limpar_texto)
         df_estoque['Cod_L'] = df_estoque['CÓD. PRÓDUTO'].astype(str).str.lower().str.strip()
-        
-        res = df_estoque[
-            df_estoque['Nome_L'].str.contains(t_limpo, na=False) | 
-            df_estoque['Cod_L'].str.contains(t_limpo, na=False)
-        ]
+        res = df_estoque[df_estoque['Nome_L'].str.contains(t_limpo, na=False) | df_estoque['Cod_L'].str.contains(t_limpo, na=False)]
         
         if not res.empty:
-            opcs = ["Nenhum. É um produto 100% NOVO."]
-            for _, r in res.iterrows():
-                opcs.append(f"{r['CÓD. PRÓDUTO']} - {r['NOME DO PRODUTO']}")
-            
+            opcs = ["Nenhum. É um produto 100% NOVO."] + [f"{r['CÓD. PRÓDUTO']} - {r['NOME DO PRODUTO']}" for _, r in res.iterrows()]
             p_alvo = st.radio("Produto encontrado:", opcs)
             
             if p_alvo != "Nenhum. É um produto 100% NOVO.":
                 cod_e = p_alvo.split(" - ")[0]
                 idx = df_estoque[df_estoque['CÓD. PRÓDUTO'] == cod_e].index[0]
                 lin_p = int(idx) + 2
-                
-                nome_e = df_estoque.loc[idx, 'NOME DO PRODUTO']
-                est_h = int(pd.to_numeric(df_estoque.loc[idx, 'ESTOQUE ATUAL'], errors='coerce') or 0)
-                vend_g = int(pd.to_numeric(df_estoque.loc[idx, 'QTD VENDIDA'], errors='coerce') or 0)
-                comp_c = int(pd.to_numeric(df_estoque.loc[idx, 'QUANTIDADE'], errors='coerce') or 0)
-                custo_at = limpar_v(df_estoque.loc[idx, 'CUSTO UNITÁRIO R$'])
-                preco_at = limpar_v(df_estoque.loc[idx, 'VALOR DE VENDA'])
+                nome_e = df_estoque.loc[idx, 'NOME DO PRODUTO']; est_h = int(pd.to_numeric(df_estoque.loc[idx, 'ESTOQUE ATUAL'], errors='coerce') or 0)
+                vend_g = int(pd.to_numeric(df_estoque.loc[idx, 'QTD VENDIDA'], errors='coerce') or 0); comp_c = int(pd.to_numeric(df_estoque.loc[idx, 'QUANTIDADE'], errors='coerce') or 0)
+                custo_at = limpar_v(df_estoque.loc[idx, 'CUSTO UNITÁRIO R$']); preco_at = limpar_v(df_estoque.loc[idx, 'VALOR DE VENDA'])
 
                 acao = st.selectbox("Ação:", ["Selecione...", "1. Reposição", "2. Novo Lote (Preço Novo)", "3. Correção"])
 
@@ -544,42 +519,34 @@ elif menu_selecionado == "📦 Estoque":
                     with st.form("f_rep"):
                         q_nova = st.number_input("Quantidade recebida", 1)
                         if st.form_submit_button("Confirmar Entrada"):
-                            with st.spinner("Atualizando planilha... ⏳"):
+                            with st.spinner("Atualizando planilha e Logs... ⏳"):
                                 aba = planilha_mestre.worksheet("INVENTÁRIO")
                                 aba.update_acell(f"C{lin_p}", comp_c + q_nova)
                                 aba.update_acell(f"J{lin_p}", datetime.now().strftime("%d/%m/%Y"))
-                                
-                                st.session_state['historico_estoque'].insert(0, {"Data": datetime.now().strftime("%d/%m %H:%M"), "Ação": "Reposição", "Produto": nome_e, "Detalhe": f"+{q_nova} unidades"})
+                                # Escreve o Log Permanente
+                                planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "REPOSIÇÃO", nome_e, f"+{q_nova} un. (Cód: {cod_e})", st.session_state.get('usuario_logado', 'Bia')], value_input_option='RAW')
                                 st.success("Estoque Atualizado!"); st.cache_resource.clear(); st.rerun()
 
                 elif acao == "2. Novo Lote (Preço Novo)":
                     with st.form("f_lote"):
                         c1, c2, c3 = st.columns(3)
-                        q_l = c1.number_input("Qtd nova", 0)
-                        cu_l = c2.number_input("Novo Custo", value=float(custo_at))
-                        pr_l = c3.number_input("Novo Preço", value=float(preco_at))
+                        q_l = c1.number_input("Qtd nova", 0); cu_l = c2.number_input("Novo Custo", value=float(custo_at)); pr_l = c3.number_input("Novo Preço", value=float(preco_at))
                         puxar = st.checkbox(f"Puxar {est_h} itens antigos?", value=True)
                         if st.form_submit_button("Gerar Lote"):
-                            with st.spinner("Criando lote e empurrando Totais... ⏳"):
+                            with st.spinner("Criando lote e registrando... ⏳"):
                                 aba = planilha_mestre.worksheet("INVENTÁRIO")
-                                
                                 f_total_e = '=SE(INDIRETO("C"&LIN())=""; ""; ARRED(INDIRETO("C"&LIN()) * INDIRETO("D"&LIN()); 2))'
                                 f_estoque_h = '=SE(INDIRETO("C"&LIN())=""; ""; INDIRETO("C"&LIN()) - INDIRETO("G"&LIN()))'
-                                
                                 base = str(cod_e).split(".")[0]; ext = str(cod_e).split(".")[1] if "." in str(cod_e) else "0"
                                 n_cod = f"{base}.{int(ext)+1}"
                                 if puxar: aba.update_acell(f"C{lin_p}", vend_g)
-                                
                                 nova_linha = [n_cod, f"{nome_e} (Lote {int(ext)+1})", q_l + (est_h if puxar else 0), cu_l, f_total_e, 3, 0, f_estoque_h, pr_l, datetime.now().strftime("%d/%m/%Y"), ""]
-                                
                                 celula_totais = aba.find("TOTAIS")
-                                if celula_totais:
-                                    aba.insert_row(nova_linha, index=celula_totais.row, value_input_option='USER_ENTERED')
-                                else:
-                                    aba.append_row(nova_linha, value_input_option='USER_ENTERED')
-                                
-                                st.session_state['historico_estoque'].insert(0, {"Data": datetime.now().strftime("%d/%m %H:%M"), "Ação": "Novo Lote", "Produto": f"{nome_e} ({n_cod})", "Detalhe": f"{q_l} novas"})
-                                st.success(f"Lote {n_cod} criado com inteligência!"); st.cache_resource.clear(); st.rerun()
+                                if celula_totais: aba.insert_row(nova_linha, index=celula_totais.row, value_input_option='USER_ENTERED')
+                                else: aba.append_row(nova_linha, value_input_option='USER_ENTERED')
+                                # Escreve o Log Permanente
+                                planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "NOVO LOTE", nome_e, f"Lote {n_cod} com {q_l} un.", st.session_state.get('usuario_logado', 'Bia')], value_input_option='USER_ENTERED')
+                                st.success(f"Lote {n_cod} criado!"); st.cache_resource.clear(); st.rerun()
 
                 elif acao == "3. Correção":
                     with st.form("f_cor"):
@@ -588,59 +555,43 @@ elif menu_selecionado == "📦 Estoque":
                             with st.spinner("Sincronizando estoque... ⏳"):
                                 aba = planilha_mestre.worksheet("INVENTÁRIO")
                                 aba.update_acell(f"C{lin_p}", real + vend_g)
-                                
-                                st.session_state['historico_estoque'].insert(0, {"Data": datetime.now().strftime("%d/%m %H:%M"), "Ação": "Correção", "Produto": nome_e, "Detalhe": f"Ajustado p/ {real}"})
+                                # Escreve o Log Permanente
+                                planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "CORREÇÃO", nome_e, f"Ajustado para {real} un.", st.session_state.get('usuario_logado', 'Bia')], value_input_option='USER_ENTERED')
                                 st.success("Corrigido!"); st.cache_resource.clear(); st.rerun()
 
     st.divider()
-
     with st.expander("➕ Cadastrar Novo Produto"):
         with st.form("f_est_original", clear_on_submit=True):
-            c1, c2 = st.columns([1, 2])
-            n_c = c1.text_input("Cód.")
-            n_n = c2.text_input("Nome")
-            c3, c4, c5 = st.columns(3)
-            n_q = c3.number_input("Qtd", 0)
-            n_custo = c4.number_input("Custo (R$)", 0.0)
-            n_v = c5.number_input("Venda (R$)", 0.0)
-            if st.form_submit_button("Salvar Novo Produto"):
-                if not n_c or not n_n:
-                    st.error("⚠️ Código e Nome são obrigatórios!")
-                else:
-                    with st.spinner("Cadastrando produto e organizando planilha... ⏳"):
-                        aba = planilha_mestre.worksheet("INVENTÁRIO")
-                        
-                        f_total_e = '=SE(INDIRETO("C"&LIN())=""; ""; ARRED(INDIRETO("C"&LIN()) * INDIRETO("D"&LIN()); 2))'
-                        f_estoque_h = '=SE(INDIRETO("C"&LIN())=""; ""; INDIRETO("C"&LIN()) - INDIRETO("G"&LIN()))'
-                        linha_manual = [n_c, n_n, n_q, n_custo, f_total_e, 3, 0, f_estoque_h, n_v, datetime.now().strftime("%d/%m/%Y"), ""]
-                        
-                        celula_totais = aba.find("TOTAIS")
-                        if celula_totais:
-                            aba.insert_row(linha_manual, index=celula_totais.row, value_input_option='USER_ENTERED')
-                        else:
-                            aba.append_row(linha_manual, value_input_option='USER_ENTERED')
-                            
-                        st.session_state['historico_estoque'].insert(0, {"Data": datetime.now().strftime("%d/%m %H:%M"), "Ação": "Novo Produto", "Produto": n_n, "Detalhe": f"Cód: {n_c}"})
-                        st.success("✅ Cadastrado!"); st.cache_resource.clear(); st.rerun()
+            c1, c2 = st.columns([1, 2]); n_c = c1.text_input("Cód."); n_n = c2.text_input("Nome")
+            c3, c4, c5 = st.columns(3); n_q = c3.number_input("Qtd", 0); n_custo = c4.number_input("Custo (R$)", 0.0); n_v = c5.number_input("Venda (R$)", 0.0)
+            if st.form_submit_button("Salvar Novo Produto") and n_c and n_n:
+                with st.spinner("Cadastrando... ⏳"):
+                    aba = planilha_mestre.worksheet("INVENTÁRIO")
+                    f_total_e = '=SE(INDIRETO("C"&LIN())=""; ""; ARRED(INDIRETO("C"&LIN()) * INDIRETO("D"&LIN()); 2))'
+                    f_estoque_h = '=SE(INDIRETO("C"&LIN())=""; ""; INDIRETO("C"&LIN()) - INDIRETO("G"&LIN()))'
+                    linha_manual = [n_c, n_n, n_q, n_custo, f_total_e, 3, 0, f_estoque_h, n_v, datetime.now().strftime("%d/%m/%Y"), ""]
+                    celula_totais = aba.find("TOTAIS")
+                    if celula_totais: aba.insert_row(linha_manual, index=celula_totais.row, value_input_option='USER_ENTERED')
+                    else: aba.append_row(linha_manual, value_input_option='USER_ENTERED')
+                    # Escreve o Log Permanente
+                    planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "CADASTRO", n_n, f"Novo item Cód: {n_c}", st.session_state.get('usuario_logado', 'Bia')], value_input_option='USER_ENTERED')
+                    st.success("✅ Cadastrado!"); st.cache_resource.clear(); st.rerun()
 
     st.divider()
-    
-    st.write("### 📜 Histórico de Movimentações")
-    if st.session_state['historico_estoque']:
-        st.dataframe(st.session_state['historico_estoque'], use_container_width=True, hide_index=True)
-        if st.button("Limpar Histórico Local 🗑️", key="btn_limpar_hist_estoque"):
-            st.session_state['historico_estoque'] = []; st.rerun()
-    else:
-        st.info("Nenhuma movimentação realizada no estoque nesta sessão.")
+    st.write("### 📜 Histórico de Movimentações (Banco de Dados)")
+    try:
+        # Lê direto da nova aba da planilha
+        df_log_db = pd.DataFrame(planilha_mestre.worksheet("LOG_ESTOQUE").get_all_records())
+        if not df_log_db.empty:
+            st.dataframe(df_log_db.sort_index(ascending=False).head(20), use_container_width=True, hide_index=True)
+        else: st.info("Nenhuma movimentação registrada na planilha ainda.")
+    except: st.warning("Aba 'LOG_ESTOQUE' não encontrada ou vazia.")
     
     st.divider()
-    
     busca_lista = st.text_input("🔍 Buscar na Lista Abaixo")
     df_ver = df_full_inv.copy()
-    if busca_lista:
-        df_ver = df_ver[df_ver.apply(lambda r: busca_lista.lower() in str(r).lower(), axis=1)]
+    if busca_lista: df_ver = df_ver[df_ver.apply(lambda r: busca_lista.lower() in str(r).lower(), axis=1)]
     st.dataframe(df_ver, use_container_width=True, hide_index=True)
-
 
 # ==========================================
 # --- SEÇÃO 4: CLIENTES ---
