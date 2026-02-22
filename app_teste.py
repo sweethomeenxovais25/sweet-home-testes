@@ -99,8 +99,23 @@ with st.sidebar:
     modo_teste = st.toggle("🔬 Modo de Teste", value=False, key="toggle_teste")
     
     if st.button("🔄 Sincronizar Planilha", key="btn_sincronizar"):
+        if st.button("🔄 Sincronizar Planilha", key="btn_sincronizar"):
         st.cache_resource.clear()
         st.rerun()
+
+    # 👇 ADICIONE O BLOCO DE BACKUP AQUI
+    st.divider()
+    with st.expander("🛡️ Backup do Sistema"):
+        st.markdown("<small>Faça o download seguro dos seus dados para o computador.</small>", unsafe_allow_html=True)
+        try:
+            if not df_vendas_hist.empty:
+                st.download_button("📥 Baixar Vendas", df_vendas_hist.to_csv(index=False).encode('utf-8'), f"Vendas_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
+            if not df_full_inv.empty:
+                st.download_button("📥 Baixar Estoque", df_full_inv.to_csv(index=False).encode('utf-8'), f"Estoque_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
+            if not df_clientes_full.empty:
+                st.download_button("📥 Baixar Clientes", df_clientes_full.to_csv(index=False).encode('utf-8'), f"Clientes_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
+        except Exception as e:
+            st.error("Sincronize a planilha para gerar o backup.")
 
 # ID da Planilha Cobaia
 ID_PLANILHA = "1lXUnGrWtwV-IfIiUbGzLH3P2T-h3b6Mr9NEBCpwulXg"
@@ -287,31 +302,23 @@ if menu_selecionado == "🛒 Vendas":
 # --- SEÇÃO 2: FINANCEIRO (COMPLETO) ---
 # ==========================================
 elif menu_selecionado == "💰 Financeiro":
-    st.markdown("### 📈 Resumo Geral Sweet Home")
-    
-    if not df_vendas_hist.empty:
-        try:
-            vendas_brutas = df_vendas_hist.iloc[:, 11].apply(limpar_v).sum()
-            lucro_bruto = df_vendas_hist.iloc[:, 12].apply(limpar_v).sum()
-            saldo_devedor = df_vendas_hist.iloc[:, 20].apply(limpar_v).sum()
-            total_recebido = vendas_brutas - saldo_devedor
-            percentual_pendente = (saldo_devedor / vendas_brutas) * 100 if vendas_brutas > 0 else 0
-            
-            if percentual_pendente <= 20:
-                status_cor = "green"; status_texto = "✨ Saúde Financeira: EXCELENTE"
-            elif percentual_pendente <= 40:
-                status_cor = "orange"; status_texto = "⚠️ Saúde Financeira: ATENÇÃO (Cobrar mais)"
-            else:
-                status_cor = "red"; status_texto = "🚨 Saúde Financeira: CRÍTICA (Risco de Caixa)"
-
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Vendas Totais", f"R$ {vendas_brutas:,.2f}")
-            c2.metric("Lucro Bruto", f"R$ {lucro_bruto:,.2f}", delta="Margem Real")
-            c3.metric("Total Recebido", f"R$ {total_recebido:,.2f}", delta="Dinheiro no Bolso")
-            c4.metric("Saldo Devedor", f"R$ {saldo_devedor:,.2f}", delta=f"{percentual_pendente:.1f}% do total", delta_color="inverse")
-
-            st.markdown(f"### <span style='color:{status_cor}'>{status_texto}</span>", unsafe_allow_html=True)
+    st.markdown(f"### <span style='color:{status_cor}'>{status_texto}</span>", unsafe_allow_html=True)
             st.progress(min(percentual_pendente/100, 1.0)) 
+            
+            # 👇 ADICIONE O GRÁFICO AQUI
+            st.write("### 📊 Evolução de Faturamento (Diário)")
+            df_grafico = df_vendas_hist.copy()
+            df_grafico['DATA_DATETIME'] = pd.to_datetime(df_grafico['DATA DA VENDA'], format='%d/%m/%Y', errors='coerce')
+            df_grafico['VALOR_NUM'] = df_grafico['TOTAL R$'].apply(limpar_v)
+            
+            # Agrupa as vendas por dia
+            vendas_por_dia = df_grafico.groupby('DATA_DATETIME')['VALOR_NUM'].sum().reset_index()
+            if not vendas_por_dia.empty:
+                vendas_por_dia.set_index('DATA_DATETIME', inplace=True)
+                st.bar_chart(vendas_por_dia['VALOR_NUM'], color="#FF69B4") # Cor rosa Sweet Home
+            else:
+                st.info("Aguardando mais dados de vendas para gerar o gráfico.")
+
         except Exception as e:
             st.warning(f"Aguardando dados para processar o painel. (Erro: {e})")
 
@@ -600,12 +607,53 @@ elif menu_selecionado == "📦 Estoque":
     st.dataframe(df_ver, use_container_width=True, hide_index=True)
 
 # ==========================================
-# --- SEÇÃO 4: CLIENTES (COMPLETA E INTACTA) ---
+# --- SEÇÃO 4: CLIENTES (COM CRM INTELIGENTE) ---
 # ==========================================
 elif menu_selecionado == "👥 Clientes":
     st.subheader("👥 Gestão de Clientes")
 
-    # ÁREA 2: CADASTRO DO ZERO
+    # ==========================================
+    # 🎯 NOVO: RADAR DE CLIENTES AUSENTES (CRM)
+    # ==========================================
+    if not df_vendas_hist.empty and not df_clientes_full.empty:
+        df_v_crm = df_vendas_hist.copy()
+        df_v_crm['DATA_DATETIME'] = pd.to_datetime(df_v_crm['DATA DA VENDA'], format='%d/%m/%Y', errors='coerce')
+        
+        # Acha a última compra de cada cliente
+        ultima_compra = df_v_crm.groupby('CÓD. CLIENTE')['DATA_DATETIME'].max().reset_index()
+        hoje = pd.to_datetime(datetime.now().date())
+        ultima_compra['DIAS_AUSENTE'] = (hoje - ultima_compra['DATA_DATETIME']).dt.days
+        
+        # Filtra quem está sumida há mais de 60 dias
+        sumidas = ultima_compra[ultima_compra['DIAS_AUSENTE'] >= 60].copy()
+        
+        with st.expander(f"🎯 CRM: Radar de Retenção ({len(sumidas)} clientes ausentes há +60 dias)", expanded=True):
+            if not sumidas.empty:
+                st.write("Estas clientes não compram há mais de 2 meses. Que tal enviar uma promoção?")
+                # Puxa o nome e zap da carteira de clientes
+                df_c_crm = df_clientes_full.rename(columns={df_clientes_full.columns[0]: 'CÓD. CLIENTE', df_clientes_full.columns[1]: 'NOME', df_clientes_full.columns[2]: 'ZAP'})
+                sumidas_full = sumidas.merge(df_c_crm[['CÓD. CLIENTE', 'NOME', 'ZAP']], on='CÓD. CLIENTE', how='left')
+                
+                for _, cliente in sumidas_full.iterrows():
+                    dias = int(cliente['DIAS_AUSENTE'])
+                    nome = str(cliente['NOME'])
+                    zap = str(cliente['ZAP']).replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+                    
+                    c_crm1, c_crm2 = st.columns([3, 1])
+                    c_crm1.write(f"👤 **{nome}** (Última compra há {dias} dias)")
+                    
+                    if zap and zap != "nan":
+                        msg_recuperacao = f"Olá {nome.split(' ')[0]}! Que saudade de você aqui na Sweet Home Enxovais 🌸. Preparamos novidades lindas e um mimo especial para você. Como você está?"
+                        c_crm2.link_button("📲 Enviar Mensagem", f"https://wa.me/55{zap}?text={urllib.parse.quote(msg_recuperacao)}", use_container_width=True)
+                    else:
+                        c_crm2.write("❌ Sem Zap")
+                    st.divider()
+            else:
+                st.success("Parabéns! Suas clientes estão ativas e comprando recentemente. 🚀")
+
+    st.divider()
+
+    # --- ÁREA 2: CADASTRO DO ZERO ---
     with st.expander("➕ Cadastrar Nova Cliente (Sem compra atual)", expanded=False):
         with st.form("form_novo_manual", clear_on_submit=True):
             st.markdown("Código gerado automaticamente.")
@@ -623,6 +671,8 @@ elif menu_selecionado == "👥 Clientes":
                     except Exception as e: st.error(f"Erro: {e}")
 
     st.divider()
+    
+    # --- EXIBIÇÃO DA CARTEIRA E INCOMPLETOS ---
     if not df_clientes_full.empty:
         try:
             inc = df_clientes_full[df_clientes_full.iloc[:, 7].str.strip() == "Incompleto"]
@@ -633,7 +683,7 @@ elif menu_selecionado == "👥 Clientes":
         st.markdown("### 🗂️ Carteira Total")
         st.dataframe(df_clientes_full, use_container_width=True, hide_index=True)
         
-    # ÁREA 3: ATUALIZAÇÃO DE DADOS 
+    # --- ÁREA 3: ATUALIZAÇÃO DE DADOS ---
     with st.expander("🔄 Atualizar Dados de Cliente Existente", expanded=False):
         lista_clientes_edit = [f"{row[0]} - {row[1]}" for row in df_clientes_full.values]
         escolha = st.selectbox("Selecione a Cliente para editar", ["---"] + lista_clientes_edit, key="sel_edit_cli_manual")
