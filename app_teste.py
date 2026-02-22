@@ -1,15 +1,22 @@
 import streamlit as st
 import pandas as pd
-import unicodedata #
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import os
 from datetime import datetime
 import urllib.parse
+import unicodedata  # <--- NOVA FERRAMENTA ADICIONADA AQUI
+
+# ... (todo o bloco st.set_page_config e login continuam iguais) ...
 
 # --- AUXILIARES TÉCNICOS ---
+def limpar_v(v):
+    if pd.isna(v) or v == "": return 0.0
+    numero = pd.to_numeric(str(v).replace('R$', '').replace('.', '').replace(',', '.').strip(), errors='coerce') or 0.0
+    return round(numero, 2)
+
+# 👇 NOVA FUNÇÃO ADICIONADA AQUI
 def limpar_texto(texto):
-    # O código dentro dela PRECISA ter esse recuo (espaços antes)
     if not isinstance(texto, str):
         return ""
     texto_sem_acento = unicodedata.normalize('NFD', texto).encode('ascii', 'ignore').decode("utf-8")
@@ -480,24 +487,25 @@ elif menu_selecionado == "💰 Financeiro":
             st.info("Nenhuma compra registrada para esta cliente ainda.")
 
 # ==========================================
-# --- SEÇÃO 3: ESTOQUE (O GUARDIÃO) ---
+# --- SEÇÃO 3: ESTOQUE (GUARDIÃO + ORIGINAL) ---
 # ==========================================
 elif menu_selecionado == "📦 Estoque":
     st.subheader("📦 Gestão Inteligente de Estoque")
     
-    # Puxa os dados da aba INVENTÁRIO
-    aba_i = planilha_mestre.worksheet("INVENTÁRIO")
-    df_estoque = pd.DataFrame(aba_i.get_all_records())
+    # Vamos usar os dados que já foram baixados pela função carregar_dados() para o app não ficar lento
+    df_estoque = df_full_inv.copy()
     
     # --- 1. MALHA FINA (ALERTAS DE ESTOQUE NEGATIVO/BAIXO) ---
-    # Filtra produtos com estoque <= 0 usando o nome exato da coluna
-    produtos_criticos = df_estoque[df_estoque['ESTOQUE ATUAL'] <= 0]
-    
-    if not produtos_criticos.empty:
-        st.warning("⚠️ **ATENÇÃO: Existem produtos com estoque zerado ou negativo.**\nIsso ocorre se vendas foram feitas antes do registro da Nota Fiscal. Por favor, regularize as entradas.")
-        with st.expander("Ver itens precisando de reposição urgente"):
-            for index, row in produtos_criticos.iterrows():
-                st.write(f"🔹 {row['NOME DO PRODUTO']} (Estoque atual: **{row['ESTOQUE ATUAL']}**)")
+    if not df_estoque.empty:
+        # Garante que a coluna seja lida como número
+        df_estoque['ESTOQUE ATUAL_NUM'] = pd.to_numeric(df_estoque['ESTOQUE ATUAL'], errors='coerce').fillna(0)
+        produtos_criticos = df_estoque[df_estoque['ESTOQUE ATUAL_NUM'] <= 0]
+        
+        if not produtos_criticos.empty:
+            st.warning("⚠️ **ATENÇÃO: Existem produtos com estoque zerado ou negativo.**\nIsso ocorre se vendas foram feitas antes do registro da Nota Fiscal. Por favor, regularize as entradas.")
+            with st.expander("Ver itens precisando de reposição urgente"):
+                for index, row in produtos_criticos.iterrows():
+                    st.write(f"🔹 {row['NOME DO PRODUTO']} (Estoque atual: **{row['ESTOQUE ATUAL']}**)")
     
     st.divider()
 
@@ -505,33 +513,30 @@ elif menu_selecionado == "📦 Estoque":
     st.write("### 🔍 Radar de Entrada")
     termo_busca = st.text_input("O que chegou da fábrica? (Digite parte do nome para buscar)", placeholder="Ex: lencol casal")
     
-    if termo_busca:
+    if termo_busca and not df_estoque.empty:
         termo_limpo = limpar_texto(termo_busca)
         
-        # O robô procura em todo o banco de dados ignorando acentos
         df_estoque['Produto_Limpo'] = df_estoque['NOME DO PRODUTO'].apply(limpar_texto)
         resultados = df_estoque[df_estoque['Produto_Limpo'].str.contains(termo_limpo, na=False)]
         
         if not resultados.empty:
             st.success(f"Encontrei {len(resultados)} produto(s) parecido(s) no sistema!")
             
-            # Monta a lista de opções com os nomes corretos das colunas
             opcoes = ["Nenhum. É um produto 100% NOVO."]
             for _, row in resultados.iterrows():
-                # O row.get garante que se o custo estiver vazio, ele não quebra e assume 0
-                opcoes.append(f"{row['CÓD. PRÓDUTO']} - {row['NOME DO PRODUTO']} (Estoque: {row['ESTOQUE ATUAL']} | Custo: R$ {row.get('CUSTO UNITÁRIO R$', 0):.2f})")
+                # Usa a sua função limpar_v para garantir que o custo não dê erro
+                custo_limpo = limpar_v(row.get('CUSTO UNITÁRIO R$', 0))
+                opcoes.append(f"{row['CÓD. PRÓDUTO']} - {row['NOME DO PRODUTO']} (Estoque: {row['ESTOQUE ATUAL']} | Custo: R$ {custo_limpo:.2f})")
             
             produto_selecionado = st.radio("É algum destes produtos?", opcoes)
             
             if produto_selecionado == "Nenhum. É um produto 100% NOVO.":
-                st.info("Ok! Vamos cadastrar um item totalmente novo no catálogo.")
-                # TODO: Aqui entrará o formulário antigo de NOVO PRODUTO
+                st.info("Ok! Utilize o menu '➕ Cadastrar Novo Produto' logo abaixo para inserir no catálogo.")
                 
             else:
                 cod_escolhido = produto_selecionado.split(" - ")[0]
                 st.info(f"Você selecionou o código **{cod_escolhido}**. O que aconteceu?")
                 
-                # A Árvore de Decisão
                 acao = st.selectbox("Selecione a operação:", [
                     "Selecione...",
                     "1. Reposição Simples (Chegou mais, mesmo custo e mesmo preço)",
@@ -544,8 +549,37 @@ elif menu_selecionado == "📦 Estoque":
                 
         else:
             st.warning("Não encontrei nada parecido. Parece ser um produto novo!")
-            st.info("Vamos cadastrar este item no catálogo.")
-            # TODO: Aqui entrará o formulário antigo de NOVO PRODUTO
+            st.info("Utilize o menu '➕ Cadastrar Novo Produto' logo abaixo para inserir no catálogo.")
+
+    st.divider()
+
+    # --- 3. SEU FORMULÁRIO ORIGINAL INTACTO ---
+    with st.expander("➕ Cadastrar Novo Produto"):
+        with st.form("f_est", clear_on_submit=True):
+            c1, c2 = st.columns([1, 2])
+            n_c = c1.text_input("Cód.")
+            n_n = c2.text_input("Nome")
+            
+            c3, c4, c5 = st.columns(3)
+            n_q = c3.number_input("Qtd", 0)
+            n_custo = c4.number_input("Custo (R$)", 0.0) 
+            n_v = c5.number_input("Venda (R$)", 0.0)
+            
+            if st.form_submit_button("Salvar"):
+                aba_inv = planilha_mestre.worksheet("INVENTÁRIO")
+                aba_inv.append_row([n_c, n_n, n_q, n_custo, "", 3, 0, "", n_v, datetime.now().strftime("%d/%m/%Y"), ""], value_input_option='USER_ENTERED')
+                st.success("✅ Cadastrado!"); st.cache_resource.clear()
+    
+    # --- 4. SUA LISTA/BUSCA ORIGINAL INTACTA ---
+    st.divider()
+    busca = st.text_input("🔍 Buscar no Estoque (Nome, Código ou Data)", key="busca_estoque_input")
+    df_e = df_full_inv.copy()
+    if not df_e.empty:
+        df_e['QUANTIDADE'] = pd.to_numeric(df_e['QUANTIDADE'], errors='coerce')
+        baixos = df_e[df_e['QUANTIDADE'] <= 3]
+        if not baixos.empty: st.warning(f"🚨 {len(baixos)} itens com estoque baixo!")
+    if busca: df_e = df_e[df_e.apply(lambda r: busca.lower() in str(r).lower(), axis=1)]
+    st.dataframe(df_e, use_container_width=True, hide_index=True)
 
 # ==========================================
 # --- SEÇÃO 4: CLIENTES ---
