@@ -199,7 +199,7 @@ with st.sidebar:
             st.error("Sincronize a planilha para gerar o backup.")
 
 # ==========================================
-# --- SEÇÃO 1: VENDAS ---
+# --- SEÇÃO 1: VENDAS (MEMÓRIA ETERNA) ---
 # ==========================================
 if menu_selecionado == "🛒 Vendas":
     st.subheader("🛒 Registro de Venda")
@@ -267,15 +267,6 @@ if menu_selecionado == "🛒 Vendas":
             cod_p = p_sel.split(" - ")[0]
             nome_p = p_sel.split(" - ")[1].strip()
             custo_un = float(banco_de_produtos[cod_p].get('custo', 0.0)) if cod_p in banco_de_produtos else 0.0
-            
-            st.session_state['historico_sessao'].insert(0, {
-                "Data": datetime.now().strftime("%d/%m/%Y"),
-                "Hora": datetime.now().strftime("%H:%M:%S"),
-                "Cliente": nome_cli, 
-                "Produto": nome_p, 
-                "Pagto": metodo, 
-                "Total": f"R$ {t_liq:.2f}"
-            })
 
             if not modo_teste:
                 try:
@@ -319,12 +310,25 @@ if menu_selecionado == "🛒 Vendas":
             zap_limpo = c_zap.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
             st.link_button("📲 Enviar Recibo para o WhatsApp", f"https://wa.me/55{zap_limpo}?text={urllib.parse.quote(recibo_texto)}", use_container_width=True, type="primary")
 
+    # 📝 HISTÓRICO REAL (Lê as últimas 10 vendas da planilha)
     st.divider()
-    st.subheader("📝 Histórico de Registros")
-    if st.session_state['historico_sessao']:
-        st.dataframe(st.session_state['historico_sessao'], use_container_width=True, hide_index=True)
-        if st.button("Limpar Histórico Local 🗑️", key="btn_limpar_hist"):
-            st.session_state['historico_sessao'] = []; st.rerun()
+    st.subheader("📝 Histórico de Registros (Banco de Dados)")
+    try:
+        dados_v = planilha_mestre.worksheet("VENDAS").get_all_values()
+        if len(dados_v) > 1:
+            df_v_real = pd.DataFrame(dados_v[1:], columns=dados_v[0])
+            # Remove linhas de Totais ou Vazias
+            df_v_real = df_v_real[~df_v_real['CLIENTE'].str.contains("TOTAIS", case=False, na=False)]
+            df_v_real = df_v_real[df_v_real['CLIENTE'] != ""]
+            
+            # Pega as últimas 10 e inverte para a mais nova ficar no topo
+            historico_display = df_v_real[['DATA DA VENDA', 'CLIENTE', 'PRODUTO', 'TOTAL R$', 'STATUS']].tail(10).iloc[::-1]
+            st.dataframe(historico_display, use_container_width=True, hide_index=True)
+            st.info("💡 Este histórico é permanente e reflete a planilha em tempo real.")
+        else:
+            st.info("Nenhuma venda registrada ainda.")
+    except:
+        st.warning("Aguardando carregamento da aba VENDAS...")
 
 # ==========================================
 # --- SEÇÃO 2: FINANCEIRO ---
