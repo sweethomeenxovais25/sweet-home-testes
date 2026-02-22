@@ -306,11 +306,10 @@ with st.sidebar:
 
     st.title("🛠️ Painel Sweet Home")
     
-    menu_selecionado = st.radio(
-        "Navegação",
-        ["🛒 Vendas", "💰 Financeiro", "📦 Estoque", "👥 Clientes", "📂 Documentos"], 
-        key="navegacao_principal_sweet"
-    )
+    menu_selecionado = st.sidebar.selectbox(
+    "Navegação", 
+    ["🛍️ Vendas", "📦 Estoque", "💰 Financeiro", "⚙️ Perfil e Equipe"]
+)
     
     st.divider()
     modo_teste = st.toggle("🔬 Modo de Teste", value=False, key="toggle_teste")
