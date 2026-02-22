@@ -6,9 +6,8 @@ import os
 from datetime import datetime
 import urllib.parse
 import unicodedata
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
-import io
+import cloudinary
+import cloudinary.uploader
 
 # ==========================================
 # 1. CONFIGURAÇÃO ÚNICA DA PÁGINA
@@ -82,37 +81,33 @@ ID_PLANILHA = "1lXUnGrWtwV-IfIiUbGzLH3P2T-h3b6Mr9NEBCpwulXg"
 ESPECIFICACOES = [
     "https://spreadsheets.google.com/feeds", 
     'https://www.googleapis.com/auth/spreadsheets',
-    "https://www.googleapis.com/auth/drive.file", 
-    "https://www.googleapis.com/auth/drive"
+    "https://www.googleapis.com/auth/drive.file"
 ]
 
-# 📂 ROTEADOR DE PASTAS (GPS DO DRIVE)
-PASTAS_DRIVE = {
-    "Comprovante": "1D2zB-QTNhCXAEQpTTvX40YsBQGZAhg8C",
-    "Contrato": "13cd_xrNkZvbxVaVok0g7xBn898GEwbRi",
-    "Foto de Produto": "1KqNCo4i2OuSbXVN1lgIZ-TtW-H-_CFsg",
-    "Nota Fiscal": "1YPC1ZUsF3o0yZEOLGabF0ArMr4qd4x_L",
-    "Recibo / Pgto": "1rP2FhBnRC230oc0B8TgGm6QldGQm1xU4",
-    "Outros": "1gQiJAHzga7r-P7UJXRruJqx3NzCXImA1"
-}
-
-def upload_para_drive(file_bytes, file_name, file_type, target_folder_id):
+# ☁️ Função de Upload Rápido para Cloudinary (Nova Engine de Arquivos)
+def upload_para_cloudinary(file_bytes, file_name, pasta_destino):
     try:
-        # Usa as mesmas credenciais e especificações que você já tem
-        creds_info = st.secrets["gcp_service_account"]
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_info, ESPECIFICACOES)
-        service = build('drive', 'v3', credentials=creds)
-
-        file_metadata = {
-            'name': file_name,
-            'parents': [target_folder_id]
-        }
+        # Puxa as senhas dos secrets
+        cloudinary.config(
+            cloud_name = st.secrets["cloudinary"]["cloud_name"],
+            api_key = st.secrets["cloudinary"]["api_key"],
+            api_secret = st.secrets["cloudinary"]["api_secret"],
+            secure = True
+        )
         
-        media = MediaIoBaseUpload(io.BytesIO(file_bytes), mimetype=file_type, resumable=True)
-        file = service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
-        return file.get('id'), file.get('webViewLink')
+        # Cria as pastas virtuais automaticamente no CDN
+        caminho_pasta = f"SweetHome/{pasta_destino}"
+        
+        resposta = cloudinary.uploader.upload(
+            file_bytes,
+            folder=caminho_pasta,
+            public_id=file_name,
+            resource_type="auto" # Mágica: Aceita PDF e Imagem automaticamente
+        )
+        # Retorna o ID único e o link direto
+        return resposta.get('public_id'), resposta.get('secure_url')
     except Exception as e:
-        st.error(f"Erro técnico no Drive: {e}")
+        st.error(f"Erro no servidor de arquivos: {e}")
         return None, None
 
 @st.cache_resource
@@ -187,7 +182,6 @@ with st.sidebar:
         st.cache_resource.clear()
         st.rerun()
 
-    # 🌟 NOVO: O BLOCO DE BACKUP NA SIDEBAR
     st.divider()
     with st.expander("🛡️ Backup do Sistema"):
         st.markdown("<small>Faça o download seguro dos seus dados para o computador.</small>", unsafe_allow_html=True)
@@ -204,7 +198,7 @@ with st.sidebar:
             st.error("Sincronize a planilha para gerar o backup.")
 
 # ==========================================
-# --- SEÇÃO 1: VENDAS (SISTEMA INTEGRAL) ---
+# --- SEÇÃO 1: VENDAS (MANTIDA) ---
 # ==========================================
 if menu_selecionado == "🛒 Vendas":
     st.subheader("🛒 Registro de Venda")
@@ -332,13 +326,12 @@ if menu_selecionado == "🛒 Vendas":
             st.session_state['historico_sessao'] = []; st.rerun()
 
 # ==========================================
-# --- SEÇÃO 2: FINANCEIRO (DASHBOARD ANALÍTICO) ---
+# --- SEÇÃO 2: FINANCEIRO (MANTIDA) ---
 # ==========================================
 elif menu_selecionado == "💰 Financeiro":
     st.markdown("### 📈 Resumo Geral Sweet Home")
     if not df_vendas_hist.empty:
         try:
-            # 1. CÁLCULOS TÉCNICOS
             vendas_brutas = df_vendas_hist.iloc[:, 11].apply(limpar_v).sum()
             lucro_bruto = df_vendas_hist.iloc[:, 12].apply(limpar_v).sum()
             saldo_devedor = df_vendas_hist.iloc[:, 20].apply(limpar_v).sum()
@@ -352,7 +345,6 @@ elif menu_selecionado == "💰 Financeiro":
             else:
                 status_cor = "red"; status_texto = "🚨 Saúde Financeira: CRÍTICA (Risco de Caixa)"
 
-            # 2. BLOCOS DE MÉTRICAS (KPIs)
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Vendas Totais", f"R$ {vendas_brutas:,.2f}")
             c2.metric("Lucro Bruto", f"R$ {lucro_bruto:,.2f}", delta="Margem Real")
@@ -362,7 +354,6 @@ elif menu_selecionado == "💰 Financeiro":
             st.markdown(f"### <span style='color:{status_cor}'>{status_texto}</span>", unsafe_allow_html=True)
             st.progress(min(percentual_pendente/100, 1.0)) 
 
-            # 🌟 CENTRAL DE INTELIGÊNCIA VISUAL (Expander)
             with st.expander("📊 Análise de Desempenho e Tendências", expanded=False):
                 t_faturamento, t_pagamentos = st.tabs(["📈 Faturamento Diário", "💳 Meios de Pagamento"])
                 
@@ -384,10 +375,9 @@ elif menu_selecionado == "💰 Financeiro":
                     df_meio = df_vendas_hist.copy()
                     df_meio['VALOR_NUM'] = df_meio['TOTAL R$'].apply(limpar_v)
                     
-                    # Agrupa por Forma de Pagamento
                     vendas_meio = df_meio.groupby('FORMA DE PAGTO')['VALOR_NUM'].sum().sort_values(ascending=False)
                     if not vendas_meio.empty:
-                        st.bar_chart(vendas_meio, color="#C71585") # Um tom de rosa mais escuro
+                        st.bar_chart(vendas_meio, color="#C71585")
                     else:
                         st.info("Aguardando registros para análise de pagamentos.")
 
@@ -464,7 +454,7 @@ elif menu_selecionado == "💰 Financeiro":
             st.info("Nenhuma compra registrada para esta cliente ainda.")
 
 # ==========================================
-# --- SEÇÃO 3: ESTOQUE (COM DASHBOARD) ---
+# --- SEÇÃO 3: ESTOQUE (MANTIDA) ---
 # ==========================================
 elif menu_selecionado == "📦 Estoque":
     st.subheader("📦 Gestão Inteligente de Estoque")
@@ -652,12 +642,11 @@ elif menu_selecionado == "📦 Estoque":
 
 
 # ==========================================
-# --- SEÇÃO 4: CLIENTES (COM CRM INTELIGENTE) ---
+# --- SEÇÃO 4: CLIENTES (MANTIDA) ---
 # ==========================================
 elif menu_selecionado == "👥 Clientes":
     st.subheader("👥 Gestão de Clientes e CRM")
 
-    # 🌟 RADAR DE CLIENTES AUSENTES (CRM)
     if not df_vendas_hist.empty and not df_clientes_full.empty:
         df_v_crm = df_vendas_hist.copy()
         df_v_crm['DATA_DATETIME'] = pd.to_datetime(df_v_crm['DATA DA VENDA'], format='%d/%m/%Y', errors='coerce')
@@ -769,18 +758,16 @@ elif menu_selecionado == "👥 Clientes":
                         st.error(f"Erro ao salvar na planilha: {e}")
 
 # ==========================================
-# 🌟 SEÇÃO 5: DOCUMENTOS & FILA ODOO 🌟
+# 🌟 SEÇÃO 5: DOCUMENTOS & FILA ODOO (NOVA ENGINE CLOUDINARY) 🌟
 # ==========================================
 elif menu_selecionado == "📂 Documentos":
     st.subheader("📂 Cofre Digital & Fila Odoo")
 
-    # Tenta ler a aba de documentos
     try:
         dados_doc = planilha_mestre.worksheet("DOCUMENTOS").get_all_values()
         df_docs = pd.DataFrame(dados_doc[1:], columns=dados_doc[0]) if len(dados_doc) > 1 else pd.DataFrame()
     except: df_docs = pd.DataFrame()
 
-    # 🚀 O MOTOR ODOO (Linha de Montagem)
     with st.expander("🚀 Linha de Montagem Odoo (Site)", expanded=True):
         t_falta, t_pronto = st.tabs(["🔴 1. Falta Foto (Bia)", "🟢 2. Pronto p/ Site (Você)"])
         
@@ -790,12 +777,12 @@ elif menu_selecionado == "📂 Documentos":
                 prods_com_foto = []
                 if not df_docs.empty and 'VINCULO' in df_docs.columns:
                     fotos = df_docs[df_docs['TIPO'] == "Foto de Produto"]
-                    prods_com_foto = [p.split(" - ")[0] for p in fotos['VINCULO'].dropna() if " - " in p]
+                    prods_com_foto = [str(p).split(" - ")[0].strip() for p in fotos['VINCULO'].dropna() if " - " in str(p)]
                 
-                df_falta = df_full_inv[~df_full_inv['CÓD. PRÓDUTO'].astype(str).isin(prods_com_foto)]
+                df_falta = df_full_inv[~df_full_inv['CÓD. PRÓDUTO'].astype(str).str.strip().isin(prods_com_foto)]
                 if not df_falta.empty:
                     st.dataframe(df_falta[['CÓD. PRÓDUTO', 'NOME DO PRODUTO', 'ESTOQUE ATUAL']], hide_index=True)
-                else: st.success("🎉 Nenhuma pendência!")
+                else: st.success("🎉 Nenhuma pendência! O estoque inteiro tem foto.")
 
         with t_pronto:
             st.write("**Fotos tiradas! Coloque no site e marque como publicado:**")
@@ -816,30 +803,32 @@ elif menu_selecionado == "📂 Documentos":
 
     st.divider()
 
-    # 📤 ÁREA DE UPLOAD (Roteamento Dinâmico e Nomenclatura Automática)
     st.write("### 📤 Enviar Arquivo")
-    # A categoria fica fora do formulário para o sistema reagir a ela
-    cat_escolhida = st.selectbox("Categoria do Documento", list(PASTAS_DRIVE.keys()))
     
-    with st.form("form_upload_drive", clear_on_submit=True):
+    lista_categorias = ["Foto de Produto", "Nota Fiscal", "Comprovante", "Recibo / Pgto", "Contrato", "Outros"]
+    cat_escolhida = st.selectbox("1️⃣ Categoria do Documento", lista_categorias)
+    
+    with st.form("form_upload_cloudinary", clear_on_submit=True):
+        st.write("2️⃣ **Detalhes e Arquivo**")
         
         vinc_cli = "Nenhum"
         vinc_prod = "Nenhum"
         nome_livre = ""
         
-        # 🤖 INTELIGÊNCIA DE FORMULÁRIO
         if cat_escolhida in ["Foto de Produto", "Nota Fiscal"]:
             st.info("📦 O sistema dará o nome do arquivo automaticamente com base no produto.")
-            vinc_prod = st.selectbox("Vincular a qual Produto?", ["Nenhum"] + [f"{k} - {v['nome']}" for k, v in banco_de_produtos.items()])
+            opcoes_prod = ["Nenhum"] + [f"{k} - {v['nome']}" for k, v in banco_de_produtos.items()]
+            vinc_prod = st.selectbox("Selecione o Produto:", opcoes_prod)
         
         elif cat_escolhida in ["Comprovante", "Recibo / Pgto"]:
             st.info("👤 O sistema dará o nome do arquivo automaticamente com base na cliente.")
-            vinc_cli = st.selectbox("Vincular a uma Cliente?", ["Nenhum"] + [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
+            opcoes_cli = ["Nenhum"] + [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()]
+            vinc_cli = st.selectbox("Selecione a Cliente:", opcoes_cli)
         
         else:
             nome_livre = st.text_input("Nome/Descrição Breve")
 
-        arquivo_subido = st.file_uploader("Arquivo (Imagem/PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
+        arquivo_subido = st.file_uploader("3️⃣ Escolha o arquivo (Imagem/PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
         
         if st.form_submit_button("Salvar no Cofre 🔒"):
             erro = False
@@ -853,7 +842,6 @@ elif menu_selecionado == "📂 Documentos":
                 st.error("⚠️ Por favor, digite um nome para o documento."); erro = True
 
             if not erro:
-                # 🤖 O ROBÔ GERA O NOME (Com as informações integradas)
                 if vinc_prod != "Nenhum":
                     nome_gerado = f"[{cat_escolhida.upper()}] {vinc_prod}"
                     vinculo_final = vinc_prod
@@ -864,13 +852,10 @@ elif menu_selecionado == "📂 Documentos":
                     nome_gerado = f"[{cat_escolhida.upper()}] {nome_livre}"
                     vinculo_final = "-"
                 
-                # Preserva a extensão do arquivo (.jpg, .pdf)
-                extensao = arquivo_subido.name.split('.')[-1]
-                nome_com_extensao = f"{nome_gerado}.{extensao}"
+                nome_limpo = nome_gerado.replace("/", "-").replace(":", "")
 
-                with st.spinner(f"Subindo para a pasta '{cat_escolhida}'..."):
-                    target_id = PASTAS_DRIVE[cat_escolhida]
-                    f_id, f_link = upload_para_drive(arquivo_subido.getvalue(), nome_com_extensao, arquivo_subido.type, target_id)
+                with st.spinner(f"Subindo para o servidor seguro... ⏳"):
+                    f_id, f_link = upload_para_cloudinary(arquivo_subido.getvalue(), nome_limpo, cat_escolhida)
                     
                     if f_id:
                         try:
@@ -882,25 +867,25 @@ elif menu_selecionado == "📂 Documentos":
                             
                             aba_doc.append_row([
                                 datetime.now().strftime("%d/%m/%Y %H:%M"),
-                                cat_escolhida, nome_com_extensao, f_id, f_link, vinculo_final, status_odoo
+                                cat_escolhida, nome_limpo, f_id, f_link, vinculo_final, status_odoo
                             ], value_input_option='USER_ENTERED')
-                            st.success(f"✅ Salvo como: {nome_com_extensao}"); st.cache_resource.clear(); st.rerun()
+                            st.success(f"✅ Arquivado com sucesso!"); st.cache_resource.clear(); st.rerun()
                         except Exception as e: st.error(f"Erro na planilha: {e}")
 
     st.divider()
     st.write("### 🗂️ Histórico Geral de Documentos")
     
     if not df_docs.empty:
-        busca_doc = st.text_input("🔍 Pesquisar documento...")
+        busca_doc = st.text_input("🔍 Pesquisar (Ex: código, nome, categoria...)")
         if busca_doc:
             df_docs = df_docs[df_docs.apply(lambda r: busca_doc.lower() in str(r).lower(), axis=1)]
 
         for _, r in df_docs.sort_index(ascending=False).iterrows():
             with st.container():
                 col_a, col_b, col_c = st.columns([1, 3, 1])
-                col_a.write(f"📅 {r['DATA'].split(' ')[0]}")
+                col_a.write(f"📅 {str(r['DATA']).split(' ')[0]}")
                 col_b.write(f"**{r['TIPO']}**\n\n<small>{r['NOME']}</small>", unsafe_allow_html=True)
                 col_c.link_button("👁️ Abrir", r['LINK_DRIVE'], use_container_width=True)
                 st.divider()
     else:
-        st.info("O cofre geral está vazio.")
+        st.info("O cofre geral está vazio. Comece a enviar arquivos!")
