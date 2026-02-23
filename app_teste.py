@@ -924,117 +924,121 @@ elif menu_selecionado == "📦 Estoque":
 # --- SEÇÃO 4: CLIENTES ---
 # ==========================================
 elif menu_selecionado == "👥 Clientes":
-    st.subheader("👥 Gestão de Clientes e CRM")
+    st.subheader("👥 Gestão de Clientes e CRM")
 
-    if not df_vendas_hist.empty and not df_clientes_full.empty:
-        df_v_crm = df_vendas_hist.copy()
-        df_v_crm['DATA_DATETIME'] = pd.to_datetime(df_v_crm['DATA DA VENDA'], format='%d/%m/%Y', errors='coerce')
-        
-        ultima_compra = df_v_crm.groupby('CÓD. CLIENTE')['DATA_DATETIME'].max().reset_index()
-        hoje = pd.to_datetime(datetime.now().date())
-        ultima_compra['DIAS_AUSENTE'] = (hoje - ultima_compra['DATA_DATETIME']).dt.days
-        
-        sumidas = ultima_compra[ultima_compra['DIAS_AUSENTE'] >= 60].copy()
-        
-        with st.expander(f"🎯 CRM: Radar de Retenção ({len(sumidas)} clientes ausentes há +60 dias)", expanded=False):
-            if not sumidas.empty:
-                st.write("Estas clientes não compram há mais de 2 meses. Que tal enviar uma promoção?")
-                df_c_crm = df_clientes_full.rename(columns={df_clientes_full.columns[0]: 'CÓD. CLIENTE', df_clientes_full.columns[1]: 'NOME', df_clientes_full.columns[2]: 'ZAP'})
-                sumidas_full = sumidas.merge(df_c_crm[['CÓD. CLIENTE', 'NOME', 'ZAP']], on='CÓD. CLIENTE', how='left')
-                
-                for _, cliente in sumidas_full.iterrows():
-                    dias = int(cliente['DIAS_AUSENTE'])
-                    nome = str(cliente['NOME'])
-                    zap = str(cliente['ZAP']).replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
-                    
-                    c_crm1, c_crm2 = st.columns([3, 1])
-                    c_crm1.write(f"👤 **{nome}** (Última compra há {dias} dias)")
-                    
-                    if zap and zap != "nan":
-                        msg_recuperacao = f"Olá {nome.split(' ')[0]}! Que saudade de você aqui na Sweet Home Enxovais 🌸. Preparamos novidades lindas e um mimo especial para você. Como você está?"
-                        c_crm2.link_button("📲 Enviar Mensagem", f"https://wa.me/55{zap}?text={urllib.parse.quote(msg_recuperacao)}", use_container_width=True)
-                    else:
-                        c_crm2.write("❌ Sem Zap")
-                    st.divider()
-            else:
-                st.success("Parabéns! Suas clientes estão ativas e comprando recentemente. 🚀")
+    if not df_vendas_hist.empty and not df_clientes_full.empty:
+        df_v_crm = df_vendas_hist.copy()
+        df_v_crm['DATA_DATETIME'] = pd.to_datetime(df_v_crm['DATA DA VENDA'], format='%d/%m/%Y', errors='coerce')
+        
+        ultima_compra = df_v_crm.groupby('CÓD. CLIENTE')['DATA_DATETIME'].max().reset_index()
+        hoje = pd.to_datetime(datetime.now().date())
+        ultima_compra['DIAS_AUSENTE'] = (hoje - ultima_compra['DATA_DATETIME']).dt.days
+        
+        sumidas = ultima_compra[ultima_compra['DIAS_AUSENTE'] >= 60].copy()
+        
+        with st.expander(f"🎯 CRM: Radar de Retenção ({len(sumidas)} clientes ausentes há +60 dias)", expanded=False):
+            if not sumidas.empty:
+                st.write("Estas clientes não compram há mais de 2 meses. Que tal enviar uma promoção?")
+                df_c_crm = df_clientes_full.rename(columns={df_clientes_full.columns[0]: 'CÓD. CLIENTE', df_clientes_full.columns[1]: 'NOME', df_clientes_full.columns[2]: 'ZAP'})
+                sumidas_full = sumidas.merge(df_c_crm[['CÓD. CLIENTE', 'NOME', 'ZAP']], on='CÓD. CLIENTE', how='left')
+                
+                for _, cliente in sumidas_full.iterrows():
+                    dias = int(cliente['DIAS_AUSENTE'])
+                    nome = str(cliente['NOME'])
+                    zap = str(cliente['ZAP']).replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+                    
+                    c_crm1, c_crm2 = st.columns([3, 1])
+                    c_crm1.write(f"👤 **{nome}** (Última compra há {dias} dias)")
+                    
+                    if zap and zap != "nan":
+                        msg_recuperacao = f"Olá {nome.split(' ')[0]}! Que saudade de você aqui na Sweet Home Enxovais 🌸. Preparamos novidades lindas e um mimo especial para você. Como você está?"
+                        c_crm2.link_button("📲 Enviar Mensagem", f"https://wa.me/55{zap}?text={urllib.parse.quote(msg_recuperacao)}", use_container_width=True)
+                    else:
+                        c_crm2.write("❌ Sem Zap")
+                    st.divider()
+            else:
+                st.success("Parabéns! Suas clientes estão ativas e comprando recentemente. 🚀")
 
-    st.divider()
+    st.divider()
 
-    with st.expander("➕ Cadastrar Nova Cliente (Sem compra atual)", expanded=False):
-        with st.form("form_novo_manual", clear_on_submit=True):
-            st.markdown("Código gerado automaticamente.")
-            c1, c2 = st.columns([2, 1])
-            n_nome = c1.text_input("Nome Completo *"); n_zap = c2.text_input("WhatsApp *")
-            c3, c4 = st.columns([3, 1])
-            n_end = c3.text_input("Endereço"); n_vale = c4.number_input("Vale Desconto", 0.0)
-            if st.form_submit_button("Salvar Cadastro 💾"):
-                if n_nome and n_zap:
-                    try:
-                        aba_cli_sheet = planilha_mestre.worksheet("CARTEIRA DE CLIENTES")
-                        codigo = f"CLI-{len(aba_cli_sheet.get_all_values()):03d}"
-                        aba_cli_sheet.append_row([codigo, n_nome.strip(), n_zap.strip(), n_end.strip(), datetime.now().strftime("%d/%m/%Y"), n_vale, "", "Completo" if n_end else "Incompleto"], value_input_option='USER_ENTERED')
-                        st.success(f"✅ {n_nome} cadastrada!"); st.cache_resource.clear()
-                    except Exception as e: st.error(f"Erro: {e}")
+    with st.expander("➕ Cadastrar Nova Cliente (Sem compra atual)", expanded=False):
+        with st.form("form_novo_manual", clear_on_submit=True):
+            st.markdown("Código gerado automaticamente.")
+            c1, c2 = st.columns([2, 1])
+            n_nome = c1.text_input("Nome Completo *")
+            n_zap = c2.text_input("WhatsApp *")
+            c3, c4 = st.columns([3, 1])
+            n_end = c3.text_input("Endereço")
+            n_vale = c4.number_input("Vale Desconto", 0.0)
+            if st.form_submit_button("Salvar Cadastro 💾"):
+                if n_nome and n_zap:
+                    try:
+                        aba_cli_sheet = planilha_mestre.worksheet("CARTEIRA DE CLIENTES")
+                        codigo = f"CLI-{len(aba_cli_sheet.get_all_values()):03d}"
+                        aba_cli_sheet.append_row([codigo, n_nome.strip(), n_zap.strip(), n_end.strip(), datetime.now().strftime("%d/%m/%Y"), n_vale, "", "Completo" if n_end else "Incompleto"], value_input_option='USER_ENTERED')
+                        st.success(f"✅ {n_nome} cadastrada!")
+                        st.cache_resource.clear()
+                    except Exception as e:
+                        st.error(f"Erro: {e}")
 
-    st.divider()
-    
-    if not df_clientes_full.empty:
-        try:
-            inc = df_clientes_full[df_clientes_full.iloc[:, 7].str.strip() == "Incompleto"]
-            if not inc.empty:
-                st.warning(f"🚨 Radar: {len(inc)} cadastros pendentes!")
-                st.dataframe(inc, hide_index=True)
-        except: pass
-        st.markdown("### 🗂️ Carteira Total")
-        st.dataframe(df_clientes_full, use_container_width=True, hide_index=True)
-        
-    with st.expander("🔄 Atualizar Dados de Cliente Existente", expanded=False):
-        lista_clientes_edit = [f"{row[0]} - {row[1]}" for row in df_clientes_full.values]
-        escolha = st.selectbox("Selecione a Cliente para editar", ["---"] + lista_clientes_edit, key="sel_edit_cli_manual")
+    st.divider()
+    
+    if not df_clientes_full.empty:
+        try:
+            inc = df_clientes_full[df_clientes_full.iloc[:, 7].str.strip() == "Incompleto"]
+            if not inc.empty:
+                st.warning(f"🚨 Radar: {len(inc)} cadastros pendentes!")
+                st.dataframe(inc, hide_index=True)
+        except:
+            pass
+        st.markdown("### 🗂️ Carteira Total")
+        st.dataframe(df_clientes_full, use_container_width=True, hide_index=True)
+        
+    with st.expander("🔄 Atualizar Dados de Cliente Existente", expanded=False):
+        lista_clientes_edit = [f"{row[0]} - {row[1]}" for row in df_clientes_full.values]
+        escolha = st.selectbox("Selecione a Cliente para editar", ["---"] + lista_clientes_edit, key="sel_edit_cli_manual")
 
-        if escolha != "---":
-            id_edit = escolha.split(" - ")[0]
-            dados_atuais = df_clientes_full[df_clientes_full.iloc[:, 0] == id_edit].iloc[0]
+        if escolha != "---":
+            id_edit = escolha.split(" - ")[0]
+            dados_atuais = df_clientes_full[df_clientes_full.iloc[:, 0] == id_edit].iloc[0]
 
-            with st.form("form_atualizar_cli_v1"):
-                st.info(f"Editando: {id_edit} - {dados_atuais[1]}")
-                
-                col1, col2 = st.columns(2)
-                novo_nome = col1.text_input("Nome Completo", value=str(dados_atuais[1]))
-                novo_zap = col2.text_input("WhatsApp", value=str(dados_atuais[2]))
-                
-                val_original = dados_atuais[5]
-                try:
-                    valor_limpo = float(val_original) if (pd.notna(val_original) and str(val_original).strip() != "") else 0.0
-                except:
-                    valor_limpo = 0.0
+            with st.form("form_atualizar_cli_v1"):
+                st.info(f"Editando: {id_edit} - {dados_atuais[1]}")
+                
+                col1, col2 = st.columns(2)
+                novo_nome = col1.text_input("Nome Completo", value=str(dados_atuais[1]))
+                novo_zap = col2.text_input("WhatsApp", value=str(dados_atuais[2]))
+                
+                val_original = dados_atuais[5]
+                try:
+                    valor_limpo = float(val_original) if (pd.notna(val_original) and str(val_original).strip() != "") else 0.0
+                except:
+                    valor_limpo = 0.0
 
-                novo_end = st.text_input("Endereço", value=str(dados_atuais[3]) if pd.notna(dados_atuais[3]) else "")
-                novo_vale = st.number_input("Vale Desconto", value=valor_limpo)
+                novo_end = st.text_input("Endereço", value=str(dados_atuais[3]) if pd.notna(dados_atuais[3]) else "")
+                novo_vale = st.number_input("Vale Desconto", value=valor_limpo)
 
-                botao_salvar = st.form_submit_button("Salvar Alterações 💾", use_container_width=True)
+                botao_salvar = st.form_submit_button("Salvar Alterações 💾", use_container_width=True)
 
-                if botao_salvar:
-                    try:
-                        aba_cli_sheet = planilha_mestre.worksheet("CARTEIRA DE CLIENTES")
-                        celula = aba_cli_sheet.find(id_edit)
-                        num_linha = celula.row
+                if botao_salvar:
+                    try:
+                        aba_cli_sheet = planilha_mestre.worksheet("CARTEIRA DE CLIENTES")
+                        celula = aba_cli_sheet.find(id_edit)
+                        num_linha = celula.row
 
-                        aba_cli_sheet.update_cell(num_linha, 2, novo_nome.strip())
-                        aba_cli_sheet.update_cell(num_linha, 3, novo_zap.strip())
-                        aba_cli_sheet.update_cell(num_linha, 4, novo_end.strip())
-                        aba_cli_sheet.update_cell(num_linha, 6, novo_vale)
-                        
-                        novo_status = "Completo" if novo_end.strip() else "Incompleto"
-                        aba_cli_sheet.update_cell(num_linha, 8, novo_status)
+                        aba_cli_sheet.update_cell(num_linha, 2, novo_nome.strip())
+                        aba_cli_sheet.update_cell(num_linha, 3, novo_zap.strip())
+                        aba_cli_sheet.update_cell(num_linha, 4, novo_end.strip())
+                        aba_cli_sheet.update_cell(num_linha, 6, novo_vale)
+                        
+                        novo_status = "Completo" if novo_end.strip() else "Incompleto"
+                        aba_cli_sheet.update_cell(num_linha, 8, novo_status)
 
-                        st.success(f"✅ Dados de {novo_nome} atualizados!")
-                        st.cache_resource.clear()
-                        st.rerun()
-                        
-                    except Exception as e:
-                        st.error(f"Erro ao salvar na planilha: {e}")
+                        st.success(f"✅ Dados de {novo_nome} atualizados!")
+                        st.cache_resource.clear()
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao salvar na planilha: {e}")
 
 # ==========================================
 # 🌟 SEÇÃO 5: DOCUMENTOS & FILA ODOO (NOVA ENGINE CLOUDINARY) 🌟
