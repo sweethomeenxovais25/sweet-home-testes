@@ -184,22 +184,41 @@ ESPECIFICACOES = [
 ]
 
 # ====================================================
-# 🤖 GATILHO DE REGISTRO (Agora o robô já tem a caneta!)
+# 🤖 GATILHO DE REGISTRO (MODO DETETIVE LIGADO)
 # ====================================================
 if st.session_state.get('precisa_registrar_acesso'):
+    st.warning("🕵️‍♂️ Iniciando tentativa de registro na planilha...") # Aviso para vermos se ele entrou aqui
     try:
         aba_usuario = planilha_mestre.worksheet("USUARIO") 
-        agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        st.write("✅ 1. Encontrou a aba USUARIO.")
         
-        celula_nome = aba_usuario.find(st.session_state['usuario_logado'])
+        agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        usuario_logado = st.session_state.get('usuario_logado')
+        st.write(f"🔍 2. Procurando o nome exato: '{usuario_logado}'")
+        
+        celula_nome = aba_usuario.find(usuario_logado)
         
         if celula_nome:
+            st.write(f"✅ 3. Achou o usuário na linha {celula_nome.row}.")
             cabecalhos = aba_usuario.row_values(1)
-            col_acesso = cabecalhos.index("ULTIMO_ACESSO") + 1
-            aba_usuario.update_cell(celula_nome.row, col_acesso, agora)
             
-        st.session_state['precisa_registrar_acesso'] = False 
+            try:
+                col_acesso = cabecalhos.index("ULTIMO_ACESSO") + 1
+                st.write(f"✅ 4. Achou a coluna ULTIMO_ACESSO (Número {col_acesso}).")
+                
+                aba_usuario.update_cell(celula_nome.row, col_acesso, agora)
+                st.success("🎉 5. Hora carimbada com sucesso no Google Sheets!")
+                
+            except ValueError:
+                st.error("❌ Erro: Não achou o cabeçalho 'ULTIMO_ACESSO'. Tem espaço sobrando na palavra lá na planilha?")
+                
+            st.session_state['precisa_registrar_acesso'] = False 
+        else:
+            st.error(f"❌ Erro: Não encontrou o nome '{usuario_logado}' na planilha. Verifique se tem letras maiúsculas ou espaços sobrando.")
+            st.session_state['precisa_registrar_acesso'] = False 
+            
     except Exception as e:
+        st.error(f"❌ Erro fatal: {e}")
         st.session_state['precisa_registrar_acesso'] = False
 # ====================================================
 
