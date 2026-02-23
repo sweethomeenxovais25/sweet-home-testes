@@ -146,20 +146,25 @@ if 'acesso_registrado' not in st.session_state:
 
 @st.cache_resource(ttl=600)
 def carregar_dados():
-    banco_de_produtos, banco_de_clientes, df_full_inv, df_financeiro, df_vendas_hist, df_painel_resumo, df_clientes_full = carregar_dados()
+    # ⚠️ REMOVA A LINHA QUE ESTAVA AQUI (banco_de_produtos, banco_de_clientes... = carregar_dados())
+    # Se ela ficar aqui dentro, a função chama a si mesma e trava tudo.
+
     def ler(n):
         try:
-            aba = planilha_mestre.worksheet(n); d = aba.get_all_values()
+            aba = planilha_mestre.worksheet(n)
+            d = aba.get_all_values()
             return pd.DataFrame(d[1:], columns=d[0]) if len(d) > 1 else pd.DataFrame()
-        except: return pd.DataFrame()
+        except: 
+            return pd.DataFrame()
 
     df_inv = ler("INVENTÁRIO")
     df_cli = ler("CARTEIRA DE CLIENTES")
     
-    # 💡 ESTA É A CORREÇÃO: Preencher os dicionários para o selectbox não dar erro
+    # Preenchimento dos dicionários (para os selectboxes funcionarem)
     banco_prod = {str(r.iloc[0]): {"nome": r.iloc[1], "custo": limpar_v(r.iloc[3]), "venda": limpar_v(r.iloc[8])} for _, r in df_inv.iterrows()} if not df_inv.empty else {}
     banco_cli = {str(r.iloc[0]): {"nome": str(r.iloc[1]), "fone": str(r.iloc[2])} for _, r in df_cli.iterrows()} if not df_cli.empty else {}
 
+    # Retorna os 7 itens na ordem correta
     return banco_prod, banco_cli, df_inv, ler("FINANCEIRO"), ler("VENDAS"), ler("PAINEL"), df_cli
 
 # ==========================================
