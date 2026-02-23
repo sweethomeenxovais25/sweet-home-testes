@@ -150,124 +150,124 @@ if not st.session_state['autenticado']:
 # ID da Planilha Cobaia
 ID_PLANILHA = "1lXUnGrWtwV-IfIiUbGzLH3P2T-h3b6Mr9NEBCpwulXg"
 ESPECIFICACOES = [
-    "https://spreadsheets.google.com/feeds", 
-    'https://www.googleapis.com/auth/spreadsheets',
-    "https://www.googleapis.com/auth/drive.file"
+    "https://spreadsheets.google.com/feeds", 
+    'https://www.googleapis.com/auth/spreadsheets',
+    "https://www.googleapis.com/auth/drive.file"
 ]
 
 # ☁️ Função de Upload Rápido para Cloudinary (Nova Engine de Arquivos)
 def upload_para_cloudinary(file_bytes, file_name, pasta_destino):
-    try:
-        # Puxa as senhas dos secrets
-        cloudinary.config(
-            cloud_name = st.secrets["cloudinary"]["cloud_name"],
-            api_key = st.secrets["cloudinary"]["api_key"],
-            api_secret = st.secrets["cloudinary"]["api_secret"],
-            secure = True
-        )
-        
-        # Cria as pastas virtuais automaticamente no CDN
-        caminho_pasta = f"SweetHome/{pasta_destino}"
-        
-        resposta = cloudinary.uploader.upload(
-            file_bytes,
-            folder=caminho_pasta,
-            public_id=file_name,
-            resource_type="auto"
-        )
-        # Retorna o ID único e o link direto
-        return resposta.get('public_id'), resposta.get('secure_url')
-    except Exception as e:
-        st.error(f"Erro no servidor de arquivos: {e}")
-        return None, None
+    try:
+        # Puxa as senhas dos secrets
+        cloudinary.config(
+            cloud_name = st.secrets["cloudinary"]["cloud_name"],
+            api_key = st.secrets["cloudinary"]["api_key"],
+            api_secret = st.secrets["cloudinary"]["api_secret"],
+            secure = True
+        )
+        
+        # Cria as pastas virtuais automaticamente no CDN
+        caminho_pasta = f"SweetHome/{pasta_destino}"
+        
+        resposta = cloudinary.uploader.upload(
+            file_bytes,
+            folder=caminho_pasta,
+            public_id=file_name,
+            resource_type="auto"
+        )
+        # Retorna o ID único e o link direto
+        return resposta.get('public_id'), resposta.get('secure_url')
+    except Exception as e:
+        st.error(f"Erro no servidor de arquivos: {e}")
+        return None, None
 
 @st.cache_resource
 def conectar_google():
-    try:
-        if "gcp_service_account" in st.secrets:
-            creds_info = st.secrets["gcp_service_account"]
-            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_info, ESPECIFICACOES)
-            return gspread.authorize(creds).open_by_key(ID_PLANILHA)
-        return None
-    except Exception as e:
-        st.error(f"Erro de conexão: {e}")
-        return None
+    try:
+        if "gcp_service_account" in st.secrets:
+            creds_info = st.secrets["gcp_service_account"]
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_info, ESPECIFICACOES)
+            return gspread.authorize(creds).open_by_key(ID_PLANILHA)
+        return None
+    except Exception as e:
+        st.error(f"Erro de conexão: {e}")
+        return None
 
 planilha_mestre = conectar_google()
 
 @st.cache_resource(ttl=600)
 def carregar_dados():
-    if not planilha_mestre: 
-        return {}, {}, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-    
-    def ler_aba_seguro(nome):
-        try:
-            aba = planilha_mestre.worksheet(nome)
-            dados = aba.get_all_values()
-            if len(dados) <= 1: return pd.DataFrame()
-            df = pd.DataFrame(dados[1:], columns=dados[0])
-            if not df.empty:
-                df = df[~df.iloc[:, 0].astype(str).str.contains("TOTAIS", case=False, na=False)]
-                df = df[df.iloc[:, 1].astype(str).str.strip() != ""]
-            return df
-        except: return pd.DataFrame()
+    if not planilha_mestre: 
+        return {}, {}, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+    
+    def ler_aba_seguro(nome):
+        try:
+            aba = planilha_mestre.worksheet(nome)
+            dados = aba.get_all_values()
+            if len(dados) <= 1: return pd.DataFrame()
+            df = pd.DataFrame(dados[1:], columns=dados[0])
+            if not df.empty:
+                df = df[~df.iloc[:, 0].astype(str).str.contains("TOTAIS", case=False, na=False)]
+                df = df[df.iloc[:, 1].astype(str).str.strip() != ""]
+            return df
+        except: return pd.DataFrame()
 
-    df_inv = ler_aba_seguro("INVENTÁRIO")
-    df_cli = ler_aba_seguro("CARTEIRA DE CLIENTES")
-    df_fin = ler_aba_seguro("FINANCEIRO")
-    df_vendas = ler_aba_seguro("VENDAS")
-    df_painel = ler_aba_seguro("PAINEL")
+    df_inv = ler_aba_seguro("INVENTÁRIO")
+    df_cli = ler_aba_seguro("CARTEIRA DE CLIENTES")
+    df_fin = ler_aba_seguro("FINANCEIRO")
+    df_vendas = ler_aba_seguro("VENDAS")
+    df_painel = ler_aba_seguro("PAINEL")
 
-    banco_prod = {str(r.iloc[0]): {"nome": r.iloc[1], "custo": float(limpar_v(r.iloc[3])), "estoque": r.iloc[7], "venda": r.iloc[8]} for _, r in df_inv.iterrows()} if not df_inv.empty else {}
-    banco_cli = {str(r.iloc[0]): {"nome": str(r.iloc[1]), "fone": str(r.iloc[2])} for _, r in df_cli.iterrows()} if not df_cli.empty else {}
+    banco_prod = {str(r.iloc[0]): {"nome": r.iloc[1], "custo": float(limpar_v(r.iloc[3])), "estoque": r.iloc[7], "venda": r.iloc[8]} for _, r in df_inv.iterrows()} if not df_inv.empty else {}
+    banco_cli = {str(r.iloc[0]): {"nome": str(r.iloc[1]), "fone": str(r.iloc[2])} for _, r in df_cli.iterrows()} if not df_cli.empty else {}
 
-    return banco_prod, banco_cli, df_inv, df_fin, df_vendas, df_painel, df_cli
+    return banco_prod, banco_cli, df_inv, df_fin, df_vendas, df_painel, df_cli
 
 banco_de_produtos, banco_de_clientes, df_full_inv, df_financeiro, df_vendas_hist, df_painel_resumo, df_clientes_full = carregar_dados()
 
 with st.sidebar:
-    try:
-        st.image("logo_sweet_teste.png", use_container_width=True)
-    except:
-        st.write("🌸 **Sweet Home**")
-    
-    st.write(f"👋 Olá, **{st.session_state.get('usuario_logado', 'Usuária')}**!")
-    st.divider()
-    
-    if st.button("Sair do Sistema 🚪", use_container_width=True):
-        st.session_state['autenticado'] = False
-        st.rerun()
+    try:
+        st.image("logo_sweet_teste.png", use_container_width=True)
+    except:
+        st.write("🌸 **Sweet Home**")
+    
+    st.write(f"👋 Olá, **{st.session_state.get('usuario_logado', 'Usuária')}**!")
+    st.divider()
+    
+    if st.button("Sair do Sistema 🚪", use_container_width=True):
+        st.session_state['autenticado'] = False
+        st.rerun()
 
-    st.title("🛠️ Painel Sweet Home")
-    
-    menu_selecionado = st.radio(
-        "Navegação",
-        ["🛒 Vendas", "💰 Financeiro", "📦 Estoque", "👥 Clientes", "📂 Documentos"], 
-        key="navegacao_principal_sweet"
-    )
-    
-    st.divider()
-    modo_teste = st.toggle("🔬 Modo de Teste", value=False, key="toggle_teste")
-    
-    if st.button("🔄 Sincronizar Planilha", key="btn_sincronizar"):
-        st.cache_resource.clear()
-        st.rerun()
+    st.title("🛠️ Painel Sweet Home")
+    
+    menu_selecionado = st.radio(
+        "Navegação",
+        ["🛒 Vendas", "💰 Financeiro", "📦 Estoque", "👥 Clientes", "📂 Documentos"], 
+        key="navegacao_principal_sweet"
+    )
+    
+    st.divider()
+    modo_teste = st.toggle("🔬 Modo de Teste", value=False, key="toggle_teste")
+    
+    if st.button("🔄 Sincronizar Planilha", key="btn_sincronizar"):
+        st.cache_resource.clear()
+        st.rerun()
 
-    st.divider()
-    with st.expander("🛡️ Backup do Sistema"):
-        st.markdown("<small>Faça o download seguro dos seus dados para o computador.</small>", unsafe_allow_html=True)
-        try:
-            if not df_vendas_hist.empty:
-                st.download_button("📥 Baixar Vendas", df_vendas_hist.to_csv(index=False).encode('utf-8'), f"Vendas_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
-            if not df_full_inv.empty:
-                st.download_button("📥 Baixar Estoque", df_full_inv.to_csv(index=False).encode('utf-8'), f"Estoque_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
-            if not df_clientes_full.empty:
-                st.download_button("📥 Baixar Clientes", df_clientes_full.to_csv(index=False).encode('utf-8'), f"Clientes_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
-            if not df_financeiro.empty:
-                st.download_button("📥 Baixar Financeiro", df_financeiro.to_csv(index=False).encode('utf-8'), f"Financeiro_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
-        except Exception as e:
-            st.error("Sincronize a planilha para gerar o backup.")
-
+    st.divider()
+    with st.expander("🛡️ Backup do Sistema"):
+        st.markdown("<small>Faça o download seguro dos seus dados para o computador.</small>", unsafe_allow_html=True)
+        try:
+            if not df_vendas_hist.empty:
+                st.download_button("📥 Baixar Vendas", df_vendas_hist.to_csv(index=False).encode('utf-8'), f"Vendas_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
+            if not df_full_inv.empty:
+                st.download_button("📥 Baixar Estoque", df_full_inv.to_csv(index=False).encode('utf-8'), f"Estoque_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
+            if not df_clientes_full.empty:
+                st.download_button("📥 Baixar Clientes", df_clientes_full.to_csv(index=False).encode('utf-8'), f"Clientes_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
+            if not df_financeiro.empty:
+                st.download_button("📥 Baixar Financeiro", df_financeiro.to_csv(index=False).encode('utf-8'), f"Financeiro_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
+        except Exception as e:
+            st.error("Sincronize a planilha para gerar o backup.")
+            
 # ==========================================
 # --- SEÇÃO 1: VENDAS (MEMÓRIA ETERNA) ---
 # ==========================================
