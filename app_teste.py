@@ -461,6 +461,25 @@ elif menu_selecionado == "💰 Financeiro":
         else:
             st.info("Nenhuma compra registrada para esta cliente ainda.")
 
+            # --- NOVO: HISTÓRICO DE RECEBIMENTOS (ABATIMENTOS) ---
+        st.markdown("---")
+        st.write("#### 🕒 Últimos Abatimentos Processados")
+        try:
+            # Filtra a aba FINANCEIRO para mostrar apenas o que foi PAGO (abatimentos)
+            aba_f_viva = planilha_mestre.worksheet("FINANCEIRO")
+            df_f_viva = pd.DataFrame(aba_f_viva.get_all_records())
+            
+            # Pega as últimas 5 entradas do tipo PAGO
+            abatimentos = df_f_viva[df_f_viva['STATUS'] == "PAGO"].tail(5).iloc[::-1]
+            
+            if not abatimentos.empty:
+                # Ajustamos as colunas para uma visualização rápida
+                st.dataframe(abatimentos[['DATA', 'CLIENTE', 'ENTRADA R$', 'OBS']], use_container_width=True, hide_index=True)
+            else:
+                st.info("Nenhum abatimento registrado recentemente.")
+        except:
+            st.info("O histórico de abatimentos aparecerá aqui após o primeiro registro.")
+
 # ==========================================
 # --- SEÇÃO 3: ESTOQUE (MEMÓRIA ETERNA) ---
 # ==========================================
