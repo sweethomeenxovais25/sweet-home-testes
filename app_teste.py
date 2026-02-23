@@ -11,6 +11,22 @@ import cloudinary.uploader
 import io
 import google.generativeai as genai
 from PIL import Image
+import requests
+
+def verificar_status_odoo(codigo_produto):
+    """Acessa o site da Sweet Home Comfort e verifica se o código existe na loja"""
+    url = f"https://sweethomecomfort.odoo.com/shop?search={codigo_produto}"
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        resposta = requests.get(url, headers=headers, timeout=5)
+        texto_site = resposta.text.lower()
+        
+        if "nenhum resultado encontrado" in texto_site:
+            return "🔴 Pendente"
+        else:
+            return "🟢 No Site"
+    except Exception:
+        return "⚠️ Erro"
 
 # ==========================================
 # 1. CONFIGURAÇÃO ÚNICA DA PÁGINA
@@ -1183,39 +1199,57 @@ elif menu_selecionado == "📂 Documentos":
         df_docs = pd.DataFrame()
 
     with st.expander("🚀 Linha de Montagem Odoo (Site)", expanded=True):
-        t_falta, t_pronto = st.tabs(["🔴 1. Falta Foto (Bia)", "🟢 2. Pronto p/ Site (Você)"])
-        
-        with t_falta:
-            st.write("**Produtos no estoque aguardando foto para o site:**")
-            if not df_full_inv.empty:
-                prods_com_foto = []
-                if not df_docs.empty and 'VINCULO' in df_docs.columns:
-                    fotos = df_docs[df_docs['TIPO'] == "Foto de Produto"]
-                    prods_com_foto = [str(p).split(" - ")[0].strip() for p in fotos['VINCULO'].dropna() if " - " in str(p)]
-                
-                df_falta = df_full_inv[~df_full_inv['CÓD. PRÓDUTO'].astype(str).str.strip().isin(prods_com_foto)]
-                if not df_falta.empty:
-                    st.dataframe(df_falta[['CÓD. PRÓDUTO', 'NOME DO PRODUTO', 'ESTOQUE ATUAL']], hide_index=True)
-                else: 
-                    st.success("🎉 Nenhuma pendência! O estoque inteiro tem foto.")
+            t_falta, t_pronto = st.tabs(["🔴 1. Falta Foto (Bia)", "🟢 2. Pronto p/ Site (Você)"])
+            
+            with t_falta:
+                st.write("**Produtos no estoque aguardando foto para o site:**")
+                if not df_full_inv.empty:
+                    prods_com_foto = []
+                    if not df_docs.empty and 'VINCULO' in df_docs.columns:
+                        fotos = df_docs[df_docs['TIPO'] == "Foto de Produto"]
+                        prods_com_foto = [str(p).split(" - ")[0].strip() for p in fotos['VINCULO'].dropna() if " - " in str(p)]
+                    
+                    df_falta = df_full_inv[~df_full_inv['CÓD. PRÓDUTO'].astype(str).str.strip().isin(prods_com_foto)]
+                    if not df_falta.empty:
+                        st.dataframe(df_falta[['CÓD. PRÓDUTO', 'NOME DO PRODUTO', 'ESTOQUE ATUAL']], hide_index=True)
+                    else: 
+                        st.success("🎉 Nenhuma pendência! O estoque inteiro tem foto.")
 
-        with t_pronto:
-            st.write("**Fotos tiradas! Coloque no site e marque como publicado:**")
-            if not df_docs.empty and 'STATUS_ODOO' in df_docs.columns:
-                prontos = df_docs[(df_docs['TIPO'] == "Foto de Produto") & (df_docs['STATUS_ODOO'] == "Pronto para Site")]
-                if not prontos.empty:
-                    for idx, r in prontos.iterrows():
-                        c1, c2, c3 = st.columns([3, 1, 1])
-                        c1.write(f"📦 **{r['VINCULO']}**")
-                        c2.link_button("🖼️ Ver Foto", r['LINK_DRIVE'], use_container_width=True)
-                        if c3.button("✅ Publicado", key=f"btn_odoo_{idx}"):
-                            aba_doc = planilha_mestre.worksheet("DOCUMENTOS")
-                            cell = aba_doc.find(r['ID_ARQUIVO'])
-                            aba_doc.update_cell(cell.row, 7, "Publicado no Odoo")
-                            st.success("Atualizado!"); st.cache_resource.clear(); st.rerun()
-                        st.divider()
-                else: 
-                    st.info("Sua fila de trabalho está limpa.")
+            with t_pronto:
+                st.write("**Fotos tiradas! Coloque no site e marque como publicado:**")
+                if not df_docs.empty and 'STATUS_ODOO' in df_docs.columns:
+                    prontos = df_docs[(df_docs['TIPO'] == "Foto de Produto") & (df_docs['STATUS_ODOO'] == "Pronto para Site")]
+                    if not prontos.empty:
+                        for idx, r in prontos.iterrows():
+                            # 💡 UPGRADE AQUI: Agora são 4 colunas para caber o botão novo
+                            c1, c2, c3, c4 = st.columns([2.5, 1, 1.2, 1.2])
+                            
+                            # O robô extrai apenas o "101.2" de "101.2 - Tapete" para fazer a busca
+                            cod_prod = str(r['VINCULO']).split(" - ")[0].strip()
+                            
+                            c1.write(f"📦 **{r['VINCULO']}**")
+                            c2.link_button("🖼️ Ver Foto", r['LINK_DRIVE'], use_container_width=True)
+                            
+                            # 💡 NOSSO NOVO BOTÃO
+                            if c3.button("🔍 Checar Site", key=f"chk_odoo_{idx}", use_container_width=True):
+                                with st.spinner("Buscando..."):
+                                    status_site = verificar_status_odoo(cod_prod)
+                                    # Usamos o toast para o aviso pular na tela sem bagunçar a lista!
+                                    if "🟢" in status_site:
+                                        st.toast(f"Tudo Certo! O item {cod_prod} está ONLINE! 🟢", icon="✅")
+                                    else:
+                                        st.toast(f"Atenção: O item {cod_prod} ainda NÃO está no site. 🔴", icon="⚠️")
+                            
+                            # Seu botão original de Publicar continua intacto aqui
+                            if c4.button("✅ Publicado", key=f"btn_odoo_{idx}", use_container_width=True):
+                                aba_doc = planilha_mestre.worksheet("DOCUMENTOS")
+                                cell = aba_doc.find(r['ID_ARQUIVO'])
+                                aba_doc.update_cell(cell.row, 7, "Publicado no Odoo")
+                                st.success("Atualizado!"); st.cache_resource.clear(); st.rerun()
+                                
+                            st.divider()
+                    else: 
+                        st.info("Sua fila de trabalho está limpa.")
 
     st.divider()
     st.write("### 📤 Enviar Arquivo")
