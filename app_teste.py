@@ -357,20 +357,27 @@ if menu_selecionado == "🛒 Vendas":
     val_v = c_p3.number_input("Preço Un. (R$)", value=preco_da_planilha, min_value=0.0, step=0.01, key=f"preco_dinamico_{cod_p_temp}")
 
     with c_p4:
-        st.write("") # <--- Isso cria um espaço vazio que "finge" ser um título
-        st.write("") # <--- Isso empurra o botão para baixo para alinhar com o Preço
-        if st.button("➕ Adicionar", use_container_width=True):
+        st.write("") 
+        st.write("")
         
-        item_carrinho = {
-            "cod": id_p,
-            "nome": nome_p,
-            "qtd": qtd_v,
-            "preco": val_v,
-            "custo": custo_un,
-            "subtotal": qtd_v * val_v
-        }
-        st.session_state['carrinho'].append(item_carrinho)
-        st.toast(f"✅ {nome_p} no carrinho!")
+        # Degrau 2: O bloco do botão (Abertura com ':')
+        if st.button("➕ Adicionar", use_container_width=True):
+            
+            # Degrau 3: TUDO abaixo precisa estar alinhado aqui (Dois Tabs da margem)
+            id_p = p_sel.split(" - ")[0]
+            nome_p = p_sel.split(" - ")[1].strip()
+            custo_un = float(banco_de_produtos.get(id_p, {}).get('custo', 0.0))
+            
+            item_carrinho = {
+                "cod": id_p,
+                "nome": nome_p,
+                "qtd": qtd_v,
+                "preco": val_v,
+                "custo": custo_un,
+                "subtotal": qtd_v * val_v
+            }
+            st.session_state['carrinho'].append(item_carrinho)
+            st.toast(f"✅ {nome_p} no carrinho!")
 
     # --- 3. EXIBIÇÃO DO CARRINHO E FINALIZAÇÃO ---
     if st.session_state['carrinho']:
