@@ -27,8 +27,8 @@ if 'autenticado' not in st.session_state:
 if 'historico_sessao' not in st.session_state:
     st.session_state['historico_sessao'] = []
 if 'historico_estoque' not in st.session_state:
-    st.session_state['historico_estoque'] = []  
-
+    st.session_state['historico_estoque'] = []
+    
 # --- AUXILIARES TÉCNICOS ---
 def limpar_v(v):
     if pd.isna(v) or v == "": return 0.0
@@ -207,8 +207,8 @@ def carregar_dados():
             if len(dados) <= 1: return pd.DataFrame()
             df = pd.DataFrame(dados[1:], columns=dados[0])
             if not df.empty:
-                df = df[~df.iloc[:, 0].str.contains("TOTAIS", case=False, na=False)]
-                df = df[df.iloc[:, 1].str.strip() != ""]
+                df = df[~df.iloc[:, 0].astype(str).str.contains("TOTAIS", case=False, na=False)]
+                df = df[df.iloc[:, 1].astype(str).str.strip() != ""]
             return df
         except: return pd.DataFrame()
 
