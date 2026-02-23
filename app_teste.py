@@ -146,9 +146,6 @@ if 'acesso_registrado' not in st.session_state:
 
 @st.cache_resource(ttl=600)
 def carregar_dados():
-    # ⚠️ REMOVA A LINHA QUE ESTAVA AQUI (banco_de_produtos, banco_de_clientes... = carregar_dados())
-    # Se ela ficar aqui dentro, a função chama a si mesma e trava tudo.
-
     def ler(n):
         try:
             aba = planilha_mestre.worksheet(n)
@@ -166,6 +163,7 @@ def carregar_dados():
 
     # Retorna os 7 itens na ordem correta
     return banco_prod, banco_cli, df_inv, ler("FINANCEIRO"), ler("VENDAS"), ler("PAINEL"), df_cli
+    banco_de_produtos, banco_de_clientes, df_full_inv, df_financeiro, df_vendas_hist, df_painel_resumo, df_clientes_full = carregar_dados()
 
 # ==========================================
 # 📱 BARRA LATERAL (SIDEBAR)
