@@ -131,6 +131,8 @@ estilo_sweet_clean = """
 """
 st.markdown(estilo_sweet_clean, unsafe_allow_html=True)
 
+from datetime import datetime # Certifique-se de que isso está no topo do seu arquivo
+
 # ==========================================
 # 🔒 2. FASE DE LOGIN & SEGURANÇA
 # ==========================================
@@ -156,7 +158,28 @@ if not st.session_state['autenticado']:
                         if str(usuarios_permitidos[usuario_input]) == senha_input:
                             st.session_state['autenticado'] = True
                             st.session_state['usuario_logado'] = usuario_input
-                            st.rerun()
+
+                            # ====================================================
+                            # 🤖 GATILHO INVISÍVEL: REGISTRO DE ACESSO AUTOMÁTICO
+                            # ====================================================
+                            try:
+                                aba_usuario = planilha_mestre.worksheet("USUARIO")
+                                agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                                
+                                # Procura o usuário que acabou de logar na planilha
+                                celula_nome = aba_usuario.find(usuario_input)
+                                
+                                if celula_nome:
+                                    cabecalhos = aba_usuario.row_values(1)
+                                    col_acesso = cabecalhos.index("ULTIMO_ACESSO") + 1
+                                    
+                                    # Carimba a data e hora na coluna correta
+                                    aba_usuario.update_cell(celula_nome.row, col_acesso, agora)
+                            except Exception as e:
+                                pass # Se houver falha de internet rápida, ignora para não barrar o login
+                            # ====================================================
+
+                            st.rerun() # O sistema recarrega e entra na área logada
                         else:
                             st.error("❌ Senha incorreta.")
                     else:
