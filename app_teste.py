@@ -420,28 +420,34 @@ if menu_selecionado == "🛒 Vendas":
                 st.rerun()
 
             if c_btn2.button("Finalizar Venda 🚀", type="primary", use_container_width=True):
-                # Validação de Cliente Novo
+                # Validação
                 if c_sel == "*** NOVO CLIENTE ***" and (not c_nome_novo or not c_zap):
                     st.error("⚠️ Preencha Nome e Zap para novo cliente!"); st.stop()
 
-            with st.spinner("Salvando venda e gerando recibo..."):
-                try:
-                    # 1. Identificação/Cadastro do Cliente
-                    if c_sel == "*** NOVO CLIENTE ***":
-                        nome_cli = c_nome_novo.strip()
-                        if not modo_teste:
-                            aba_cli = planilha_mestre.worksheet("CARTEIRA DE CLIENTES")
-                            dados_c = aba_cli.get_all_values()
-                            nomes_up = [l[1].strip().upper() for l in dados_c[1:]]
-                            if nome_cli.upper() in nomes_up:
-                                cod_cli = dados_c[nomes_up.index(nome_cli.upper())+1][0]
-                            else:
-                                cod_cli = f"CLI-{len(dados_c):03d}"
-                                aba_cli.append_row([cod_cli, nome_cli, c_zap.strip(), "", datetime.now().strftime("%d/%m/%Y"), 0, "", "Incompleto"], value_input_option='RAW')
-                        else: cod_cli = "CLI-TESTE"
-                    else:
-                        cod_cli = c_sel.split(" - ")[0]
-                        nome_cli = banco_de_clientes[cod_cli]['nome']
+                # 👇 O SEGREDO ESTÁ AQUI: Este bloco inteiro ganhou um "Tab" (espaço) para a direita
+                # Agora ele SÓ vai rodar se o botão for realmente clicado!
+                with st.spinner("Salvando venda e gerando recibo..."):
+                    try:
+                        # 1. Identificação/Cadastro do Cliente
+                        if c_sel == "*** NOVO CLIENTE ***":
+                            nome_cli = c_nome_novo.strip()
+                            if not modo_teste:
+                                aba_cli = planilha_mestre.worksheet("CARTEIRA DE CLIENTES")
+                                dados_c = aba_cli.get_all_values()
+                                nomes_up = [l[1].strip().upper() for l in dados_c[1:]]
+                                if nome_cli.upper() in nomes_up:
+                                    cod_cli = dados_c[nomes_up.index(nome_cli.upper())+1][0]
+                                else:
+                                    cod_cli = f"CLI-{len(dados_c):03d}"
+                                    aba_cli.append_row([cod_cli, nome_cli, c_zap.strip(), "", datetime.now().strftime("%d/%m/%Y"), 0, "", "Incompleto"], value_input_option='RAW')
+                            else: cod_cli = "CLI-TESTE"
+                        else:
+                            cod_cli = c_sel.split(" - ")[0]
+                            nome_cli = banco_de_clientes[cod_cli]['nome']
+                            
+                        # ⚠️ ATENÇÃO: Todo o resto do seu código de salvar a venda na planilha 
+                        # e a limpeza do carrinho (st.session_state['carrinho'] = []) 
+                        # precisa continuar alinhado com esse "if" e "else" de cima!
 
                     # 2. Gravação de Itens (Loop na Planilha)
                     if not modo_teste:
