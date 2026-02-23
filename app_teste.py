@@ -146,16 +146,21 @@ if 'acesso_registrado' not in st.session_state:
 
 @st.cache_resource(ttl=600)
 def carregar_dados():
-    if not planilha_mestre: return {}, {}, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+    banco_de_produtos, banco_de_clientes, df_full_inv, df_financeiro, df_vendas_hist, df_painel_resumo, df_clientes_full = carregar_dados()
     def ler(n):
         try:
-            aba = planilha_mestre.worksheet(n)
-            d = aba.get_all_values()
+            aba = planilha_mestre.worksheet(n); d = aba.get_all_values()
             return pd.DataFrame(d[1:], columns=d[0]) if len(d) > 1 else pd.DataFrame()
         except: return pd.DataFrame()
-    return {}, {}, ler("INVENTÁRIO"), ler("FINANCEIRO"), ler("VENDAS"), ler("PAINEL"), ler("CARTEIRA DE CLIENTES")
 
-_, _, df_full_inv, df_financeiro, df_vendas_hist, df_painel_resumo, df_clientes_full = carregar_dados()
+    df_inv = ler("INVENTÁRIO")
+    df_cli = ler("CARTEIRA DE CLIENTES")
+    
+    # 💡 ESTA É A CORREÇÃO: Preencher os dicionários para o selectbox não dar erro
+    banco_prod = {str(r.iloc[0]): {"nome": r.iloc[1], "custo": limpar_v(r.iloc[3]), "venda": limpar_v(r.iloc[8])} for _, r in df_inv.iterrows()} if not df_inv.empty else {}
+    banco_cli = {str(r.iloc[0]): {"nome": str(r.iloc[1]), "fone": str(r.iloc[2])} for _, r in df_cli.iterrows()} if not df_cli.empty else {}
+
+    return banco_prod, banco_cli, df_inv, ler("FINANCEIRO"), ler("VENDAS"), ler("PAINEL"), df_cli
 
 # ==========================================
 # 📱 BARRA LATERAL (SIDEBAR)
@@ -175,11 +180,11 @@ with st.sidebar:
     st.divider()
     
     # NAVEGAÇÃO PRINCIPAL (RADIO)
-    menu_selecionado = st.radio(
-        "Navegação",
-        ["🛒 Vendas", "💰 Financeiro", "📦 Estoque", "👥 Clientes", "📂 Documentos", "⚙️ Perfil e Equipe"], 
-        key="navegacao_principal_sweet"
-    )
+    menu_selecionado = st.sidebar.radio(
+    "Navegação",
+    ["🛒 Vendas", "💰 Financeiro", "📦 Estoque", "👥 Clientes", "📂 Documentos", "⚙️ Perfil e Equipe"], 
+    key="nav_v_final" # Mudei a key para limpar o cache de navegação
+)
     
     st.divider()
     if st.button("🔄 Sincronizar", use_container_width=True):
@@ -1250,3 +1255,35 @@ elif menu_selecionado == "⚙️ Perfil e Equipe":
                         st.warning("Preencha o Login e o Nome para continuar.")
         else:
             st.info("🔒 Esta aba é exclusiva para Administradores da Sweet Home.")
+
+elif menu_selecionado == "⚙️ Perfil e Equipe":
+    st.title("⚙️ Configurações de Perfil")
+    tab_p, tab_e = st.tabs(["👤 Meu Perfil", "👥 Gestão de Equipe"])
+    
+    with tab_p:
+        if dados_logado:
+            with st.form("form_perfil_jean"):
+                n_nom = st.text_input("Nome Completo", value=dados_logado.get('NOME_COMPLETO', ""))
+                n_car = st.text_input("Cargo", value=dados_logado.get('CARGO', ""))
+                n_fot = st.file_uploader("Alterar Foto (Cloudinary)", type=['jpg', 'png'])
+                if st.form_submit_button("💾 Salvar"):
+                    aba_u = planilha_mestre.worksheet("USUARIOS")
+                    lin = aba_u.col_values(1).index(st.session_state['usuario_logado']) + 1
+                    url = dados_logado.get('FOTO_URL', "")
+                    if n_fot:
+                        # Chama a sua função de upload que já existe no topo
+                        _, url = upload_para_cloudinary(n_fot.read(), n_fot.name, "Perfis")
+                    aba_u.update_acell(f"B{lin}", n_nom)
+                    aba_u.update_acell(f"C{lin}", n_car)
+                    aba_u.update_acell(f"D{lin}", url)
+                    st.success("Perfil atualizado!"); st.cache_resource.clear(); st.rerun()
+
+    with tab_e:
+        if st.session_state['usuario_logado'] in ['Admin', 'Bia_CEO']:
+            with st.form("form_novo_user"):
+                u_l = st.text_input("Login")
+                u_n = st.text_input("Nome Completo")
+                if st.form_submit_button("➕ Criar"):
+                    aba_u = planilha_mestre.worksheet("USUARIOS")
+                    aba_u.append_row([u_l, u_n, "Vendedor(a)", "", "Colaborador", "Nunca"])
+                    st.success("Criado!")
