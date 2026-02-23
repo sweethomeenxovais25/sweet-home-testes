@@ -1241,18 +1241,18 @@ elif menu_selecionado == "📂 Documentos":
                 else: 
                     st.info("Sua fila de trabalho está limpa.")
 
-    # --- ASSISTENTE DE SINCRONIZAÇÃO MESTRE (V6 - RELATÓRIO PROFISSIONAL & STATUS DE FALHA) ---
+    # --- ASSISTENTE DE SINCRONIZAÇÃO MESTRE (V7 - INTELIGÊNCIA DE GRUPO & RELATÓRIO PRO) ---
     with st.expander("🤖 Sincronizador Inteligente Odoo", expanded=False):
-        st.write("Varredura completa: Atualiza Inventário (Links/Status) e limpa a Linha de Montagem.")
+        st.write("Varredura inteligente: O status da versão mais nova (.1, .2) define o grupo todo.")
         
         if st.button("🚀 Iniciar Varredura Completa", use_container_width=True):
             try:
-                # 1. CARREGAMENTO DOS DADOS
+                # 1. CARREGAMENTO E LIMPEZA
                 aba_inv = planilha_mestre.worksheet("INVENTÁRIO")
                 dados_inv = aba_inv.get_all_values()
                 df_inv = pd.DataFrame(dados_inv[1:], columns=dados_inv[0])
                 
-                # Filtro: Ignora vazios, TOTAIS e quem já é "Publicado" (para não repetir trabalho desnecessário)
+                # Filtro inicial de segurança
                 df_valido = df_inv[
                     (df_inv['CÓD. PRÓDUTO'].str.strip() != "") & 
                     (~df_inv['CÓD. PRÓDUTO'].str.contains("TOTAL", case=False, na=False)) &
@@ -1260,78 +1260,84 @@ elif menu_selecionado == "📂 Documentos":
                 ].copy()
 
                 if df_valido.empty:
-                    st.success("✅ Tudo atualizado! Não há itens pendentes de verificação no inventário.")
+                    st.success("✅ Tudo atualizado! Nenhuma pendência no inventário.")
                 else:
-                    st.info(f"🔍 Analisando {len(df_valido)} códigos no inventário...")
-                    barra = st.progress(0)
-                    status_dinamico = st.empty()
+                    # 💡 MÁGICA: Criamos a "Família" do código (ex: 800.1 vira 800)
+                    df_valido['BASE_CODE'] = df_valido['CÓD. PRÓDUTO'].apply(lambda x: str(x).split('.')[0].strip())
                     
+                    # Agrupamos por base para processar uma família de cada vez
+                    grupos = df_valido.groupby('BASE_CODE')
+                    total_grupos = len(grupos)
+                    
+                    st.info(f"📦 Analisando {total_grupos} famílias de produtos...")
+                    barra = st.progress(0)
+                    status_frame = st.empty()
                     dados_relatorio = []
                     aba_doc = planilha_mestre.worksheet("DOCUMENTOS")
 
-                    for i, (idx, r) in enumerate(df_valido.iterrows()):
-                        cod_atual = str(r['CÓD. PRÓDUTO']).strip()
-                        base_code = cod_atual.split('.')[0]
-                        status_dinamico.markdown(f"⏳ **Consultando:** `{cod_atual}`")
-
-                        # 2. VERIFICAÇÃO NO SITE
-                        achou, link_site = verificar_status_odoo(cod_atual)
-                        linha_planilha = idx + 2
+                    for i, (base, frame_grupo) in enumerate(grupos):
+                        # Identificamos o código mais recente da família (último da lista)
+                        mais_recente = frame_grupo.iloc[-1]
+                        cod_caçula = str(mais_recente['CÓD. PRÓDUTO']).strip()
                         
-                        # Pausa obrigatória para respeitar o limite do Google (Erro 429)
-                        time.sleep(1.5) 
+                        status_frame.markdown(f"🕵️ **Analisando Família {base}:** Verificando versão `{cod_caçula}`...")
 
-                        if achou:
-                            # LÓGICA DE VERSÃO: Identifica se é a versão mais nova (ex: .1, .2)
-                            outras_versoes = df_valido[df_valido['CÓD. PRÓDUTO'].str.startswith(base_code)]['CÓD. PRÓDUTO'].tolist()
+                        # Busca no site apenas a versão mais nova
+                        achou, link_site = verificar_status_odoo(cod_caçula)
+                        
+                        # Agora aplicamos o resultado para TODOS os membros da família na planilha
+                        for idx_interno, linha_membro in frame_grupo.iterrows():
+                            linha_planilha = idx_interno + 2
+                            cod_membro = str(linha_membro['CÓD. PRÓDUTO']).strip()
                             
-                            if cod_atual == outras_versoes[-1]:
-                                # ATUALIZA INVENTÁRIO (Sucesso)
+                            time.sleep(1.2) # Respeito ao limite do Google (Quota 429)
+
+                            if achou:
+                                # Se o caçula está no site, o membro está "Publicado"
+                                status_txt = "Publicado" if cod_membro == cod_caçula else "Publicado (Versão Nova)"
                                 aba_inv.update_cell(linha_planilha, 11, link_site) # Coluna K
-                                aba_inv.update_cell(linha_planilha, 12, "Publicado")  # Coluna L
+                                aba_inv.update_cell(linha_planilha, 12, status_txt) # Coluna L
                                 
-                                # ATUALIZA DOCUMENTOS (Integração com Linha de Montagem)
+                                # Sincronização com DOCUMENTOS (Para limpar a Linha de Montagem)
                                 try:
-                                    # Procura o código na aba de Documentos (Coluna F - VINCULO)
-                                    cells_doc = aba_doc.findall(cod_atual)
+                                    cells_doc = aba_doc.findall(cod_membro)
                                     for c in cells_doc:
-                                        if c.col == 6: 
+                                        if c.col == 6: # Coluna VINCULO
                                             aba_doc.update_cell(c.row, 7, "Publicado no Odoo")
                                 except: pass
                                 
-                                res_obs = "✅ Publicado & Integrado"
+                                res_relatorio = "✅ Publicado"
                             else:
-                                res_obs = "ℹ️ Versão Antiga (Ignorada)"
-                        else:
-                            # 3. ATUALIZA INVENTÁRIO (Falha - Agora escreve na planilha!)
-                            aba_inv.update_cell(linha_planilha, 12, "Não Publicado") # Coluna L
-                            res_obs = "❌ Não encontrado no site"
-                        
-                        dados_relatorio.append({
-                            "Código SKU": cod_atual,
-                            "Resultado da Análise": res_obs,
-                            "Horário": datetime.now().strftime("%H:%M:%S")
-                        })
-                        barra.progress((i + 1) / len(df_valido))
+                                # Se o caçula não está, a família toda é marcada como "Não Publicado"
+                                aba_inv.update_cell(linha_planilha, 12, "Não Publicado")
+                                res_relatorio = "❌ Não encontrado"
 
-                    # --- 📊 RELATÓRIO FINAL EM TABELA ---
-                    status_dinamico.empty()
+                            dados_relatorio.append({
+                                "Família": base,
+                                "Código SKU": cod_membro,
+                                "Resultado": res_relatorio,
+                                "Versão Avaliada": cod_caçula
+                            })
+                        
+                        barra.progress((i + 1) / total_grupos)
+
+                    # --- 📊 RELATÓRIO FINAL (PADRÃO PROFISSIONAL) ---
+                    status_frame.empty()
                     st.divider()
                     
-                    with st.expander("📋 Detalhes da Varredura (Relatório Final)", expanded=True):
-                        df_relatorio = pd.DataFrame(dados_relatorio)
+                    with st.expander("📋 Detalhes da Sincronização", expanded=True):
                         st.dataframe(
-                            df_relatorio, 
+                            pd.DataFrame(dados_relatorio),
                             column_config={
-                                "Resultado da Análise": st.column_config.TextColumn("Status Final"),
-                                "Código SKU": st.column_config.TextColumn("Produto")
+                                "Resultado": st.column_config.TextColumn("Status no Site", help="Resultado da busca do robô"),
+                                "Família": st.column_config.TextColumn("Grupo")
                             },
-                            hide_index=True, 
+                            hide_index=True,
                             use_container_width=True
                         )
                     
-                    st.success("Sincronização concluída! Clique no botão abaixo para atualizar a Linha de Montagem.")
-                    if st.button("🔄 Finalizar e Atualizar Sistema", use_container_width=True):
+                    st.success("Sincronização concluída com inteligência de grupo!")
+                    if st.button("🔄 Finalizar e Atualizar Linha de Montagem", use_container_width=True):
                         st.cache_resource.clear()
                         st.rerun()
             
