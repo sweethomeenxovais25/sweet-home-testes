@@ -11,7 +11,7 @@ import cloudinary.uploader
 import io
 import google.generativeai as genai
 from PIL import Image
-import plotly.express as px
+import plotly.express as px # Essencial para os novos gráficos
 
 # ==========================================
 # 1. CONFIGURAÇÃO ÚNICA DA PÁGINA
@@ -146,7 +146,6 @@ if 'acesso_registrado' not in st.session_state:
 
 @st.cache_resource(ttl=600)
 def carregar_dados():
-    if not planilha_mestre: return {}, {}, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     def ler(n):
         try:
             aba = planilha_mestre.worksheet(n)
@@ -165,7 +164,7 @@ def carregar_dados():
     # Retorna os 7 itens na ordem correta
     return banco_prod, banco_cli, df_inv, ler("FINANCEIRO"), ler("VENDAS"), ler("PAINEL"), df_cli
 
-# 💡 AQUI ESTÁ A CORREÇÃO DE VARIAVEL: Fora da função, para funcionar nas Vendas!
+# 💡 CORREÇÃO PRINCIPAL: As variáveis precisam ficar fora da função para alimentar o sistema todo!
 banco_de_produtos, banco_de_clientes, df_full_inv, df_financeiro, df_vendas_hist, df_painel_resumo, df_clientes_full = carregar_dados()
 
 # ☁️ Função Cloudinary
@@ -197,7 +196,7 @@ with st.sidebar:
     menu_selecionado = st.radio(
         "Navegação",
         ["🛒 Vendas", "💰 Financeiro", "📦 Estoque", "👥 Clientes", "📂 Documentos", "⚙️ Perfil e Equipe"], 
-        key="nav_v_final" 
+        key="nav_v_final_2" 
     )
     
     st.divider()
@@ -207,7 +206,7 @@ with st.sidebar:
         st.session_state['autenticado'] = False; st.rerun()
 
 # ==========================================
-# 🎯 LÓGICA DE CONTEÚDO (IF/ELIF UNIFICADO)
+# 🎯 LÓGICA DE CONTEÚDO (IF/ELIF)
 # ==========================================
 
 # ==========================================
@@ -392,6 +391,7 @@ if menu_selecionado == "🛒 Vendas":
                     val_atual = limpar_para_editar(linha_dados[8])
                     desc_perc_atual = limpar_para_editar(linha_dados[9], is_perc=True)
                     
+                    # ✨ TRAVA DE SEGURANÇA CONTRA BUGS ANTIGOS ✨
                     if desc_perc_atual > 1.0 or desc_perc_atual < 0:
                         desc_reais_atual = 0.0
                     else:
@@ -1102,35 +1102,67 @@ elif menu_selecionado == "📂 Documentos":
 # --- SEÇÃO 6: PERFIL E EQUIPE ---
 # ==========================================
 elif menu_selecionado == "⚙️ Perfil e Equipe":
-    st.title("⚙️ Configurações de Perfil")
-    tab_p, tab_e = st.tabs(["👤 Meu Perfil", "👥 Gestão de Equipe"])
+    st.markdown("### ⚙️ Gestão de Perfil e Colaboradores")
     
-    with tab_p:
+    tab_meu_perfil, tab_equipe = st.tabs(["👤 Meu Perfil", "👥 Gestão de Equipe"])
+    
+    with tab_meu_perfil:
+        st.write("#### Minhas Informações")
         if dados_logado:
-            with st.form("form_perfil_jean"):
-                n_nom = st.text_input("Nome Completo", value=dados_logado.get('NOME_COMPLETO', ""))
-                n_car = st.text_input("Cargo", value=dados_logado.get('CARGO', ""))
-                n_fot = st.file_uploader("Alterar Foto (Cloudinary)", type=['jpg', 'png'])
-                if st.form_submit_button("💾 Salvar"):
-                    aba_u = planilha_mestre.worksheet("USUARIOS")
-                    lin = aba_u.col_values(1).index(st.session_state['usuario_logado']) + 1
-                    url = dados_logado.get('FOTO_URL', "")
-                    if n_fot:
-                        # Chama a sua função de upload que já existe no topo
-                        _, url = upload_para_cloudinary(n_fot.read(), n_fot.name, "Perfis")
-                    aba_u.update_acell(f"B{lin}", n_nom)
-                    aba_u.update_acell(f"C{lin}", n_car)
-                    aba_u.update_acell(f"D{lin}", url)
-                    st.success("Perfil atualizado!"); st.cache_resource.clear(); st.rerun()
+            if dados_logado.get('FOTO_URL'):
+                st.image(dados_logado.get('FOTO_URL'), width=150)
+            
+            with st.form("form_meu_perfil"):
+                col_e1, col_e2 = st.columns(2)
+                novo_nome = col_e1.text_input("Nome Completo", value=dados_logado.get('NOME_COMPLETO', ""))
+                novo_cargo = col_e2.text_input("Seu Cargo", value=dados_logado.get('CARGO', ""))
+                
+                nova_foto = st.file_uploader("Trocar Foto de Perfil (Cloudinary)", type=['png', 'jpg', 'jpeg'])
+                
+                if st.form_submit_button("💾 Salvar Alterações", type="primary"):
+                    try:
+                        aba_u = planilha_mestre.worksheet("USUARIOS")
+                        lista_usuarios = aba_u.col_values(1)
+                        linha_u = lista_usuarios.index(st.session_state['usuario_logado']) + 1
+                        
+                        url_foto_final = dados_logado.get('FOTO_URL', "")
+                        if nova_foto:
+                            upload_res = cloudinary.uploader.upload(nova_foto, folder="perfis_sweet_home")
+                            url_foto_final = upload_res['secure_url']
+                        
+                        aba_u.update_acell(f"B{linha_u}", novo_nome)
+                        aba_u.update_acell(f"C{linha_u}", novo_cargo)
+                        aba_u.update_acell(f"D{linha_u}", url_foto_final)
+                        
+                        st.success("✅ Suas informações foram atualizadas!")
+                        st.cache_resource.clear()
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao salvar: {e}")
 
-    with tab_e:
+    with tab_equipe:
         if st.session_state['usuario_logado'] in ['Admin', 'Bia_CEO']:
-            with st.form("form_novo_user"):
-                u_l = st.text_input("Login")
-                u_n = st.text_input("Nome Completo")
-                if st.form_submit_button("➕ Criar"):
-                    aba_u = planilha_mestre.worksheet("USUARIOS")
-                    aba_u.append_row([u_l, u_n, "Vendedor(a)", "", "Colaborador", "Nunca"])
-                    st.success("Criado!")
+            st.write("#### ➕ Cadastrar Novo Colaborador")
+            with st.form("form_novo_usuario", clear_on_submit=True):
+                c_u1, c_u2 = st.columns(2)
+                n_usuario = c_u1.text_input("Login (Ex: bia_vendas)", help="Este será o nome usado no login.")
+                n_nome = c_u2.text_input("Nome Completo")
+                
+                c_u3, c_u4 = st.columns(2)
+                n_cargo = c_u3.selectbox("Cargo", ["Vendedor(a)", "Gerente", "Estoquista"])
+                n_perm = c_u4.selectbox("Nível de Acesso", ["Colaborador", "Admin"])
+                
+                st.caption("⚠️ Nota: O novo colaborador deve ser cadastrado também nos Secrets do Streamlit para ter uma senha válida.")
+                
+                if st.form_submit_button("Registrar Colaborador"):
+                    if n_usuario and n_nome:
+                        try:
+                            aba_u = planilha_mestre.worksheet("USUARIOS")
+                            aba_u.append_row([n_usuario, n_nome, n_cargo, "", n_perm, "Nunca"], value_input_option='RAW')
+                            st.success(f"✅ {n_nome} foi adicionado à base de usuários!")
+                        except Exception as e:
+                            st.error(f"Erro na planilha: {e}")
+                    else:
+                        st.warning("Preencha o Login e o Nome para continuar.")
         else:
             st.info("🔒 Esta aba é exclusiva para Administradores da Sweet Home.")
