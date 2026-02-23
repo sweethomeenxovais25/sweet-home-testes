@@ -475,7 +475,7 @@ if menu_selecionado == "🛒 Vendas":
                                     "Pendente" if eh_parc=="Sim" else "Pago", f_atraso
                                 ]
                                 idx_ins = aba_v.find("TOTAIS").row
-                                aba_v.insert_row(linha, index=idx_ins, value_input_option='RAW')
+                                aba_v.insert_row(linha, index=idx_ins, value_input_option='USER_ENTERED')
 
                         # 3. Geração do Recibo Único e Elegante
                         recibo_texto = (
