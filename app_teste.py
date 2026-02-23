@@ -334,151 +334,130 @@ if menu_selecionado == "🛒 Vendas":
             st.warning(f"Aguardando conexão com a planilha... ({e})")
 
 # ==========================================
-# --- SEÇÃO 2: FINANCEIRO ---
+# --- SEÇÃO 2: FINANCEIRO (COM RASTRO FIFO) ---
 # ==========================================
 elif menu_selecionado == "💰 Financeiro":
-    st.markdown("### 📈 Resumo Geral Sweet Home")
-    if not df_vendas_hist.empty:
-        try:
-            vendas_brutas = df_vendas_hist.iloc[:, 11].apply(limpar_v).sum()
-            lucro_bruto = df_vendas_hist.iloc[:, 12].apply(limpar_v).sum()
-            saldo_devedor = df_vendas_hist.iloc[:, 20].apply(limpar_v).sum()
-            total_recebido = vendas_brutas - saldo_devedor
-            percentual_pendente = (saldo_devedor / vendas_brutas) * 100 if vendas_brutas > 0 else 0
-            
-            if percentual_pendente <= 20:
-                status_cor = "green"; status_texto = "✨ Saúde Financeira: EXCELENTE"
-            elif percentual_pendente <= 40:
-                status_cor = "orange"; status_texto = "⚠️ Saúde Financeira: ATENÇÃO (Cobrar mais)"
-            else:
-                status_cor = "red"; status_texto = "🚨 Saúde Financeira: CRÍTICA (Risco de Caixa)"
-
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Vendas Totais", f"R$ {vendas_brutas:,.2f}")
-            c2.metric("Lucro Bruto", f"R$ {lucro_bruto:,.2f}", delta="Margem Real")
-            c3.metric("Total Recebido", f"R$ {total_recebido:,.2f}", delta="Dinheiro no Bolso")
-            c4.metric("Saldo Devedor", f"R$ {saldo_devedor:,.2f}", delta=f"{percentual_pendente:.1f}% do total", delta_color="inverse")
-
-            st.markdown(f"### <span style='color:{status_cor}'>{status_texto}</span>", unsafe_allow_html=True)
-            st.progress(min(percentual_pendente/100, 1.0)) 
-
-            with st.expander("📊 Análise de Desempenho e Tendências", expanded=False):
-                t_faturamento, t_pagamentos = st.tabs(["📈 Faturamento Diário", "💳 Meios de Pagamento"])
-                
-                with t_faturamento:
-                    st.write("#### Evolução de Vendas no Tempo")
-                    df_grafico = df_vendas_hist.copy()
-                    df_grafico['DATA_DATETIME'] = pd.to_datetime(df_grafico['DATA DA VENDA'], format='%d/%m/%Y', errors='coerce')
-                    df_grafico['VALOR_NUM'] = df_grafico['TOTAL R$'].apply(limpar_v)
-                    
-                    vendas_por_dia = df_grafico.groupby('DATA_DATETIME')['VALOR_NUM'].sum().reset_index()
-                    if not vendas_por_dia.empty:
-                        vendas_por_dia.set_index('DATA_DATETIME', inplace=True)
-                        st.bar_chart(vendas_por_dia['VALOR_NUM'], color="#FF69B4")
-                    else:
-                        st.info("Aguardando mais dados para gerar o gráfico diário.")
-
-                with t_pagamentos:
-                    st.write("#### Divisão por Meio de Recebimento")
-                    df_meio = df_vendas_hist.copy()
-                    df_meio['VALOR_NUM'] = df_meio['TOTAL R$'].apply(limpar_v)
-                    
-                    vendas_meio = df_meio.groupby('FORMA DE PAGTO')['VALOR_NUM'].sum().sort_values(ascending=False)
-                    if not vendas_meio.empty:
-                        st.bar_chart(vendas_meio, color="#C71585")
-                    else:
-                        st.info("Aguardando registros para análise de pagamentos.")
-
-        except Exception as e:
-            st.warning(f"Aguardando dados para processar o painel. (Erro: {e})")
-
-    st.divider()
-
-    with st.expander("➕ Lançar Novo Abatimento (Sistema FIFO)", expanded=False):
-        with st.form("f_fifo_novo", clear_on_submit=True):
-            lista_todas_clientes = sorted([f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
-            c_pg = st.selectbox("Quem está pagando?", ["Selecione..."] + lista_todas_clientes, key="fifo_cliente")
-            f1, f2, f3 = st.columns(3)
-            v_pg = f1.number_input("Valor Pago (R$)", min_value=0.0, key="fifo_valor")
-            meio = f2.selectbox("Meio", ["Pix", "Dinheiro", "Cartão", "Sweet Flex"], key="fifo_meio")
-            obs = f3.text_input("Obs", "Abatimento", key="fifo_obs")
-            
-            if st.form_submit_button("Confirmar Pagamento ✅"):
-                if v_pg > 0 and c_pg != "Selecione...":
-                    try:
-                        aba_v = planilha_mestre.worksheet("VENDAS")
-                        df_v_viva = pd.DataFrame(aba_v.get_all_records())
-                        df_v_viva['S_NUM'] = df_v_viva['SALDO DEVEDOR'].apply(limpar_v)
-                        
-                        nome_c_alvo = " - ".join(c_pg.split(" - ")[1:])
-                        pendentes = df_v_viva[(df_v_viva['CLIENTE'] == nome_c_alvo) & (df_v_viva['S_NUM'] > 0)].copy()
-                        
-                        sobra = v_pg
-                        for idx, row in pendentes.iterrows():
-                            if sobra <= 0: break
-                            lin_planilha = idx + 2
-                            div_linha = row['S_NUM']
-                            
-                            if sobra >= div_linha:
-                                aba_v.update_acell(f"U{lin_planilha}", 0) 
-                                aba_v.update_acell(f"W{lin_planilha}", "Pago") 
-                                sobra -= div_linha
-                            else:
-                                aba_v.update_acell(f"U{lin_planilha}", div_linha - sobra) 
-                                sobra = 0
-                        
-                        aba_f = planilha_mestre.worksheet("FINANCEIRO")
-                        aba_f.append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), c_pg.split(" - ")[0], nome_c_alvo, 0, v_pg, "PAGO", f"{meio}: {obs}"], value_input_option='USER_ENTERED')
-                        st.success(f"✅ Recebido de {nome_c_alvo} processado!")
-                        st.cache_resource.clear(); st.rerun()
-                    except Exception as e: st.error(f"Erro no FIFO: {e}")
-
-    st.divider()
-
-    st.markdown("### 🔍 Ficha de Cliente (Extrato Dinâmico)")
-    opcoes_ficha = sorted([f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
-    sel_ficha = st.selectbox("Selecione para ver o que ela deve:", ["---"] + opcoes_ficha, key="ficha_sel_cliente")
-    
-    if sel_ficha != "---":
-        id_c = sel_ficha.split(" - ")[0]
-        nome_c_ficha = " - ".join(sel_ficha.split(" - ")[1:])
-        v_hist = df_vendas_hist[df_vendas_hist['CÓD. CLIENTE'].astype(str) == id_c]
-        saldo_devedor_real = v_hist['SALDO DEVEDOR'].apply(limpar_v).sum()
-        
-        c_f1, c_f2 = st.columns(2)
-        c_f1.metric("Saldo Devedor Atual", f"R$ {saldo_devedor_real:,.2f}")
-        
-        if saldo_devedor_real > 0.01:
-            tel_c = banco_de_clientes.get(id_c, {}).get('fone', "")
-            msg_zap = f"Olá {nome_c_ficha}! 🏠 Segue seu extrato na *Sweet Home Enxovais*. Atualmente consta um saldo pendente de *R$ {saldo_devedor_real:.2f}*. Qualquer dúvida estou à disposição! 😊"
-            st.link_button("📲 Cobrar no WhatsApp", f"https://wa.me/55{tel_c}?text={urllib.parse.quote(msg_zap)}", use_container_width=True)
-        else:
-            st.success("✅ Esta cliente não possui débitos pendentes.")
-
-        st.write("#### ⏳ Histórico de Vendas Localizado")
-        if not v_hist.empty:
-            st.dataframe(v_hist[['DATA DA VENDA', 'PRODUTO', 'TOTAL R$', 'SALDO DEVEDOR', 'STATUS']], use_container_width=True, hide_index=True)
-        else:
-            st.info("Nenhuma compra registrada para esta cliente ainda.")
-
-            # --- NOVO: HISTÓRICO DE RECEBIMENTOS (ABATIMENTOS) ---
-        st.markdown("---")
-        st.write("#### 🕒 Últimos Abatimentos Processados")
+    st.markdown("### 📈 Resumo Geral Sweet Home")
+    if not df_vendas_hist.empty:
         try:
-            # Filtra a aba FINANCEIRO para mostrar apenas o que foi PAGO (abatimentos)
-            aba_f_viva = planilha_mestre.worksheet("FINANCEIRO")
-            df_f_viva = pd.DataFrame(aba_f_viva.get_all_records())
+            vendas_brutas = df_vendas_hist.iloc[:, 11].apply(limpar_v).sum()
+            lucro_bruto = df_vendas_hist.iloc[:, 12].apply(limpar_v).sum()
+            saldo_devedor = df_vendas_hist.iloc[:, 20].apply(limpar_v).sum()
+            total_recebido = vendas_brutas - saldo_devedor
+            percentual_pendente = (saldo_devedor / vendas_brutas) * 100 if vendas_brutas > 0 else 0
             
-            # Pega as últimas 5 entradas do tipo PAGO
-            abatimentos = df_f_viva[df_f_viva['STATUS'] == "PAGO"].tail(5).iloc[::-1]
-            
-            if not abatimentos.empty:
-                # Ajustamos as colunas para uma visualização rápida
-                st.dataframe(abatimentos[['DATA', 'CLIENTE', 'ENTRADA R$', 'OBS']], use_container_width=True, hide_index=True)
+            if percentual_pendente <= 20:
+                status_cor = "green"; status_texto = "✨ Saúde Financeira: EXCELENTE"
+            elif percentual_pendente <= 40:
+                status_cor = "orange"; status_texto = "⚠️ Saúde Financeira: ATENÇÃO (Cobrar mais)"
             else:
-                st.info("Nenhum abatimento registrado recentemente.")
-        except:
-            st.info("O histórico de abatimentos aparecerá aqui após o primeiro registro.")
+                status_cor = "red"; status_texto = "🚨 Saúde Financeira: CRÍTICA (Risco de Caixa)"
+
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Vendas Totais", f"R$ {vendas_brutas:,.2f}")
+            c2.metric("Lucro Bruto", f"R$ {lucro_bruto:,.2f}", delta="Margem Real")
+            c3.metric("Total Recebido", f"R$ {total_recebido:,.2f}", delta="Dinheiro no Bolso")
+            c4.metric("Saldo Devedor", f"R$ {saldo_devedor:,.2f}", delta=f"{percentual_pendente:.1f}% do total", delta_color="inverse")
+
+            st.markdown(f"### <span style='color:{status_cor}'>{status_texto}</span>", unsafe_allow_html=True)
+            st.progress(min(percentual_pendente/100, 1.0)) 
+
+            with st.expander("📊 Análise de Desempenho e Tendências", expanded=False):
+                t_faturamento, t_pagamentos = st.tabs(["📈 Faturamento Diário", "💳 Meios de Pagamento"])
+                with t_faturamento:
+                    st.write("#### Evolução de Vendas no Tempo")
+                    df_grafico = df_vendas_hist.copy()
+                    df_grafico['DATA_DATETIME'] = pd.to_datetime(df_grafico['DATA DA VENDA'], format='%d/%m/%Y', errors='coerce')
+                    df_grafico['VALOR_NUM'] = df_grafico['TOTAL R$'].apply(limpar_v)
+                    vendas_por_dia = df_grafico.groupby('DATA_DATETIME')['VALOR_NUM'].sum().reset_index()
+                    if not vendas_por_dia.empty:
+                        vendas_por_dia.set_index('DATA_DATETIME', inplace=True)
+                        st.bar_chart(vendas_por_dia['VALOR_NUM'], color="#FF69B4")
+                    else: st.info("Aguardando mais dados.")
+                with t_pagamentos:
+                    st.write("#### Divisão por Meio de Recebimento")
+                    df_meio = df_vendas_hist.copy()
+                    df_meio['VALOR_NUM'] = df_meio['TOTAL R$'].apply(limpar_v)
+                    vendas_meio = df_meio.groupby('FORMA DE PAGTO')['VALOR_NUM'].sum().sort_values(ascending=False)
+                    if not vendas_meio.empty: st.bar_chart(vendas_meio, color="#C71585")
+                    else: st.info("Aguardando registros.")
+        except Exception as e:
+            st.warning(f"Aguardando dados para processar o painel. (Erro: {e})")
+
+    st.divider()
+
+    with st.expander("➕ Lançar Novo Abatimento (Sistema FIFO)", expanded=False):
+        with st.form("f_fifo_novo", clear_on_submit=True):
+            lista_todas_clientes = sorted([f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
+            c_pg = st.selectbox("Quem está pagando?", ["Selecione..."] + lista_todas_clientes, key="fifo_cliente")
+            f1, f2, f3 = st.columns(3)
+            v_pg = f1.number_input("Valor Pago (R$)", min_value=0.0, key="fifo_valor")
+            meio = f2.selectbox("Meio", ["Pix", "Dinheiro", "Cartão", "Sweet Flex"], key="fifo_meio")
+            obs = f3.text_input("Obs", "Abatimento", key="fifo_obs")
+            
+            if st.form_submit_button("Confirmar Pagamento ✅"):
+                if v_pg > 0 and c_pg != "Selecione...":
+                    try:
+                        aba_v = planilha_mestre.worksheet("VENDAS")
+                        df_v_viva = pd.DataFrame(aba_v.get_all_records())
+                        df_v_viva['S_NUM'] = df_v_viva['SALDO DEVEDOR'].apply(limpar_v)
+                        nome_c_alvo = " - ".join(c_pg.split(" - ")[1:])
+                        pendentes = df_v_viva[(df_v_viva['CLIENTE'] == nome_c_alvo) & (df_v_viva['S_NUM'] > 0)].copy()
+                        sobra = v_pg
+                        for idx, row in pendentes.iterrows():
+                            if sobra <= 0: break
+                            lin_planilha = idx + 2
+                            div_linha = row['S_NUM']
+                            if sobra >= div_linha:
+                                aba_v.update_acell(f"U{lin_planilha}", 0) 
+                                aba_v.update_acell(f"W{lin_planilha}", "Pago") 
+                                sobra -= div_linha
+                            else:
+                                aba_v.update_acell(f"U{lin_planilha}", div_linha - sobra) 
+                                sobra = 0
+                        
+                        aba_f = planilha_mestre.worksheet("FINANCEIRO")
+                        aba_f.append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), c_pg.split(" - ")[0], nome_c_alvo, 0, v_pg, "PAGO", f"{meio}: {obs}"], value_input_option='RAW')
+                        st.success(f"✅ Recebido de {nome_c_alvo} processado!")
+                        st.cache_resource.clear(); st.rerun()
+                    except Exception as e: st.error(f"Erro no FIFO: {e}")
+
+        # --- 🕒 HISTÓRICO DE ABATIMENTOS (LÊ A ABA FINANCEIRO) ---
+        st.markdown("---")
+        st.write("#### 🕒 Últimos Abatimentos Registrados (Banco de Dados)")
+        try:
+            aba_f_hist = planilha_mestre.worksheet("FINANCEIRO")
+            df_f_hist = pd.DataFrame(aba_f_hist.get_all_records())
+            # Filtra apenas registros de entrada real (Abatimentos PAGO)
+            abatimentos = df_f_hist[df_f_hist['STATUS'] == "PAGO"].tail(5).iloc[::-1]
+            if not abatimentos.empty:
+                st.dataframe(abatimentos[['DATA', 'CLIENTE', 'ENTRADA R$', 'OBS']], use_container_width=True, hide_index=True)
+            else: st.info("Nenhum abatimento localizado na planilha.")
+        except: st.info("O histórico aparecerá após o primeiro recebimento.")
+
+    st.divider()
+
+    st.markdown("### 🔍 Ficha de Cliente (Extrato Dinâmico)")
+    opcoes_ficha = sorted([f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
+    sel_ficha = st.selectbox("Selecione para ver o que ela deve:", ["---"] + opcoes_ficha, key="ficha_sel_cliente")
+    
+    if sel_ficha != "---":
+        id_c = sel_ficha.split(" - ")[0]
+        nome_c_ficha = " - ".join(sel_ficha.split(" - ")[1:])
+        v_hist = df_vendas_hist[df_vendas_hist['CÓD. CLIENTE'].astype(str) == id_c]
+        saldo_devedor_real = v_hist['SALDO DEVEDOR'].apply(limpar_v).sum()
+        c_f1, c_f2 = st.columns(2)
+        c_f1.metric("Saldo Devedor Atual", f"R$ {saldo_devedor_real:,.2f}")
+        if saldo_devedor_real > 0.01:
+            tel_c = banco_de_clientes.get(id_c, {}).get('fone', "")
+            msg_zap = f"Olá {nome_c_ficha}! 🏠 Segue seu extrato na *Sweet Home Enxovais*. Atualmente consta um saldo pendente de *R$ {saldo_devedor_real:.2f}*. Qualquer dúvida estou à disposição! 😊"
+            st.link_button("📲 Cobrar no WhatsApp", f"https://wa.me/55{tel_c}?text={urllib.parse.quote(msg_zap)}", use_container_width=True)
+        else: st.success("✅ Esta cliente não possui débitos pendentes.")
+
+        st.write("#### ⏳ Histórico de Vendas Localizado")
+        if not v_hist.empty:
+            st.dataframe(v_hist[['DATA DA VENDA', 'PRODUTO', 'TOTAL R$', 'SALDO DEVEDOR', 'STATUS']], use_container_width=True, hide_index=True)
+        else: st.info("Nenhuma compra registrada para esta cliente ainda.")
 
 # ==========================================
 # --- SEÇÃO 3: ESTOQUE (MEMÓRIA ETERNA) ---
