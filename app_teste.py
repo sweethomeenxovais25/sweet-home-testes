@@ -15,29 +15,17 @@ import requests
 
 def verificar_status_odoo(codigo_produto):
     cod_limpo = str(codigo_produto).strip()
-    # URL de busca configurada para o domínio informado
+    # Usando a URL exata que você validou
     url = f"https://sweethomecomfort.odoo.com/shop?&search={cod_limpo}"
-    
     try:
-        # Cabeçalho robusto para simular um navegador real
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
-        }
-        # Aumentamos o timeout para 10 segundos para garantir a resposta em conexões lentas
-        resposta = requests.get(url, headers=headers, timeout=10)
-        conteudo = resposta.text.lower()
-        
-        # Se a frase de "não encontrado" estiver no HTML, o produto não está no site
-        if "nenhum resultado encontrado" in conteudo:
-            return "🔴"
-        
-        # Se encontrar classes de produto do Odoo ou o próprio código, confirma o status
-        if "oe_product" in conteudo or cod_limpo in conteudo:
-            return "🟢"
-            
-        return "🔴"
-    except Exception:
-        return "⚪" # Indica erro de conexão ou site fora do ar
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        resposta = requests.get(url, headers=headers, timeout=5)
+        if "nenhum resultado encontrado" in resposta.text.lower():
+            return "🔴" # Não está no site
+        else:
+            return "🟢" # Encontrado no site!
+    except:
+        return "⚪" # Erro de conexão
 
 # ==========================================
 # 1. CONFIGURAÇÃO ÚNICA DA PÁGINA
@@ -1210,27 +1198,37 @@ elif menu_selecionado == "📂 Documentos":
         df_docs = pd.DataFrame()
 
     with st.expander("🚀 Linha de Montagem Odoo (Site)", expanded=True):
-            t_falta, t_pronto = st.tabs(["🔴 1. Falta Foto (Bia)", "🟢 2. Pronto p/ Site (Você)"])
-            
-            with t_pronto:
-            # Note o espaço (recuo) antes do st.write abaixo
-            st.write("**Fotos tiradas! O robô está verificando o status no site agora:**")
-            
+        t_falta, t_pronto = st.tabs(["🔴 1. Falta Foto (Bia)", "🟢 2. Pronto p/ Site (Você)"])
+        
+        with t_falta:
+            st.write("**Produtos no estoque aguardando foto para o site:**")
+            if not df_full_inv.empty:
+                prods_com_foto = []
+                if not df_docs.empty and 'VINCULO' in df_docs.columns:
+                    fotos = df_docs[df_docs['TIPO'] == "Foto de Produto"]
+                    prods_com_foto = [str(p).split(" - ")[0].strip() for p in fotos['VINCULO'].dropna() if " - " in str(p)]
+                
+                df_falta = df_full_inv[~df_full_inv['CÓD. PRÓDUTO'].astype(str).str.strip().isin(prods_com_foto)]
+                if not df_falta.empty:
+                    st.dataframe(df_falta[['CÓD. PRÓDUTO', 'NOME DO PRODUTO', 'ESTOQUE ATUAL']], hide_index=True)
+                else: 
+                    st.success("🎉 Nenhuma pendência! O estoque inteiro tem foto.")
+
+        with t_pronto:
+            st.write("**Fotos tiradas! Coloque no site e marque como publicado:**")
             if not df_docs.empty and 'STATUS_ODOO' in df_docs.columns:
                 prontos = df_docs[(df_docs['TIPO'] == "Foto de Produto") & (df_docs['STATUS_ODOO'] == "Pronto para Site")]
-                
                 if not prontos.empty:
                     for idx, r in prontos.iterrows():
-                        # Extrai o código para o robô trabalhar
+                        # --- 🤖 AQUI ENTRA A MÁGICA DO ROBÔ ---
+                        # Extraímos o código (ex: 101.2) para o robô buscar no site
                         cod_p = str(r['VINCULO']).split(" - ")[0].strip()
-                        
-                        # Chama o robô (função verificar_status_odoo)
                         status_icone = verificar_status_odoo(cod_p)
                         
-                        # Mantém suas 3 colunas originais [3, 1, 1]
+                        # Mantemos sua estrutura exata de 3 colunas [3, 1, 1]
                         c1, c2, c3 = st.columns([3, 1, 1])
                         
-                        # Exibe o status (bolinha) + nome do produto
+                        # Substituímos o ícone fixo de caixa 📦 pelo status real do site 🟢/🔴
                         c1.write(f"{status_icone} **{r['VINCULO']}**")
                         
                         c2.link_button("🖼️ Ver Foto", r['LINK_DRIVE'], use_container_width=True)
@@ -1240,11 +1238,10 @@ elif menu_selecionado == "📂 Documentos":
                             cell = aba_doc.find(r['ID_ARQUIVO'])
                             aba_doc.update_cell(cell.row, 7, "Publicado no Odoo")
                             st.success("Atualizado!"); st.cache_resource.clear(); st.rerun()
-                        
                         st.divider()
                 else: 
                     st.info("Sua fila de trabalho está limpa.")
-                    
+
     st.divider()
     st.write("### 📤 Enviar Arquivo")
     
