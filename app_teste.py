@@ -11,21 +11,6 @@ import cloudinary.uploader
 import io
 import google.generativeai as genai
 from PIL import Image
-import requests
-
-def verificar_status_odoo(codigo_produto):
-    cod_limpo = str(codigo_produto).strip()
-    # Usando a URL exata que você validou
-    url = f"https://sweethomecomfort.odoo.com/shop?&search={cod_limpo}"
-    try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        resposta = requests.get(url, headers=headers, timeout=5)
-        if "nenhum resultado encontrado" in resposta.text.lower():
-            return "🔴" # Não está no site
-        else:
-            return "🟢" # Encontrado no site!
-    except:
-        return "⚪" # Erro de conexão
 
 # ==========================================
 # 1. CONFIGURAÇÃO ÚNICA DA PÁGINA
@@ -1220,19 +1205,9 @@ elif menu_selecionado == "📂 Documentos":
                 prontos = df_docs[(df_docs['TIPO'] == "Foto de Produto") & (df_docs['STATUS_ODOO'] == "Pronto para Site")]
                 if not prontos.empty:
                     for idx, r in prontos.iterrows():
-                        # --- 🤖 AQUI ENTRA A MÁGICA DO ROBÔ ---
-                        # Extraímos o código (ex: 101.2) para o robô buscar no site
-                        cod_p = str(r['VINCULO']).split(" - ")[0].strip()
-                        status_icone = verificar_status_odoo(cod_p)
-                        
-                        # Mantemos sua estrutura exata de 3 colunas [3, 1, 1]
                         c1, c2, c3 = st.columns([3, 1, 1])
-                        
-                        # Substituímos o ícone fixo de caixa 📦 pelo status real do site 🟢/🔴
-                        c1.write(f"{status_icone} **{r['VINCULO']}**")
-                        
+                        c1.write(f"📦 **{r['VINCULO']}**")
                         c2.link_button("🖼️ Ver Foto", r['LINK_DRIVE'], use_container_width=True)
-                        
                         if c3.button("✅ Publicado", key=f"btn_odoo_{idx}"):
                             aba_doc = planilha_mestre.worksheet("DOCUMENTOS")
                             cell = aba_doc.find(r['ID_ARQUIVO'])
