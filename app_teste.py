@@ -404,10 +404,10 @@ if menu_selecionado == "🛒 Vendas":
             st.warning(f"Aguardando conexão com a planilha... ({e})")
 
 # ==========================================
-# ✏️ BORRACHA MÁGICA: EDIÇÃO SEGURA DE VENDAS
-# ==========================================
+    # ✏️ BORRACHA MÁGICA: EDIÇÃO SEGURA DE VENDAS
+    # ==========================================
     with st.expander("✏️ Corrigir Venda Recente", expanded=False):
-        st.write("Escolha uma venda recente abaixo para corrigir cliente, produto ou valores. O sistema atualizará a planilha sem criar linhas duplicadas.")
+        st.write("Escolha uma venda recente abaixo para corrigir cliente, produto ou valores.")
         
         try:
             aba_vendas = planilha_mestre.worksheet("VENDAS")
@@ -419,7 +419,6 @@ if menu_selecionado == "🛒 Vendas":
                 for i in range(len(dados_v)-1, max(0, len(dados_v)-21), -1):
                     linha = dados_v[i]
                     if "TOTAIS" not in str(linha[3]).upper() and linha[3] != "":
-                        # linha[1]=Data, linha[3]=Cliente, linha[5]=Produto
                         vendas_recentes.append(f"Linha {i+1} | Data: {linha[1]} | Cliente: {linha[3]} | Item: {linha[5]}")
                 
                 venda_selecionada = st.selectbox("Selecione a venda com erro:", ["---"] + vendas_recentes, help="Mostra apenas as últimas 20 vendas para facilitar a busca.")
@@ -428,24 +427,34 @@ if menu_selecionado == "🛒 Vendas":
                     linha_real = int(venda_selecionada.split(" | ")[0].replace("Linha ", ""))
                     linha_dados = dados_v[linha_real - 1]
                     
-                    # Recuperando o que está na planilha agora
                     cod_cli_atual = linha_dados[2]
                     nome_cli_atual = linha_dados[3]
                     cod_prod_atual = linha_dados[4]
                     nome_prod_atual = linha_dados[5]
                     
-                    # Limpeza segura de números para o formulário
-                    try: qtd_atual = float(linha_dados[7].replace(",", "."))
-                    except: qtd_atual = 1.0
-                    try: val_atual = float(linha_dados[8].replace("R$", "").replace(".", "").replace(",", ".").strip())
-                    except: val_atual = 0.0
-                    try: desc_perc_atual = float(linha_dados[9].replace("%", "").replace(",", "."))
-                    except: desc_perc_atual = 0.0
-                    desc_reais_atual = (qtd_atual * val_atual) * desc_perc_atual
+                    # Limpeza inteligente de números (Evita o bug do valor gigante)
+                    def limpar_para_editar(val_str, is_perc=False):
+                        try:
+                            v = str(val_str).replace("R$", "").strip()
+                            if is_perc and "%" in v:
+                                v = v.replace("%", "").strip()
+                                if "," in v and "." in v: v = v.replace(".", "").replace(",", ".")
+                                elif "," in v: v = v.replace(",", ".")
+                                return float(v) / 100.0
+                            
+                            if "," in v and "." in v: v = v.replace(".", "").replace(",", ".")
+                            elif "," in v: v = v.replace(",", ".")
+                            return float(v)
+                        except:
+                            return 0.0
+
+                    qtd_atual = limpar_para_editar(linha_dados[7])
+                    val_atual = limpar_para_editar(linha_dados[8])
+                    desc_perc_atual = limpar_para_editar(linha_dados[9], is_perc=True)
                     
+                    desc_reais_atual = (qtd_atual * val_atual) * desc_perc_atual
                     metodo_atual = linha_dados[14]
 
-                    # Preparando as listas oficiais de seleção
                     lista_clientes = [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()]
                     cliente_str_atual = f"{cod_cli_atual} - {nome_cli_atual}"
                     idx_cliente = lista_clientes.index(cliente_str_atual) if cliente_str_atual in lista_clientes else 0
@@ -460,7 +469,7 @@ if menu_selecionado == "🛒 Vendas":
                     with st.form(f"form_edicao_{linha_real}"):
                         st.write("#### 🔄 Atualizar Dados")
                         e_c1, e_c2 = st.columns(2)
-                        novo_cliente = e_c1.selectbox("Cliente Oficial", lista_clientes, index=idx_cliente, help="Selecione a cliente correta na lista.")
+                        novo_cliente = e_c1.selectbox("Cliente Oficial", lista_clientes, index=idx_cliente)
                         novo_produto = e_c2.selectbox("Produto Correto", lista_produtos, index=idx_produto)
                         
                         e_c3, e_c4, e_c5 = st.columns(3)
@@ -472,21 +481,18 @@ if menu_selecionado == "🛒 Vendas":
                         
                         if st.form_submit_button("💾 Salvar Correção", type="primary"):
                             try:
-                                # Desmembrando os dados selecionados
                                 n_cod_cli = novo_cliente.split(" - ")[0]
                                 n_nome_cli = " - ".join(novo_cliente.split(" - ")[1:])
                                 n_cod_prod = novo_produto.split(" - ")[0]
                                 n_nome_prod = " - ".join(novo_produto.split(" - ")[1:])
                                 n_custo = float(banco_de_produtos.get(n_cod_prod, {}).get('custo', 0.0))
                                 
-                                # Refazendo a matemática
                                 n_v_bruto = nova_qtd * novo_val
                                 n_desc_perc = novo_desc / n_v_bruto if n_v_bruto > 0 else 0
                                 n_t_liq = n_v_bruto - novo_desc
                                 
                                 eh_parc = "Sim" if novo_metodo == "Sweet Flex" else "Não"
                                 
-                                # Mantém o número de parcelas originais se for Flex
                                 try: num_parc = int(linha_dados[16])
                                 except: num_parc = 1
                                 if num_parc <= 0: num_parc = 1
@@ -495,7 +501,6 @@ if menu_selecionado == "🛒 Vendas":
                                 val_vista = n_t_liq if eh_parc == "Não" else 0
                                 val_total_flex = n_t_liq if eh_parc == "Sim" else 0
                                 
-                                # Pacote de Atualização Cirúrgica (só mexe no que precisa)
                                 atualizacoes = [
                                     {'range': f'C{linha_real}', 'values': [[n_cod_cli]]},
                                     {'range': f'D{linha_real}', 'values': [[n_nome_cli]]},
@@ -513,7 +518,14 @@ if menu_selecionado == "🛒 Vendas":
                                 ]
                                 aba_vendas.batch_update(atualizacoes, value_input_option='RAW')
                                 
-                                st.success("✅ Erro corrigido com sucesso! A planilha foi atualizada.")
+                                # Salva o recibo temporário na memória antes de recarregar a tela
+                                st.session_state['recibo_correcao'] = {
+                                    "cliente": n_nome_cli,
+                                    "produto": f"{nova_qtd}x {n_nome_prod}",
+                                    "total": n_t_liq,
+                                    "metodo": novo_metodo
+                                }
+                                
                                 st.cache_resource.clear()
                                 st.rerun()
                                 
@@ -521,6 +533,18 @@ if menu_selecionado == "🛒 Vendas":
                                 st.error(f"⚠️ Erro ao salvar: {e}")
         except Exception as e:
             st.info("Aguardando carregamento dos dados para edição.")
+
+    # ==========================================
+    # 🧾 AVISO DE CORREÇÃO BEM-SUCEDIDA
+    # ==========================================
+    if 'recibo_correcao' in st.session_state:
+        st.success("✅ Venda atualizada na planilha com sucesso!")
+        recibo = st.session_state['recibo_correcao']
+        st.info(f"**Resumo do Ajuste:**\n\n👤 **Cliente:** {recibo['cliente']}\n📦 **Produto:** {recibo['produto']}\n💰 **Novo Total:** R$ {recibo['total']:.2f}\n💳 **Pagto:** {recibo['metodo']}")
+        
+        if st.button("✖️ Fechar Aviso", key="fechar_aviso_correcao"):
+            del st.session_state['recibo_correcao']
+            st.rerun()
 
 # ==========================================
 # --- SEÇÃO 2: FINANCEIRO (COM RASTRO FIFO) ---
