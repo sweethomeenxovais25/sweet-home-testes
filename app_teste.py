@@ -1213,43 +1213,38 @@ elif menu_selecionado == "📂 Documentos":
             t_falta, t_pronto = st.tabs(["🔴 1. Falta Foto (Bia)", "🟢 2. Pronto p/ Site (Você)"])
             
             with t_pronto:
+            # Note o espaço (recuo) antes do st.write abaixo
             st.write("**Fotos tiradas! O robô está verificando o status no site agora:**")
+            
             if not df_docs.empty and 'STATUS_ODOO' in df_docs.columns:
                 prontos = df_docs[(df_docs['TIPO'] == "Foto de Produto") & (df_docs['STATUS_ODOO'] == "Pronto para Site")]
                 
                 if not prontos.empty:
                     for idx, r in prontos.iterrows():
+                        # Extrai o código para o robô trabalhar
                         cod_p = str(r['VINCULO']).split(" - ")[0].strip()
                         
-                        # O robô verifica o status em tempo real
+                        # Chama o robô (função verificar_status_odoo)
                         status_icone = verificar_status_odoo(cod_p)
                         
-                        # --- AUTOMAÇÃO DA PLANILHA ---
-                        # Se o robô detectar que está online e o status atual não for "Publicado", atualiza a planilha
-                        if status_icone == "🟢" and r['STATUS_ODOO'] != "Publicado no Odoo":
-                            try:
-                                aba_doc = planilha_mestre.worksheet("DOCUMENTOS")
-                                cell = aba_doc.find(r['ID_ARQUIVO'])
-                                # Atualiza para "Publicado no Odoo" na coluna 7
-                                aba_doc.update_cell(cell.row, 7, "Publicado no Odoo")
-                                st.toast(f"Planilha atualizada: {cod_p} detectado no site!", icon="✅")
-                            except:
-                                pass # Evita travar a tela em caso de erro na API do Google
-                        
-                        # Estrutura visual original preservada
+                        # Mantém suas 3 colunas originais [3, 1, 1]
                         c1, c2, c3 = st.columns([3, 1, 1])
+                        
+                        # Exibe o status (bolinha) + nome do produto
                         c1.write(f"{status_icone} **{r['VINCULO']}**")
+                        
                         c2.link_button("🖼️ Ver Foto", r['LINK_DRIVE'], use_container_width=True)
                         
-                        if c3.button("✅ Confirmar", key=f"btn_odoo_{idx}"):
+                        if c3.button("✅ Publicado", key=f"btn_odoo_{idx}"):
                             aba_doc = planilha_mestre.worksheet("DOCUMENTOS")
                             cell = aba_doc.find(r['ID_ARQUIVO'])
                             aba_doc.update_cell(cell.row, 7, "Publicado no Odoo")
-                            st.success("Status confirmado!"); st.cache_resource.clear(); st.rerun()
+                            st.success("Atualizado!"); st.cache_resource.clear(); st.rerun()
+                        
                         st.divider()
                 else: 
                     st.info("Sua fila de trabalho está limpa.")
-
+                    
     st.divider()
     st.write("### 📤 Enviar Arquivo")
     
