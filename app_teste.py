@@ -295,7 +295,7 @@ if menu_selecionado == "🛒 Vendas":
     # Criamos a lista final apenas com os códigos mais recentes
     lista_selecao_limpa = [f"{v['full_cod']} - {v['nome']}" for v in produtos_filtrados_venda.values()]
     # -----------------------------------------------------
-    st.subheader("🛒 Registro de Venda Multi-Itens")
+    st.subheader("🛒 Registro de Venda")
     
     # --- 1. CONFIGURAÇÃO GERAL DA VENDA (CABEÇALHO) ---
     col_v1, col_v2 = st.columns(2)
