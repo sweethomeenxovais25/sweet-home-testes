@@ -1237,35 +1237,38 @@ elif menu_selecionado == "📂 Documentos":
                 else: 
                     st.info("Sua fila de trabalho está limpa.")
 
-    # --- ASSISTENTE DE SINCRONIZAÇÃO MESTRE (V13 - RELATÓRIO FIXO E PERSISTENTE) ---
-    with st.expander("🤖 Sincronizador Inteligente (Análise de Versões)", expanded=False):
+    # --- 🤖 SEÇÃO: SINCRONIZADOR INTELIGENTE ODOO (V14) ---
+    with st.expander("🤖 Sincronizador Inteligente (Análise de Versões)", expanded=True):
         st.write("Diagnóstico de versões e limpeza automática da vitrine.")
 
-        # 1. INICIALIZAÇÃO DA MEMÓRIA (Se for a primeira vez que abre o app)
-        if 'ultimo_relatorio' not in st.session_state:
-            st.session_state.ultimo_relatorio = None
+        # 1. INICIALIZAÇÃO DO COFRE DE MEMÓRIA (Fundamental para o relatório não sumir)
+        if 'relatorio_fixo' not in st.session_state:
+            st.session_state.relatorio_fixo = None
 
-        # Botão principal de execução
+        # Botão de ação principal
         if st.button("🚀 Iniciar Nova Varredura Completa", use_container_width=True):
             try:
-                # --- [MESMA LÓGICA DE CARREGAMENTO E FILTRO TOTAIS] ---
+                # --- CARREGAMENTO E FILTRO DE TOTAIS ---
                 aba_inv = planilha_mestre.worksheet("INVENTÁRIO")
                 dados_inv = aba_inv.get_all_values()
                 df_inv = pd.DataFrame(dados_inv[1:], columns=dados_inv[0])
                 
+                # Localiza a linha de TOTAIS para o robô parar
                 idx_limite = df_inv[df_inv['CÓD. PRÓDUTO'].str.upper().str.contains("TOTAIS", na=False)].index.min()
                 df_proc = df_inv.iloc[:idx_limite].copy() if not pd.isna(idx_limite) else df_inv.copy()
                 df_proc = df_proc[df_proc['CÓD. PRÓDUTO'].str.strip() != ""]
 
-                if df_proc.empty:
-                    st.warning("Nenhum produto para processar.")
-                else:
+                if not df_proc.empty:
+                    # Mapeamento de versões (famílias .1, .2, etc)
                     df_proc['BASE'] = df_proc['CÓD. PRÓDUTO'].apply(lambda x: str(x).split('.')[0].strip())
                     mapa_mais_recente = df_proc.groupby('BASE')['CÓD. PRÓDUTO'].last().to_dict()
 
+                    st.info(f"🔍 Varrendo {len(df_proc)} linhas do inventário...")
                     barra = st.progress(0)
-                    status_dinamico = st.empty()
-                    dados_temp = [] # Guardaremos os resultados aqui primeiro
+                    status_txt = st.empty()
+                    dados_acumulados = []
+                    
+                    # Acessa a aba DOCUMENTOS para a integração
                     aba_doc = planilha_mestre.worksheet("DOCUMENTOS")
 
                     for i, (idx, row) in enumerate(df_proc.iterrows()):
@@ -1274,70 +1277,77 @@ elif menu_selecionado == "📂 Documentos":
                         versao_topo = mapa_mais_recente[base_cod]
                         linha_p = idx + 2
                         
-                        status_dinamico.markdown(f"⏳ **Analisando:** `{cod_atual}`")
-                        achou_no_site, link_ref = verificar_status_odoo(cod_atual)
-                        time.sleep(1.2) # Proteção Quota 429
+                        status_txt.markdown(f"⏳ **Analisando:** `{cod_atual}`")
+                        
+                        # Chamada ao robô de busca
+                        achou, link_ref = verificar_status_odoo(cod_atual)
+                        time.sleep(1.3) # Respeito ao limite do Google
 
-                        if achou_no_site:
+                        if achou:
+                            # Lógica de diagnóstico de versão
                             if cod_atual == versao_topo:
-                                status_inv = "Publicado"
-                                res_obs = "✅ Publicado (Atualizado)"
+                                status_inv, res_obs = "Publicado", "✅ Publicado (Atualizado)"
                             else:
-                                status_inv = "Publicado (Site Desatualizado)"
-                                res_obs = "⚠️ Site com Versão Antiga"
+                                status_inv, res_obs = "Publicado (Site Desatualizado)", "⚠️ Site com Versão Antiga"
                             
-                            aba_inv.update_cell(linha_p, 11, link_ref) 
-                            aba_inv.update_cell(linha_p, 12, status_inv) 
+                            # Atualiza ABA INVENTÁRIO
+                            aba_inv.update_cell(linha_p, 11, link_ref) # Link
+                            aba_inv.update_cell(linha_p, 12, status_inv) # Status
                             
-                            # Integração com DOCUMENTOS (Vitrine)
+                            # 🔗 INTEGRAÇÃO COM DOCUMENTOS (Limpeza da Linha de Montagem)
                             if not df_docs.empty:
+                                # Busca se o código atual está no vínculo das fotos
                                 matches = df_docs[df_docs['VINCULO'].str.contains(cod_atual, na=False)].index
                                 for m_idx in matches:
                                     aba_doc.update_cell(int(m_idx) + 2, 7, "Publicado no Odoo")
                         else:
+                            # Caso não encontre no site
                             aba_inv.update_cell(linha_p, 12, "Não Publicado")
                             res_obs = "❌ Não Encontrado"
 
-                        dados_temp.append({
+                        dados_acumulados.append({
                             "Linha": linha_p,
-                            "Cód. Planilha": cod_atual,
-                            "Status no Site": res_obs,
-                            "Ação Necessária": "Nenhuma" if "✅" in res_obs else ("Subir nova versão" if "⚠️" in res_obs else "Publicar")
+                            "Cód. SKU": cod_atual,
+                            "Status Site": res_obs,
+                            "Ação": "OK" if "✅" in res_obs else ("⚠️ Atualizar Odoo" if "⚠️" in res_obs else "❌ Publicar")
                         })
                         barra.progress((i + 1) / len(df_proc))
 
-                    # 💾 SALVANDO NO COFRE DE MEMÓRIA
-                    st.session_state.ultimo_relatorio = pd.DataFrame(dados_temp)
-                    status_dinamico.empty()
-                    st.success("Varredura concluída e salva!")
-                    st.cache_data.clear() # Limpa cache para ler planilhas atualizadas
-                    st.rerun() # Reinicia para mostrar o relatório fixo
+                    # 💾 SALVANDO RESULTADO NO COFRE
+                    st.session_state.relatorio_fixo = pd.DataFrame(dados_acumulados)
+                    status_txt.empty()
+                    st.success("Varredura Finalizada!")
+                    
+                    # Limpa o cache e força o app a ler as planilhas novas
+                    st.cache_data.clear()
+                    st.rerun()
 
             except Exception as e:
                 st.error(f"Erro na varredura: {e}")
 
-        # 2. EXIBIÇÃO DO RELATÓRIO FIXO (Persiste na tela)
-        if st.session_state.ultimo_relatorio is not None:
+        # --- 📋 EXIBIÇÃO DO RELATÓRIO FIXO ---
+        # Esta parte fica fora do botão para não sumir após o rerun
+        if st.session_state.relatorio_fixo is not None:
             st.divider()
-            with st.expander("📋 ÚLTIMO RELATÓRIO DE SINCRONIZAÇÃO (Fixo)", expanded=True):
+            with st.expander("📊 Relatório da Última Verificação (Fixo)", expanded=True):
                 
-                # Função de Cores aprovada por você
-                def colorir_status(val):
+                # Estilização de cores (Verde, Amarelo, Vermelho)
+                def style_status_cores(val):
                     if "✅" in val: return 'background-color: #d4edda; color: #155724'
                     if "⚠️" in val: return 'background-color: #fff3cd; color: #856404'
                     if "❌" in val: return 'background-color: #f8d7da; color: #721c24'
                     return ''
 
                 st.dataframe(
-                    st.session_state.ultimo_relatorio.style.applymap(colorir_status, subset=['Status no Site']),
-                    use_container_width=True, hide_index=True
+                    st.session_state.relatorio_fixo.style.applymap(style_status_cores, subset=['Status Site']),
+                    use_container_width=True,
+                    hide_index=True
                 )
                 
-                st.info("Este relatório é mantido até que uma nova varredura seja iniciada.")
+                st.caption("ℹ️ Este relatório é mantido até você iniciar uma nova varredura.")
                 
-                if st.button("🔄 Atualizar Vitrine Odoo Agora", use_container_width=True):
+                if st.button("🔄 Atualizar Vitrine Odoo Agora", key="btn_manual_refresh"):
                     st.cache_data.clear()
-                    st.cache_resource.clear()
                     st.rerun()
 
     st.divider()
