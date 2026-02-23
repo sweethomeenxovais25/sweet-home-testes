@@ -16,9 +16,9 @@ from PIL import Image
 # 1. CONFIGURAÇÃO ÚNICA DA PÁGINA
 # ==========================================
 st.set_page_config(
-    page_title="🧪 TESTE - Sweet Home", 
-    page_icon="logo_sweet_teste.png", 
-    layout="wide"
+    page_title="🧪 TESTE - Sweet Home", 
+    page_icon="logo_sweet_teste.png", 
+    layout="wide"
 )
 
 # Inicialização das Memórias de Sessão
