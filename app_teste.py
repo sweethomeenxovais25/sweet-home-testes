@@ -15,17 +15,20 @@ import requests
 
 def verificar_status_odoo(codigo_produto):
     cod_limpo = str(codigo_produto).strip()
-    url = f"https://sweethomecomfort.odoo.com/shop?&search={cod_limpo}"
+    # Esta é a URL que o robô usará para validar
+    url_busca = f"https://sweethomecomfort.odoo.com/shop?&search={cod_limpo}"
+    
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
-        # O robô faz a busca exata que você validou
-        resposta = requests.get(url, headers=headers, timeout=10)
-        # Se a frase de erro NÃO aparecer, o produto está ONLINE
-        if "nenhum resultado encontrado" not in resposta.text.lower():
-            return True # Achou!
-        return False # Não achou
+        resposta = requests.get(url_busca, headers=headers, timeout=10)
+        
+        if "nenhum resultado encontrado" in resposta.text.lower():
+            return False, ""
+        else:
+            # Se achou, o link de busca já serve como referência direta para o produto
+            return True, url_busca
     except:
-        return False
+        return False, ""
 
 # ==========================================
 # 1. CONFIGURAÇÃO ÚNICA DA PÁGINA
@@ -1232,47 +1235,57 @@ elif menu_selecionado == "📂 Documentos":
                 else: 
                     st.info("Sua fila de trabalho está limpa.")
 
-    # --- NOVO INCREMENTO: ASSISTENTE DE SINCRONIZAÇÃO AUTOMÁTICA ---
-    with st.expander("🤖 Assistente de Verificação Odoo (Automático)", expanded=False):
-        st.write("Esta função busca no site e atualiza a planilha sozinho.")
+    # --- ASSISTENTE DE SINCRONIZAÇÃO DE INVENTÁRIO ---
+    with st.expander("🤖 Sincronizador de Inventário (Odoo)", expanded=False):
+        st.write("O robô verificará o site e preencherá as Colunas K (Link) e L (Status) no Inventário.")
         
-        if st.button("🚀 Iniciar Varredura e Sincronizar"):
-            if not df_docs.empty:
-                # Filtramos apenas o que ainda está pendente de publicação no site
-                pendentes_validacao = df_docs[df_docs['STATUS_ODOO'] == "Pronto para Site"]
+        if st.button("🚀 Iniciar Varredura de Inventário"):
+            try:
+                # 1. Acessamos a aba correta
+                aba_inv = planilha_mestre.worksheet("INVENTÁRIO")
+                dados_inv = aba_inv.get_all_values()
+                df_sync_inv = pd.DataFrame(dados_inv[1:], columns=dados_inv[0])
                 
-                if not pendentes_validacao.empty:
-                    progresso = st.progress(0)
-                    total = len(pendentes_validacao)
+                # 2. Filtramos apenas o que ainda não tem Link ou Status no site
+                # Procuramos na coluna L (STATUS ODOO) o que não está "Publicado"
+                pendentes_inv = df_sync_inv[df_sync_inv['STATUS ODOO'].astype(str).str.upper() != "PUBLICADO"]
+                
+                if not pendentes_inv.empty:
+                    st.info(f"🔍 Analisando {len(pendentes_inv)} produtos no inventário...")
+                    barra = st.progress(0)
                     sucessos = 0
                     
-                    aba_doc = planilha_mestre.worksheet("DOCUMENTOS")
-                    
-                    for i, (idx, r) in enumerate(pendentes_validacao.iterrows()):
-                        cod_p = str(r['VINCULO']).split(" - ")[0].strip()
+                    for i, (idx, r) in enumerate(pendentes_inv.iterrows()):
+                        # O código do produto está na coluna A (índice 0)
+                        cod_p = str(r['CÓD. PRÓDUTO']).strip()
                         
-                        # O robô checa o site em silêncio
-                        esta_online = verificar_status_odoo(cod_p)
+                        # O robô vai ao site
+                        achou, link_produto = verificar_status_odoo(cod_p)
                         
-                        if esta_online:
-                            # Se achou no site, ele já atualiza a planilha na hora!
-                            cell = aba_doc.find(r['ID_ARQUIVO'])
-                            aba_doc.update_cell(cell.row, 7, "Publicado no Odoo")
+                        if achou:
+                            # A linha na planilha é o índice do DF + 2 (por causa do cabeçalho e índice 0)
+                            linha_planilha = idx + 2
+                            
+                            # Atualiza Coluna K (Link Ref - 11) e Coluna L (Status Odoo - 12)
+                            aba_inv.update_cell(linha_planilha, 11, link_produto) # Coluna K
+                            aba_inv.update_cell(linha_planilha, 12, "Publicado")     # Coluna L
+                            
+                            st.write(f"✅ Produto **{cod_p}** encontrado e vinculado!")
                             sucessos += 1
                         
-                        # Atualiza a barrinha de progresso na tela
-                        progresso.progress((i + 1) / total)
+                        barra.progress((i + 1) / len(pendentes_inv))
                     
                     if sucessos > 0:
-                        st.success(f"✅ Mágica feita! {sucessos} itens foram detectados no site e atualizados na planilha.")
+                        st.success(f"✨ Sincronização concluída! {sucessos} produtos atualizados no Inventário.")
                         st.cache_resource.clear()
-                        st.rerun() # Recarrega a tela para limpar a Linha de Montagem
+                        st.rerun()
                     else:
-                        st.info("Varredura concluída: Nenhum item novo foi encontrado no site ainda.")
+                        st.warning("Nenhum dos produtos pendentes foi detectado no site ainda.")
                 else:
-                    st.info("Não há itens pendentes para verificar no momento.")
-            else:
-                st.error("Erro ao ler os dados da planilha.")
+                    st.info("Todos os produtos do inventário já estão com status atualizado.")
+            
+            except Exception as e:
+                st.error(f"Erro ao acessar o Inventário: {e}")
 
     st.divider()
     st.write("### 📤 Enviar Arquivo")
