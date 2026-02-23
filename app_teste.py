@@ -11,37 +11,7 @@ import cloudinary.uploader
 import io
 import google.generativeai as genai
 from PIL import Image
-import plotly.express as px  # Adicionado para os novos gráficos financeiros
-
-# ==========================================
-# 0. FUNÇÕES DE BUSCA E CONEXÃO
-# ==========================================
-
-def conectar_google_sheets():
-    # Use sua lógica de conexão existente aqui
-    # Exemplo base:
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
-    client = gspread.authorize(creds)
-    return client.open_by_key(st.secrets["id_planilha"])
-
-# Conexão Global
-# Altere o bloco de conexão para isso apenas para testar:
-try:
-    planilha_mestre = conectar_google_sheets()
-except Exception as e:
-    st.error(f"Erro real: {e}") # Isso vai nos dizer se é "Permission Denied", "File Not Found", etc.
-
-def buscar_dados_usuario(nome_usuario):
-    try:
-        aba_u = planilha_mestre.worksheet("USUARIOS")
-        dados = aba_u.get_all_records()
-        for u in dados:
-            if u['USUARIO'] == nome_usuario:
-                return u
-        return None
-    except:
-        return None
+import plotly.express as px # Essencial para os novos gráficos
 
 # ==========================================
 # 1. CONFIGURAÇÃO ÚNICA DA PÁGINA
@@ -63,7 +33,6 @@ if 'historico_estoque' not in st.session_state:
 # --- AUXILIARES TÉCNICOS ---
 def limpar_v(v):
     if pd.isna(v) or v == "": return 0.0
-    # Limpeza cirúrgica para evitar bugs de vírgula/ponto
     numero = str(v).replace('R$', '').replace('.', '').replace(',', '.').strip()
     try:
         return round(float(numero), 2)
@@ -76,41 +45,37 @@ def limpar_texto(texto):
     texto_sem_acento = unicodedata.normalize('NFD', texto).encode('ascii', 'ignore').decode("utf-8")
     return texto_sem_acento.lower().strip()
 
+# Função para buscar dados do usuário na aba USUARIOS
+def buscar_dados_usuario(nome_usuario):
+    try:
+        aba_u = planilha_mestre.worksheet("USUARIOS")
+        dados = aba_u.get_all_records()
+        for u in dados:
+            if u['USUARIO'] == nome_usuario:
+                return u
+        return None
+    except:
+        return None
+
 # ==========================================
 # 🎨 1.5. IDENTIDADE VISUAL (SWEET CLEAN)
 # ==========================================
 estilo_sweet_clean = """
 <style>
-    /* 1. Tela Principal Branca com a Listra Café na Extrema Direita */
     [data-testid="stAppViewContainer"] {
         background-color: #ffffff !important;
         border-right: 12px solid #31241b !important;
     }
-    
-    /* 2. Barra Lateral (Tom Areia Muito Claro) */
     [data-testid="stSidebar"] {
         background-color: #FCF8F2 !important;
         border-right: 1px solid #f6debc !important;
     }
-
-    /* O EXORCISMO DA SETA FANTASMA */
-    [data-testid="collapsedControl"] svg, 
-    [data-testid="collapsedControl"] path,
-    [data-testid="stSidebar"] button svg,
-    [data-testid="stSidebar"] button path {
-        color: #31241b !important;
-        fill: #31241b !important;
-        stroke: #31241b !important;
-    }
-
     .stMarkdown, p, span, label, div[data-testid="stMetricValue"] {
         color: #31241b !important;
     }
-
     h1, h2, h3, h4 {
         color: #31241b !important;
     }
-
     .stButton>button {
         background-color: #A67B5B !important; 
         color: #ffffff !important;
@@ -118,22 +83,11 @@ estilo_sweet_clean = """
         border-radius: 6px !important;
         border: none !important;
         box-shadow: 2px 2px 8px rgba(0,0,0,0.1) !important;
-        transition: all 0.2s ease-in-out !important;
     }
-    
     .stButton>button:hover {
         background-color: #8B5A2B !important;
         color: #ffffff !important;
-        transform: scale(1.02);
     }
-    
-    .stButton>button p, .stButton>button span {
-        color: #ffffff !important;
-    }
-
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {background-color: transparent !important;}
 </style>
 """
 st.markdown(estilo_sweet_clean, unsafe_allow_html=True)
@@ -144,194 +98,185 @@ st.markdown(estilo_sweet_clean, unsafe_allow_html=True)
 if not st.session_state['autenticado']:
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
-        try:
-            st.image("logo_sweet_teste.png", use_container_width=True)
-        except:
-            st.warning("🌸 Sweet Home Enxovais")
+        try: st.image("logo_sweet_teste.png", use_container_width=True)
+        except: st.warning("🌸 Sweet Home Enxovais")
         
         st.markdown("<h2 style='text-align: center;'>Gestão Sweet</h2>", unsafe_allow_html=True)
-
         with st.form("form_login"):
             usuario_input = st.text_input("Usuário").strip()
             senha_input = st.text_input("Senha", type="password").strip()
             entrar = st.form_submit_button("Entrar no Sistema 🚀", use_container_width=True)
-            
             if entrar:
                 try:
                     usuarios_permitidos = st.secrets["usuarios"]
-                    if usuario_input in usuarios_permitidos:
-                        if str(usuarios_permitidos[usuario_input]) == senha_input:
-                            st.session_state['autenticado'] = True
-                            st.session_state['usuario_logado'] = usuario_input
-                            st.rerun()
-                        else:
-                            st.error("❌ Senha incorreta.")
-                    else:
-                        st.error("❌ Usuário não encontrado.")
-                except Exception as e:
-                    st.error("Erro ao acessar cofre de senhas. Verifique os Secrets.")
+                    if usuario_input in usuarios_permitidos and str(usuarios_permitidos[usuario_input]) == senha_input:
+                        st.session_state['autenticado'] = True
+                        st.session_state['usuario_logado'] = usuario_input
+                        st.rerun()
+                    else: st.error("❌ Credenciais inválidas.")
+                except: st.error("Erro nos Secrets.")
     st.stop()
 
 # ==========================================
-# 🛡️ 2.5. PÓS-LOGIN: REGISTRO DE ACESSO E PERFIL
+# 🚀 3. SISTEMA LIBERADO (CONEXÕES)
 # ==========================================
+ID_PLANILHA = "1lXUnGrWtwV-IfIiUbGzLH3P2T-h3b6Mr9NEBCpwulXg"
+ESPECIFICACOES = ["https://spreadsheets.google.com/feeds", 'https://www.googleapis.com/auth/spreadsheets', "https://www.googleapis.com/auth/drive.file"]
 
-# 🕒 Registro de acesso automático (Executa uma vez por login)
+@st.cache_resource
+def conectar_google():
+    try:
+        creds_info = st.secrets["gcp_service_account"]
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_info, ESPECIFICACOES)
+        return gspread.authorize(creds).open_by_key(ID_PLANILHA)
+    except: return None
+
+planilha_mestre = conectar_google()
+
+# Registro de Último Acesso Automático
 if 'acesso_registrado' not in st.session_state:
     try:
         aba_u = planilha_mestre.worksheet("USUARIOS")
         lista_u = aba_u.col_values(1)
         if st.session_state['usuario_logado'] in lista_u:
             linha_u = lista_u.index(st.session_state['usuario_logado']) + 1
-            agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-            aba_u.update_acell(f"F{linha_u}", agora) # F = ULTIMO_ACESSO
+            aba_u.update_acell(f"F{linha_u}", datetime.now().strftime("%d/%m/%Y %H:%M"))
             st.session_state['acesso_registrado'] = True
-    except:
-        pass # Silencioso para não interromper a entrada
-
-# 👤 Busca dados para a Sidebar
-dados_logado = buscar_dados_usuario(st.session_state['usuario_logado'])
-
-# --- SIDEBAR: IDENTIDADE VISUAL ---
-if dados_logado:
-    st.sidebar.markdown("<br>", unsafe_allow_html=True)
-    c_p1, c_p2 = st.sidebar.columns([1, 3])
-    
-    foto_u = dados_logado.get('FOTO_URL', "")
-    if foto_u:
-        c_p1.image(foto_u, width=65)
-    else:
-        c_p1.markdown("### 👤")
-        
-    c_p2.markdown(f"**{dados_logado.get('NOME_COMPLETO', 'Usuário')}**")
-    c_p2.caption(f"✨ {dados_logado.get('CARGO', 'Colaborador')}")
-    st.sidebar.markdown("---")
-
-# Daqui em diante segue o seu Menu (menu_selecionado = st.sidebar.selectbox...)
-
-# ==========================================
-# 🚀 3. SISTEMA LIBERADO (CONEXÕES E DADOS)
-# ==========================================
-
-# ID da Planilha Cobaia
-ID_PLANILHA = "1lXUnGrWtwV-IfIiUbGzLH3P2T-h3b6Mr9NEBCpwulXg"
-ESPECIFICACOES = [
-    "https://spreadsheets.google.com/feeds", 
-    'https://www.googleapis.com/auth/spreadsheets',
-    "https://www.googleapis.com/auth/drive.file"
-]
-
-# ☁️ Função de Upload Rápido para Cloudinary (Nova Engine de Arquivos)
-def upload_para_cloudinary(file_bytes, file_name, pasta_destino):
-    try:
-        # Puxa as senhas dos secrets
-        cloudinary.config(
-            cloud_name = st.secrets["cloudinary"]["cloud_name"],
-            api_key = st.secrets["cloudinary"]["api_key"],
-            api_secret = st.secrets["cloudinary"]["api_secret"],
-            secure = True
-        )
-        
-        # Cria as pastas virtuais automaticamente no CDN
-        caminho_pasta = f"SweetHome/{pasta_destino}"
-        
-        resposta = cloudinary.uploader.upload(
-            file_bytes,
-            folder=caminho_pasta,
-            public_id=file_name,
-            resource_type="auto"
-        )
-        # Retorna o ID único e o link direto
-        return resposta.get('public_id'), resposta.get('secure_url')
-    except Exception as e:
-        st.error(f"Erro no servidor de arquivos: {e}")
-        return None, None
-
-@st.cache_resource
-def conectar_google():
-    try:
-        if "gcp_service_account" in st.secrets:
-            creds_info = st.secrets["gcp_service_account"]
-            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_info, ESPECIFICACOES)
-            return gspread.authorize(creds).open_by_key(ID_PLANILHA)
-        return None
-    except Exception as e:
-        st.error(f"Erro de conexão: {e}")
-        return None
-
-planilha_mestre = conectar_google()
+    except: pass
 
 @st.cache_resource(ttl=600)
 def carregar_dados():
-    if not planilha_mestre: 
-        return {}, {}, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-    
-    def ler_aba_seguro(nome):
+    if not planilha_mestre: return {}, {}, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+    def ler(n):
         try:
-            aba = planilha_mestre.worksheet(nome)
-            dados = aba.get_all_values()
-            if len(dados) <= 1: return pd.DataFrame()
-            df = pd.DataFrame(dados[1:], columns=dados[0])
-            if not df.empty:
-                df = df[~df.iloc[:, 0].str.contains("TOTAIS", case=False, na=False)]
-                df = df[df.iloc[:, 1].str.strip() != ""]
-            return df
+            aba = planilha_mestre.worksheet(n)
+            d = aba.get_all_values()
+            return pd.DataFrame(d[1:], columns=d[0]) if len(d) > 1 else pd.DataFrame()
         except: return pd.DataFrame()
+    return {}, {}, ler("INVENTÁRIO"), ler("FINANCEIRO"), ler("VENDAS"), ler("PAINEL"), ler("CARTEIRA DE CLIENTES")
 
-    df_inv = ler_aba_seguro("INVENTÁRIO")
-    df_cli = ler_aba_seguro("CARTEIRA DE CLIENTES")
-    df_fin = ler_aba_seguro("FINANCEIRO")
-    df_vendas = ler_aba_seguro("VENDAS")
-    df_painel = ler_aba_seguro("PAINEL")
+_, _, df_full_inv, df_financeiro, df_vendas_hist, df_painel_resumo, df_clientes_full = carregar_dados()
 
-    banco_prod = {str(r.iloc[0]): {"nome": r.iloc[1], "custo": float(limpar_v(r.iloc[3])), "estoque": r.iloc[7], "venda": r.iloc[8]} for _, r in df_inv.iterrows()} if not df_inv.empty else {}
-    banco_cli = {str(r.iloc[0]): {"nome": str(r.iloc[1]), "fone": str(r.iloc[2])} for _, r in df_cli.iterrows()} if not df_cli.empty else {}
-
-    return banco_prod, banco_cli, df_inv, df_fin, df_vendas, df_painel, df_cli
-
-banco_de_produtos, banco_de_clientes, df_full_inv, df_financeiro, df_vendas_hist, df_painel_resumo, df_clientes_full = carregar_dados()
+# ==========================================
+# 📱 BARRA LATERAL (SIDEBAR)
+# ==========================================
+dados_logado = buscar_dados_usuario(st.session_state['usuario_logado'])
 
 with st.sidebar:
-    try:
-        st.image("logo_sweet_teste.png", use_container_width=True)
-    except:
-        st.write("🌸 **Sweet Home**")
+    # Identidade do Usuário
+    st.markdown("<br>", unsafe_allow_html=True)
+    c_per1, c_per2 = st.columns([1, 2.5])
+    if dados_logado and dados_logado.get('FOTO_URL'):
+        c_per1.image(dados_logado['FOTO_URL'], width=60)
+    else: c_per1.markdown("### 👤")
+    c_per2.markdown(f"**{dados_logado['NOME_COMPLETO'] if dados_logado else 'Usuária'}**")
+    c_per2.caption(f"✨ {dados_logado['CARGO'] if dados_logado else 'Gestora'}")
     
-    st.write(f"👋 Olá, **{st.session_state.get('usuario_logado', 'Usuária')}**!")
     st.divider()
     
-    if st.button("Sair do Sistema 🚪", use_container_width=True):
-        st.session_state['autenticado'] = False
-        st.rerun()
+    # NAVEGAÇÃO PRINCIPAL (RADIO)
+    menu_selecionado = st.radio(
+        "Navegação",
+        ["🛒 Vendas", "💰 Financeiro", "📦 Estoque", "👥 Clientes", "📂 Documentos", "⚙️ Perfil e Equipe"], 
+        key="navegacao_principal_sweet"
+    )
+    
+    st.divider()
+    if st.button("🔄 Sincronizar", use_container_width=True):
+        st.cache_resource.clear(); st.rerun()
+    if st.button("Sair 🚪", use_container_width=True):
+        st.session_state['autenticado'] = False; st.rerun()
 
-    st.title("🛠️ Painel Sweet Home")
-    
-    menu_selecionado = st.sidebar.selectbox(
-    "Navegação", 
-    ["🛍️ Vendas", "📦 Estoque", "💰 Financeiro", "⚙️ Perfil e Equipe"]
-)
-    
-    st.divider()
-    modo_teste = st.toggle("🔬 Modo de Teste", value=False, key="toggle_teste")
-    
-    if st.button("🔄 Sincronizar Planilha", key="btn_sincronizar"):
-        st.cache_resource.clear()
-        st.rerun()
+# ==========================================
+# 🎯 LÓGICA DE CONTEÚDO (IF/ELIF)
+# ==========================================
 
-    st.divider()
-    with st.expander("🛡️ Backup do Sistema"):
-        st.markdown("<small>Faça o download seguro dos seus dados para o computador.</small>", unsafe_allow_html=True)
+if menu_selecionado == "🛒 Vendas":
+    st.title("🛒 Gestão de Vendas")
+    # ... Seu código de vendas aqui ...
+
+elif menu_selecionado == "💰 Financeiro":
+    st.markdown("### 📈 Resumo Geral Sweet Home")
+    if not df_vendas_hist.empty:
         try:
-            if not df_vendas_hist.empty:
-                st.download_button("📥 Baixar Vendas", df_vendas_hist.to_csv(index=False).encode('utf-8'), f"Vendas_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
-            if not df_full_inv.empty:
-                st.download_button("📥 Baixar Estoque", df_full_inv.to_csv(index=False).encode('utf-8'), f"Estoque_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
-            if not df_clientes_full.empty:
-                st.download_button("📥 Baixar Clientes", df_clientes_full.to_csv(index=False).encode('utf-8'), f"Clientes_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
-            if not df_financeiro.empty:
-                st.download_button("📥 Baixar Financeiro", df_financeiro.to_csv(index=False).encode('utf-8'), f"Financeiro_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
-        except Exception as e:
-            st.error("Sincronize a planilha para gerar o backup.")
+            # Mapeamento Seguro por Posição (L=11, M=12, O=14, U=20)
+            df_vendas_hist['V_TOT'] = df_vendas_hist.iloc[:, 11].apply(limpar_v)
+            df_vendas_hist['V_LUC'] = df_vendas_hist.iloc[:, 12].apply(limpar_v)
+            df_vendas_hist['V_SAL'] = df_vendas_hist.iloc[:, 20].apply(limpar_v)
+            df_vendas_hist['V_FOR'] = df_vendas_hist.iloc[:, 14]
+
+            v_brutas = df_vendas_hist['V_TOT'].sum()
+            l_bruto = df_vendas_hist['V_LUC'].sum()
+            s_devedor = df_vendas_hist['V_SAL'].sum()
+            t_recebido = v_brutas - s_devedor
+            
+            # Liquidez
+            v_vista = df_vendas_hist[df_vendas_hist['V_FOR'] != 'Sweet Flex']['V_TOT'].sum()
+            liq = (v_vista / v_brutas * 100) if v_brutas > 0 else 0
+
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Vendas Totais", f"R$ {v_brutas:,.2f}")
+            c2.metric("Lucro Bruto", f"R$ {l_bruto:,.2f}")
+            c3.metric("Total Recebido", f"R$ {t_recebido:,.2f}")
+            c4.metric("Saldo Devedor", f"R$ {s_devedor:,.2f}", delta=f"{(s_devedor/v_brutas*100):.1f}%", delta_color="inverse")
+
+            # Termômetro
+            st.markdown("---")
+            if liq >= 70: st.success(f"🟢 **Saúde de Caixa: EXCELENTE** ({liq:.1f}% à vista)")
+            elif liq >= 40: st.warning(f"🟡 **Saúde de Caixa: ATENÇÃO** ({liq:.1f}% à vista)")
+            else: st.error(f"🔴 **Saúde de Caixa: CRÍTICA** ({liq:.1f}% à vista)")
+            st.progress(min(liq/100, 1.0))
+
+            with st.expander("📊 Detalhamento e Tendências"):
+                tab1, tab2 = st.tabs(["💳 Meios de Pagamento", "🎟️ Ticket Médio"])
+                with tab1:
+                    v_meio = df_vendas_hist.groupby('V_FOR')['V_TOT'].sum().reset_index()
+                    fig = px.pie(v_meio, values='V_TOT', names='V_FOR', hole=.4, color_discrete_sequence=['#31241b', '#A67B5B', '#d4a373', '#f6debc'])
+                    fig.update_traces(hovertemplate='R$ %{value:,.2f}')
+                    st.plotly_chart(fig, use_container_width=True)
+                with tab2:
+                    tick = df_vendas_hist.groupby('V_FOR')['V_TOT'].mean().round(2).reset_index()
+                    fig2 = px.bar(tick, x='V_FOR', y='V_TOT', text='V_TOT', color_discrete_sequence=['#A67B5B'])
+                    fig2.update_traces(texttemplate='R$ %{text:.2f}', textposition='outside')
+                    st.plotly_chart(fig2, use_container_width=True)
+        except Exception as e: st.error(f"Erro no Painel: {e}")
+
+elif menu_selecionado == "⚙️ Perfil e Equipe":
+    st.title("⚙️ Configurações")
+    t1, t2 = st.tabs(["👤 Meu Perfil", "👥 Gestão de Equipe"])
+    
+    with t1:
+        if dados_logado:
+            st.write(f"Olá, {dados_logado['NOME_COMPLETO']}")
+            with st.form("edit_perfil"):
+                n_nome = st.text_input("Nome", value=dados_logado['NOME_COMPLETO'])
+                n_cargo = st.text_input("Cargo", value=dados_logado['CARGO'])
+                n_foto = st.file_uploader("Trocar Foto", type=['jpg', 'png'])
+                if st.form_submit_button("Salvar"):
+                    aba_u = planilha_mestre.worksheet("USUARIOS")
+                    lin = aba_u.col_values(1).index(st.session_state['usuario_logado']) + 1
+                    url = dados_logado['FOTO_URL']
+                    if n_foto:
+                        # Reuso sua função de upload
+                        _, url = upload_para_cloudinary(n_foto.read(), n_foto.name, "Perfis")
+                    aba_u.update_acell(f"B{lin}", n_nome)
+                    aba_u.update_acell(f"C{lin}", n_cargo)
+                    aba_u.update_acell(f"D{lin}", url)
+                    st.success("Perfil atualizado!"); st.cache_resource.clear(); st.rerun()
+
+    with t2:
+        if st.session_state['usuario_logado'] in ['Admin', 'Bia_CEO']:
+            with st.form("novo_u"):
+                u_log = st.text_input("Login")
+                u_nom = st.text_input("Nome Completo")
+                u_car = st.selectbox("Cargo", ["Vendedor(a)", "Gerente"])
+                if st.form_submit_button("Cadastrar"):
+                    aba_u = planilha_mestre.worksheet("USUARIOS")
+                    aba_u.append_row([u_log, u_nom, u_car, "", "Colaborador", "Nunca"])
+                    st.success("Usuário criado!")
+        else: st.info("🔒 Área restrita.")
+
+# ... Outros Elifs (Estoque, Clientes, Documentos) seguem aqui ...
 
 # ==========================================
 # --- SEÇÃO 1: VENDAS (MEMÓRIA ETERNA) ---
