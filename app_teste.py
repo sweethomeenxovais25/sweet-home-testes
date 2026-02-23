@@ -13,6 +13,7 @@ import google.generativeai as genai
 from PIL import Image
 import requests
 import time
+import pytz
 
 def verificar_status_odoo(codigo_produto):
     cod_limpo = str(codigo_produto).strip()
@@ -195,39 +196,32 @@ except Exception as e:
 
 # 👇 2. DEPOIS: O GATILHO RODA (Agora que a planilha_mestre já existe!)
 # ====================================================
-# 🤖 GATILHO DE REGISTRO (VERSÃO FINAL: PRECISA E ELEGANTE)
+# 🤖 GATILHO DE REGISTRO (VERSÃO COM HORÁRIO DE RECIFE)
 # ====================================================
 if st.session_state.get('precisa_registrar_acesso'):
     try:
-        # 1. Localiza a aba e os dados
         aba_usuario = planilha_mestre.worksheet("USUARIO") 
-        agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        usuario_logado = st.session_state.get('usuario_logado')
         
-        # 2. Busca o nome (o find é sensível a maiúsculas/minúsculas)
+        # --- CONFIGURAÇÃO DE FUSO HORÁRIO ---
+        fuso_br = pytz.timezone('America/Sao_Paulo') # Recife segue o mesmo de SP/Brasília
+        agora = datetime.now(fuso_br).strftime("%d/%m/%Y %H:%M:%S")
+        # ------------------------------------
+        
+        usuario_logado = st.session_state.get('usuario_logado')
         celula_nome = aba_usuario.find(usuario_logado)
         
         if celula_nome:
             cabecalhos = aba_usuario.row_values(1)
-            # Tenta encontrar a coluna exata
             if "ULTIMO_ACESSO" in cabecalhos:
                 col_acesso = cabecalhos.index("ULTIMO_ACESSO") + 1
-                
-                # 3. EFETUA O REGISTRO ANTES DE QUALQUER OUTRA AÇÃO
                 aba_usuario.update_cell(celula_nome.row, col_acesso, agora)
-                
-                # 4. AVISO VISUAL RÁPIDO
                 st.toast(f"Logado como {usuario_logado}. Ponto registrado! 🕒", icon="✅")
             
-            # 5. Só desliga o gatilho após o sucesso do update
             st.session_state['precisa_registrar_acesso'] = False 
             
     except Exception as e:
-        # Caso falhe, ele imprime um erro discreto no log para você saber o que houve
         print(f"Erro ao registrar: {e}") 
-        # Mantemos o sinal como False para não entrar em loop de erro
         st.session_state['precisa_registrar_acesso'] = False
-# ====================================================
 
 # ☁️ Função de Upload Rápido para Cloudinary (Nova Engine de Arquivos)
 def upload_para_cloudinary(file_bytes, file_name, pasta_destino):
