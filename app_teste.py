@@ -11,6 +11,21 @@ import cloudinary.uploader
 import io
 import google.generativeai as genai
 from PIL import Image
+import requests
+
+def verificar_status_odoo(codigo_produto):
+    cod_limpo = str(codigo_produto).strip()
+    url = f"https://sweethomecomfort.odoo.com/shop?&search={cod_limpo}"
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        # O robô faz a busca exata que você validou
+        resposta = requests.get(url, headers=headers, timeout=10)
+        # Se a frase de erro NÃO aparecer, o produto está ONLINE
+        if "nenhum resultado encontrado" not in resposta.text.lower():
+            return True # Achou!
+        return False # Não achou
+    except:
+        return False
 
 # ==========================================
 # 1. CONFIGURAÇÃO ÚNICA DA PÁGINA
@@ -1216,6 +1231,48 @@ elif menu_selecionado == "📂 Documentos":
                         st.divider()
                 else: 
                     st.info("Sua fila de trabalho está limpa.")
+
+    # --- NOVO INCREMENTO: ASSISTENTE DE SINCRONIZAÇÃO AUTOMÁTICA ---
+    with st.expander("🤖 Assistente de Verificação Odoo (Automático)", expanded=False):
+        st.write("Esta função busca no site e atualiza a planilha sozinho.")
+        
+        if st.button("🚀 Iniciar Varredura e Sincronizar"):
+            if not df_docs.empty:
+                # Filtramos apenas o que ainda está pendente de publicação no site
+                pendentes_validacao = df_docs[df_docs['STATUS_ODOO'] == "Pronto para Site"]
+                
+                if not pendentes_validacao.empty:
+                    progresso = st.progress(0)
+                    total = len(pendentes_validacao)
+                    sucessos = 0
+                    
+                    aba_doc = planilha_mestre.worksheet("DOCUMENTOS")
+                    
+                    for i, (idx, r) in enumerate(pendentes_validacao.iterrows()):
+                        cod_p = str(r['VINCULO']).split(" - ")[0].strip()
+                        
+                        # O robô checa o site em silêncio
+                        esta_online = verificar_status_odoo(cod_p)
+                        
+                        if esta_online:
+                            # Se achou no site, ele já atualiza a planilha na hora!
+                            cell = aba_doc.find(r['ID_ARQUIVO'])
+                            aba_doc.update_cell(cell.row, 7, "Publicado no Odoo")
+                            sucessos += 1
+                        
+                        # Atualiza a barrinha de progresso na tela
+                        progresso.progress((i + 1) / total)
+                    
+                    if sucessos > 0:
+                        st.success(f"✅ Mágica feita! {sucessos} itens foram detectados no site e atualizados na planilha.")
+                        st.cache_resource.clear()
+                        st.rerun() # Recarrega a tela para limpar a Linha de Montagem
+                    else:
+                        st.info("Varredura concluída: Nenhum item novo foi encontrado no site ainda.")
+                else:
+                    st.info("Não há itens pendentes para verificar no momento.")
+            else:
+                st.error("Erro ao ler os dados da planilha.")
 
     st.divider()
     st.write("### 📤 Enviar Arquivo")
