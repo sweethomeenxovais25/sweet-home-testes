@@ -146,25 +146,32 @@ if 'acesso_registrado' not in st.session_state:
 
 @st.cache_resource(ttl=600)
 def carregar_dados():
+    if not planilha_mestre: return {}, {}, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+    
     def ler(n):
         try:
             aba = planilha_mestre.worksheet(n)
-            d = aba.get_all_values()
-            return pd.DataFrame(d[1:], columns=d[0]) if len(d) > 1 else pd.DataFrame()
+            dados = aba.get_all_values()
+            if len(dados) <= 1: return pd.DataFrame()
+            
+            df = pd.DataFrame(dados[1:], columns=dados[0])
+            if not df.empty:
+                # 🔥 AQUI ESTÁ A SUA MÁGICA RESTAURADA: Remove TOTAIS e linhas vazias
+                df = df[~df.iloc[:, 0].astype(str).str.contains("TOTAIS", case=False, na=False)]
+                df = df[df.iloc[:, 1].astype(str).str.strip() != ""]
+            return df
         except: 
             return pd.DataFrame()
 
     df_inv = ler("INVENTÁRIO")
     df_cli = ler("CARTEIRA DE CLIENTES")
     
-    # Preenchimento dos dicionários (para os selectboxes funcionarem)
     banco_prod = {str(r.iloc[0]): {"nome": r.iloc[1], "custo": limpar_v(r.iloc[3]), "venda": limpar_v(r.iloc[8])} for _, r in df_inv.iterrows()} if not df_inv.empty else {}
     banco_cli = {str(r.iloc[0]): {"nome": str(r.iloc[1]), "fone": str(r.iloc[2])} for _, r in df_cli.iterrows()} if not df_cli.empty else {}
 
-    # Retorna os 7 itens na ordem correta
     return banco_prod, banco_cli, df_inv, ler("FINANCEIRO"), ler("VENDAS"), ler("PAINEL"), df_cli
 
-# 💡 CORREÇÃO PRINCIPAL: As variáveis precisam ficar fora da função para alimentar o sistema todo!
+# A captura fica logo abaixo
 banco_de_produtos, banco_de_clientes, df_full_inv, df_financeiro, df_vendas_hist, df_painel_resumo, df_clientes_full = carregar_dados()
 
 # ☁️ Função Cloudinary
@@ -1102,67 +1109,68 @@ elif menu_selecionado == "📂 Documentos":
 # --- SEÇÃO 6: PERFIL E EQUIPE ---
 # ==========================================
 elif menu_selecionado == "⚙️ Perfil e Equipe":
-    st.markdown("### ⚙️ Gestão de Perfil e Colaboradores")
+    st.markdown("### ⚙️ Gestão de Perfil e Equipe")
     
-    tab_meu_perfil, tab_equipe = st.tabs(["👤 Meu Perfil", "👥 Gestão de Equipe"])
+    tab_p, tab_e = st.tabs(["👤 Meu Perfil", "👥 Gestão de Colaboradores"])
     
-    with tab_meu_perfil:
-        st.write("#### Minhas Informações")
+    with tab_p:
         if dados_logado:
-            if dados_logado.get('FOTO_URL'):
-                st.image(dados_logado.get('FOTO_URL'), width=150)
+            st.write("#### Atualize suas informações:")
             
-            with st.form("form_meu_perfil"):
-                col_e1, col_e2 = st.columns(2)
-                novo_nome = col_e1.text_input("Nome Completo", value=dados_logado.get('NOME_COMPLETO', ""))
-                novo_cargo = col_e2.text_input("Seu Cargo", value=dados_logado.get('CARGO', ""))
+            # Mostra a foto atual bonitona no topo
+            if dados_logado.get('FOTO_URL'):
+                st.image(dados_logado.get('FOTO_URL'), width=120)
                 
-                nova_foto = st.file_uploader("Trocar Foto de Perfil (Cloudinary)", type=['png', 'jpg', 'jpeg'])
+            with st.form("form_perfil_oficial"):
+                c1, c2 = st.columns(2)
+                n_nom = c1.text_input("Nome Completo", value=dados_logado.get('NOME_COMPLETO', ""))
+                n_car = c2.text_input("Seu Cargo", value=dados_logado.get('CARGO', ""))
+                
+                n_fot = st.file_uploader("Trocar Foto de Perfil (Cloudinary)", type=['jpg', 'png', 'jpeg'])
                 
                 if st.form_submit_button("💾 Salvar Alterações", type="primary"):
                     try:
                         aba_u = planilha_mestre.worksheet("USUARIOS")
-                        lista_usuarios = aba_u.col_values(1)
-                        linha_u = lista_usuarios.index(st.session_state['usuario_logado']) + 1
+                        lin = aba_u.col_values(1).index(st.session_state['usuario_logado']) + 1
+                        url = dados_logado.get('FOTO_URL', "")
                         
-                        url_foto_final = dados_logado.get('FOTO_URL', "")
-                        if nova_foto:
-                            upload_res = cloudinary.uploader.upload(nova_foto, folder="perfis_sweet_home")
-                            url_foto_final = upload_res['secure_url']
+                        if n_fot:
+                            _, url = upload_para_cloudinary(n_fot.read(), n_fot.name, "Perfis")
+                            
+                        aba_u.update_acell(f"B{lin}", n_nom)
+                        aba_u.update_acell(f"C{lin}", n_car)
+                        aba_u.update_acell(f"D{lin}", url)
                         
-                        aba_u.update_acell(f"B{linha_u}", novo_nome)
-                        aba_u.update_acell(f"C{linha_u}", novo_cargo)
-                        aba_u.update_acell(f"D{linha_u}", url_foto_final)
-                        
-                        st.success("✅ Suas informações foram atualizadas!")
+                        st.success("✅ Perfil atualizado com sucesso!")
                         st.cache_resource.clear()
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Erro ao salvar: {e}")
+                        st.error(f"Erro ao conectar com a planilha: {e}")
+        else:
+            st.warning("⚠️ Seu usuário não está cadastrado na aba USUARIOS. Fale com o administrador.")
 
-    with tab_equipe:
+    with tab_e:
         if st.session_state['usuario_logado'] in ['Admin', 'Bia_CEO']:
-            st.write("#### ➕ Cadastrar Novo Colaborador")
-            with st.form("form_novo_usuario", clear_on_submit=True):
+            st.write("#### ➕ Cadastrar Novo Acesso")
+            with st.form("form_nova_conta", clear_on_submit=True):
                 c_u1, c_u2 = st.columns(2)
-                n_usuario = c_u1.text_input("Login (Ex: bia_vendas)", help="Este será o nome usado no login.")
-                n_nome = c_u2.text_input("Nome Completo")
+                u_l = c_u1.text_input("Login do Sistema", help="Ex: joao_vendas. Esse nome deve estar nos secrets.")
+                u_n = c_u2.text_input("Nome Completo do Colaborador")
                 
                 c_u3, c_u4 = st.columns(2)
-                n_cargo = c_u3.selectbox("Cargo", ["Vendedor(a)", "Gerente", "Estoquista"])
-                n_perm = c_u4.selectbox("Nível de Acesso", ["Colaborador", "Admin"])
+                u_c = c_u3.selectbox("Cargo", ["Vendedor(a)", "Gerente", "Estoquista"])
+                u_p = c_u4.selectbox("Permissão", ["Colaborador", "Admin"])
                 
-                st.caption("⚠️ Nota: O novo colaborador deve ser cadastrado também nos Secrets do Streamlit para ter uma senha válida.")
-                
-                if st.form_submit_button("Registrar Colaborador"):
-                    if n_usuario and n_nome:
+                if st.form_submit_button("Criar Usuário na Planilha"):
+                    if u_l and u_n:
                         try:
                             aba_u = planilha_mestre.worksheet("USUARIOS")
-                            aba_u.append_row([n_usuario, n_nome, n_cargo, "", n_perm, "Nunca"], value_input_option='RAW')
-                            st.success(f"✅ {n_nome} foi adicionado à base de usuários!")
+                            # Cria com as 6 colunas exatas da sua planilha
+                            aba_u.append_row([u_l, u_n, u_c, "", u_p, "Nunca"], value_input_option='RAW')
+                            st.success(f"✅ Colaborador(a) {u_n} adicionado(a)!")
                         except Exception as e:
                             st.error(f"Erro na planilha: {e}")
                     else:
-                        st.warning("Preencha o Login e o Nome para continuar.")
+                        st.warning("Preencha o Login e o Nome.")
         else:
-            st.info("🔒 Esta aba é exclusiva para Administradores da Sweet Home.")
+            st.info("🔒 Esta área é exclusiva para Administradores.")
