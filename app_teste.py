@@ -384,8 +384,18 @@ if menu_selecionado == "🛒 Vendas":
                     "custo": custo_un,
                     "subtotal": qtd_v * val_v
                 }
-                st.session_state['carrinho'].append(item_carrinho)
+                
+                # --- A MÁGICA ENTRA AQUI ---
+                # 1. Copia a lista atual, adiciona o item e salva por cima (força a memória)
+                cesta_temporaria = st.session_state['carrinho']
+                cesta_temporaria.append(item_carrinho)
+                st.session_state['carrinho'] = cesta_temporaria
+                
+                # 2. Mostra a mensagem de sucesso
                 st.toast(f"✅ {nome_p} no carrinho!")
+                
+                # 3. Recarrega a tela instantaneamente para mostrar a tabela atualizada!
+                st.rerun()
 
     # --- 3. EXIBIÇÃO DO CARRINHO E FINALIZAÇÃO ---
     if st.session_state['carrinho']:
