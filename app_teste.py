@@ -312,12 +312,12 @@ if menu_selecionado == "🛒 Vendas":
     c_p1, c_p2, c_p3, c_p4 = st.columns([3, 1, 1, 1])
     
     p_sel = c_p1.selectbox("Item do Estoque", [f"{k} - {v['nome']}" for k, v in banco_de_produtos.items()], key="venda_produto_sel")
-    qtd_v = c_p2.number_input("Qtd", 1, min_value=1, key="venda_qtd_input")
+    qtd_v = c_p2.number_input("Qtd", value=1, min_value=1, key="venda_qtd_input")
     
     # Puxa preço de venda sugerido do banco
     cod_p_temp = p_sel.split(" - ")[0]
     preco_sugerido = float(banco_de_produtos.get(cod_p_temp, {}).get('venda', 0.0))
-    val_v = c_p3.number_input("Preço Un. (R$)", value=preco_sugerido, key="venda_val_input")
+    val_v = c_p3.number_input("Preço Un. (R$)", value=float(preco_sugerido), min_value=0.0, key="venda_val_input")
 
     if c_p4.button("➕ Adicionar", use_container_width=True):
         id_p = p_sel.split(" - ")[0]
