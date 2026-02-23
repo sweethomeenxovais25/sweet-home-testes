@@ -199,132 +199,136 @@ with st.sidebar:
             st.error("Sincronize a planilha para gerar o backup.")
 
 # ==========================================
-# --- SEÇÃO 1: VENDAS ---
+# --- SEÇÃO 1: VENDAS (MEMÓRIA ETERNA) ---
 # ==========================================
 if menu_selecionado == "🛒 Vendas":
-    st.subheader("🛒 Registro de Venda")
-    metodo = st.selectbox("Forma de Pagamento", ["Pix", "Dinheiro", "Cartão", "Sweet Flex"], key="venda_metodo_pg")
-    
-    with st.form("form_venda_final", clear_on_submit=True):
-        detalhes_p = []; n_p = 1 
-        if metodo == "Sweet Flex":
-            n_p = st.number_input("Número de Parcelas", 1, 12, 1, key="venda_n_parcelas")
-            cols_parc = st.columns(n_p)
-            for i in range(n_p):
-                with cols_parc[i]:
-                    dt = st.date_input(f"{i+1}ª Parc.", datetime.now(), format="DD/MM/YYYY", key=f"vd_data_parc_{i}")
-                    detalhes_p.append(dt.strftime("%d/%m/%Y"))
+    st.subheader("🛒 Registro de Venda")
+    metodo = st.selectbox("Forma de Pagamento", ["Pix", "Dinheiro", "Cartão", "Sweet Flex"], key="venda_metodo_pg")
+    
+    with st.form("form_venda_final", clear_on_submit=True):
+        detalhes_p = []; n_p = 1 
+        if metodo == "Sweet Flex":
+            n_p = st.number_input("Número de Parcelas", 1, 12, 1, key="venda_n_parcelas")
+            cols_parc = st.columns(n_p)
+            for i in range(n_p):
+                with cols_parc[i]:
+                    dt = st.date_input(f"{i+1}ª Parc.", datetime.now(), format="DD/MM/YYYY", key=f"vd_data_parc_{i}")
+                    detalhes_p.append(dt.strftime("%d/%m/%Y"))
 
-        col_esq, col_dir = st.columns(2)
-        with col_esq:
-            st.write("👤 **Dados da Cliente**")
-            c_sel = st.selectbox("Selecionar Cliente", ["*** NOVO CLIENTE ***"] + [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()], key="venda_cliente_sel")
-            telefone_sugerido = ""
-            if c_sel != "*** NOVO CLIENTE ***":
-                id_cliente = c_sel.split(" - ")[0].strip()
-                if id_cliente in banco_de_clientes:
-                    telefone_sugerido = banco_de_clientes[id_cliente].get('fone', "")
-            c_nome_novo = st.text_input("Nome Completo (se novo)", key="venda_nome_novo")
-            c_zap = st.text_input("WhatsApp", value=telefone_sugerido, key=f"zap_venda_{c_sel}")
+        col_esq, col_dir = st.columns(2)
+        with col_esq:
+            st.write("👤 **Dados da Cliente**")
+            c_sel = st.selectbox("Selecionar Cliente", ["*** NOVO CLIENTE ***"] + [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()], key="venda_cliente_sel")
+            telefone_sugerido = ""
+            if c_sel != "*** NOVO CLIENTE ***":
+                id_cliente = c_sel.split(" - ")[0].strip()
+                if id_cliente in banco_de_clientes:
+                    telefone_sugerido = banco_de_clientes[id_cliente].get('fone', "")
+            c_nome_novo = st.text_input("Nome Completo (se novo)", key="venda_nome_novo")
+            c_zap = st.text_input("WhatsApp", value=telefone_sugerido, key=f"zap_venda_{c_sel}")
 
-        with col_dir:
-            st.write("📦 **Produto**")
-            p_sel = st.selectbox("Item do Estoque", [f"{k} - {v['nome']}" for k, v in banco_de_produtos.items()], key="venda_produto_sel")
-            cc1, cc2, cc3 = st.columns(3)
-            qtd_v = cc1.number_input("Qtd", 1, key="venda_qtd_input")
-            val_v = cc2.number_input("Preço Un.", 0.0, key="venda_val_input")
-            desc_v = cc3.number_input("Desconto (R$)", 0.0, key="venda_desc_input")
-            vendedor = st.text_input("Vendedor(a)", value="Bia", key="venda_vendedor_input")
+        with col_dir:
+            st.write("📦 **Produto**")
+            p_sel = st.selectbox("Item do Estoque", [f"{k} - {v['nome']}" for k, v in banco_de_produtos.items()], key="venda_produto_sel")
+            cc1, cc2, cc3 = st.columns(3)
+            qtd_v = cc1.number_input("Qtd", 1, key="venda_qtd_input")
+            val_v = cc2.number_input("Preço Un.", 0.0, key="venda_val_input")
+            desc_v = cc3.number_input("Desconto (R$)", 0.0, key="venda_desc_input")
+            vendedor = st.text_input("Vendedor(a)", value="Bia", key="venda_vendedor_input")
 
-        enviar = st.form_submit_button("Finalizar Venda 🚀")
+        enviar = st.form_submit_button("Finalizar Venda 🚀")
 
-        if enviar:
-            if c_sel == "*** NOVO CLIENTE ***":
-                if not c_nome_novo or not c_zap: 
-                    st.error("⚠️ Preencha Nome e Zap!"); st.stop()
-                nome_cli = c_nome_novo.strip()
-                if not modo_teste:
-                    try:
-                        aba_cli = planilha_mestre.worksheet("CARTEIRA DE CLIENTES")
-                        dados_c = aba_cli.get_all_values()
-                        nomes_up = [l[1].strip().upper() for l in dados_c[1:]]
-                        if nome_cli.upper() in nomes_up:
-                            cod_cli = dados_c[nomes_up.index(nome_cli.upper())+1][0]
-                        else:
-                            cod_cli = f"CLI-{len(dados_c):03d}"
-                            aba_cli.append_row([cod_cli, nome_cli, c_zap.strip(), "", datetime.now().strftime("%d/%m/%Y"), 0, "", "Incompleto"], value_input_option='USER_ENTERED')
-                            st.toast(f"👤 {nome_cli} cadastrada!")
-                    except Exception as e: 
-                        st.error(f"Erro no cadastro: {e}"); st.stop()
-                else: cod_cli = "CLI-TESTE"
-            else:
-                cod_cli = c_sel.split(" - ")[0]
-                nome_cli = banco_de_clientes[cod_cli]['nome']
+        if enviar:
+            if c_sel == "*** NOVO CLIENTE ***":
+                if not c_nome_novo or not c_zap: 
+                    st.error("⚠️ Preencha Nome e Zap!"); st.stop()
+                nome_cli = c_nome_novo.strip()
+                if not modo_teste:
+                    try:
+                        aba_cli = planilha_mestre.worksheet("CARTEIRA DE CLIENTES")
+                        dados_c = aba_cli.get_all_values()
+                        nomes_up = [l[1].strip().upper() for l in dados_c[1:]]
+                        if nome_cli.upper() in nomes_up:
+                            cod_cli = dados_c[nomes_up.index(nome_cli.upper())+1][0]
+                        else:
+                            cod_cli = f"CLI-{len(dados_c):03d}"
+                            aba_cli.append_row([cod_cli, nome_cli, c_zap.strip(), "", datetime.now().strftime("%d/%m/%Y"), 0, "", "Incompleto"], value_input_option='RAW')
+                            st.toast(f"👤 {nome_cli} cadastrada!")
+                    except Exception as e: 
+                        st.error(f"Erro no cadastro: {e}"); st.stop()
+                else: cod_cli = "CLI-TESTE"
+            else:
+                cod_cli = c_sel.split(" - ")[0]
+                nome_cli = banco_de_clientes[cod_cli]['nome']
 
-            v_bruto = qtd_v * val_v
-            t_liq = v_bruto - desc_v
-            desc_percentual = desc_v / v_bruto if v_bruto > 0 else 0
-            cod_p = p_sel.split(" - ")[0]
-            nome_p = p_sel.split(" - ")[1].strip()
-            custo_un = float(banco_de_produtos[cod_p].get('custo', 0.0)) if cod_p in banco_de_produtos else 0.0
-            
-            st.session_state['historico_sessao'].insert(0, {
-                "Data": datetime.now().strftime("%d/%m/%Y"),
-                "Hora": datetime.now().strftime("%H:%M:%S"),
-                "Cliente": nome_cli, 
-                "Produto": nome_p, 
-                "Pagto": metodo, 
-                "Total": f"R$ {t_liq:.2f}"
-            })
+            v_bruto = qtd_v * val_v
+            t_liq = v_bruto - desc_v
+            desc_percentual = desc_v / v_bruto if v_bruto > 0 else 0
+            cod_p = p_sel.split(" - ")[0]
+            nome_p = p_sel.split(" - ")[1].strip()
+            custo_un = float(banco_de_produtos[cod_p].get('custo', 0.0)) if cod_p in banco_de_produtos else 0.0
 
-            if not modo_teste:
-                try:
-                    aba_v = planilha_mestre.worksheet("VENDAS")
-                    idx_ins = aba_v.find("TOTAIS").row 
-                    eh_parc = "Sim" if metodo == "Sweet Flex" else "Não"
-                    f_atraso = '=SE(OU(INDIRETO("W"&LIN())="Pago"; INDIRETO("W"&LIN())="Em dia"); 0; MÁXIMO(0; HOJE() - INDIRETO("V"&LIN())))'
-                    f_k = '=SE(INDIRETO("I"&LIN())=""; ""; ARRED(INDIRETO("I"&LIN()) * (1 - INDIRETO("J"&LIN())); 2))'
-                    f_l = '=SE(INDIRETO("H"&LIN())=""; ""; ARRED(INDIRETO("H"&LIN()) * INDIRETO("K"&LIN()); 2))'
-                    f_m = '=SE(INDIRETO("L"&LIN())=""; ""; ARRED(INDIRETO("L"&LIN()) - (INDIRETO("H"&LIN()) * INDIRETO("G"&LIN())); 2))'
-                    f_n = '=SE(INDIRETO("L"&LIN())=""; ""; SEERRO(INDIRETO("M"&LIN()) / INDIRETO("L"&LIN()); ""))'
-                    f_r = '=SE(INDIRETO("L"&LIN())=""; ""; SE(INDIRETO("P"&LIN())="Não"; INDIRETO("L"&LIN()); 0))'
-                    
-                    linha = ["", datetime.now().strftime("%d/%m/%Y"), cod_cli, nome_cli, cod_p, nome_p, custo_un, qtd_v, val_v, desc_percentual, f_k, f_l, f_m, f_n, metodo, eh_parc, n_p, f_r, t_liq/n_p if eh_parc=="Sim" else 0, t_liq if eh_parc=="Não" else 0, t_liq if eh_parc=="Sim" else 0, detalhes_p[0] if (eh_parc=="Sim" and detalhes_p) else "", "Pendente" if eh_parc=="Sim" else "Pago", f_atraso]
-                    aba_v.insert_row(linha, index=idx_ins, value_input_option='USER_ENTERED')
-                    st.success("✅ Venda registrada com sucesso!")
-                    st.cache_resource.clear() 
-                except Exception as e:
-                    st.error(f"Erro ao registrar: {e}")
-            else:
-                st.info("🧪 Modo Teste: Simulação realizada com sucesso!")
+            if not modo_teste:
+                try:
+                    aba_v = planilha_mestre.worksheet("VENDAS")
+                    idx_ins = aba_v.find("TOTAIS").row 
+                    eh_parc = "Sim" if metodo == "Sweet Flex" else "Não"
+                    f_atraso = '=SE(OU(INDIRETO("W"&LIN())="Pago"; INDIRETO("W"&LIN())="Em dia"); 0; MÁXIMO(0; HOJE() - INDIRETO("V"&LIN())))'
+                    f_k = '=SE(INDIRETO("I"&LIN())=""; ""; ARRED(INDIRETO("I"&LIN()) * (1 - INDIRETO("J"&LIN())); 2))'
+                    f_l = '=SE(INDIRETO("H"&LIN())=""; ""; ARRED(INDIRETO("H"&LIN()) * INDIRETO("K"&LIN()); 2))'
+                    f_m = '=SE(INDIRETO("L"&LIN())=""; ""; ARRED(INDIRETO("L"&LIN()) - (INDIRETO("H"&LIN()) * INDIRETO("G"&LIN())); 2))'
+                    f_n = '=SE(INDIRETO("L"&LIN())=""; ""; SEERRO(INDIRETO("M"&LIN()) / INDIRETO("L"&LIN()); ""))'
+                    f_r = '=SE(INDIRETO("L"&LIN())=""; ""; SE(INDIRETO("P"&LIN())="Não"; INDIRETO("L"&LIN()); 0))'
+                    
+                    linha = ["", datetime.now().strftime("%d/%m/%Y"), cod_cli, nome_cli, cod_p, nome_p, custo_un, qtd_v, val_v, desc_percentual, f_k, f_l, f_m, f_n, metodo, eh_parc, n_p, f_r, t_liq/n_p if eh_parc=="Sim" else 0, t_liq if eh_parc=="Não" else 0, t_liq if eh_parc=="Sim" else 0, detalhes_p[0] if (eh_parc=="Sim" and detalhes_p) else "", "Pendente" if eh_parc=="Sim" else "Pago", f_atraso]
+                    aba_v.insert_row(linha, index=idx_ins, value_input_option='RAW')
+                    st.success("✅ Venda registrada com sucesso!")
+                    st.cache_resource.clear() 
+                except Exception as e:
+                    st.error(f"Erro ao registrar: {e}")
+            else:
+                st.info("🧪 Modo Teste: Simulação realizada com sucesso!")
 
-            st.divider()
-            recibo_texto = (
-                f"🌸 *RECIBO SWEET HOME ENXOVAIS*\n"
-                f"━━━━━━━━━━━━━━━━━━━\n"
-                f"Olá, *{nome_cli.split(' ')[0]}*! Segue o resumo da sua compra:\n\n"
-                f"📦 *Produto:* {qtd_v}x {nome_p}\n"
-                f"💰 *Valor Total:* R$ {t_liq:.2f}\n"
-                f"💳 *Forma de Pagto:* {metodo}\n"
-                f"🗓️ *Data:* {datetime.now().strftime('%d/%m/%Y')}\n"
-                f"👤 *Vendedor(a):* {vendedor}\n"
-            )
-            if metodo == "Sweet Flex":
-                recibo_texto += f"\n📝 *Plano de Pagamento:* {n_p}x de R$ {t_liq/n_p:.2f}\n"
-                for i, data_p in enumerate(detalhes_p):
-                    recibo_texto += f"🔹 {i+1}ª Parcela: {data_p}\n"
-            recibo_texto += f"\n━━━━━━━━━━━━━━━━━━━\n✨ *Obrigada pela preferência!*"
+            st.divider()
+            recibo_texto = (
+                f"🌸 *RECIBO SWEET HOME ENXOVAIS*\n"
+                f"━━━━━━━━━━━━━━━━━━━\n"
+                f"Olá, *{nome_cli.split(' ')[0]}*! Segue o resumo da sua compra:\n\n"
+                f"📦 *Produto:* {qtd_v}x {nome_p}\n"
+                f"💰 *Valor Total:* R$ {t_liq:.2f}\n"
+                f"💳 *Forma de Pagto:* {metodo}\n"
+                f"🗓️ *Data:* {datetime.now().strftime('%d/%m/%Y')}\n"
+                f"👤 *Vendedor(a):* {vendedor}\n"
+            )
+            if metodo == "Sweet Flex":
+                recibo_texto += f"\n📝 *Plano de Pagamento:* {n_p}x de R$ {t_liq/n_p:.2f}\n"
+                for i, data_p in enumerate(detalhes_p):
+                    recibo_texto += f"🔹 {i+1}ª Parcela: {data_p}\n"
+            recibo_texto += f"\n━━━━━━━━━━━━━━━━━━━\n✨ *Obrigada pela preferência!*"
 
-            st.code(recibo_texto, language="text")
-            zap_limpo = c_zap.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
-            st.link_button("📲 Enviar Recibo para o WhatsApp", f"https://wa.me/55{zap_limpo}?text={urllib.parse.quote(recibo_texto)}", use_container_width=True, type="primary")
+            st.code(recibo_texto, language="text")
+            zap_limpo = c_zap.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+            st.link_button("📲 Enviar Recibo para o WhatsApp", f"https://wa.me/55{zap_limpo}?text={urllib.parse.quote(recibo_texto)}", use_container_width=True, type="primary")
 
-    st.divider()
-    st.subheader("📝 Histórico de Registros")
-    if st.session_state['historico_sessao']:
-        st.dataframe(st.session_state['historico_sessao'], use_container_width=True, hide_index=True)
-        if st.button("Limpar Histórico Local 🗑️", key="btn_limpar_hist"):
-            st.session_state['historico_sessao'] = []; st.rerun()
+    # 📝 HISTÓRICO REAL (Lê as últimas 10 vendas da planilha)
+    st.divider()
+    st.subheader("📝 Histórico de Registros (Banco de Dados)")
+    try:
+        dados_v = planilha_mestre.worksheet("VENDAS").get_all_values()
+        if len(dados_v) > 1:
+            df_v_real = pd.DataFrame(dados_v[1:], columns=dados_v[0])
+            # Remove linhas de Totais ou Vazias
+            df_v_real = df_v_real[~df_v_real['CLIENTE'].str.contains("TOTAIS", case=False, na=False)]
+            df_v_real = df_v_real[df_v_real['CLIENTE'] != ""]
+            
+            # Pega as últimas 10 e inverte para a mais nova ficar no topo
+            historico_display = df_v_real[['DATA DA VENDA', 'CLIENTE', 'PRODUTO', 'TOTAL R$', 'STATUS']].tail(10).iloc[::-1]
+            st.dataframe(historico_display, use_container_width=True, hide_index=True)
+            st.info("💡 Este histórico é permanente e reflete a planilha em tempo real.")
+        else:
+            st.info("Nenhuma venda registrada ainda.")
+    except:
+        st.warning("Aguardando carregamento da aba VENDAS...")
 
 # ==========================================
 # --- SEÇÃO 2: FINANCEIRO ---
