@@ -360,7 +360,6 @@ if menu_selecionado == "🛒 Vendas":
 
     with c_p4:
 
-
         st.write("")
         st.write("") 
         st.write("")
