@@ -274,6 +274,27 @@ with st.sidebar:
 # --- SEÇÃO 1: VENDAS (SISTEMA DE CARRINHO MULTI-ITENS) ---
 # ==========================================
 if menu_selecionado == "🛒 Vendas":
+    # --- FILTRO INTELIGENTE DE VERSÕES (LATEST VERSION) ---
+    produtos_filtrados_venda = {}
+    for cod_completo, info in banco_de_produtos.items():
+        # Separa o código da versão (ex: "101.2" vira base="101" e versao=2)
+        if "." in str(cod_completo):
+            base, versao = str(cod_completo).split(".")
+            versao = int(versao)
+        else:
+            base, versao = str(cod_completo), 0
+        
+        # Se o produto base ainda não está no filtro OU se esta versão é mais recente
+        if base not in produtos_filtrados_venda or versao > produtos_filtrados_venda[base]['v']:
+            produtos_filtrados_venda[base] = {
+                'v': versao, 
+                'full_cod': cod_completo, 
+                'nome': info['nome']
+            }
+    
+    # Criamos a lista final apenas com os códigos mais recentes
+    lista_selecao_limpa = [f"{v['full_cod']} - {v['nome']}" for v in produtos_filtrados_venda.values()]
+    # -----------------------------------------------------
     st.subheader("🛒 Registro de Venda Multi-Itens")
     
     # --- 1. CONFIGURAÇÃO GERAL DA VENDA (CABEÇALHO) ---
