@@ -1044,122 +1044,123 @@ elif menu_selecionado == "👥 Clientes":
 # 🌟 SEÇÃO 5: DOCUMENTOS & FILA ODOO (NOVA ENGINE CLOUDINARY) 🌟
 # ==========================================
 elif menu_selecionado == "📂 Documentos":
-    st.subheader("📂 Cofre Digital & Fila Odoo")
+    st.subheader("📂 Cofre Digital & Fila Odoo")
 
-    try:
-        dados_doc = planilha_mestre.worksheet("DOCUMENTOS").get_all_values()
-        df_docs = pd.DataFrame(dados_doc[1:], columns=dados_doc[0]) if len(dados_doc) > 1 else pd.DataFrame()
-    except: df_docs = pd.DataFrame()
+    try:
+        dados_doc = planilha_mestre.worksheet("DOCUMENTOS").get_all_values()
+        df_docs = pd.DataFrame(dados_doc[1:], columns=dados_doc[0]) if len(dados_doc) > 1 else pd.DataFrame()
+    except: 
+        df_docs = pd.DataFrame()
 
-    with st.expander("🚀 Linha de Montagem Odoo (Site)", expanded=True):
-        t_falta, t_pronto = st.tabs(["🔴 1. Falta Foto (Bia)", "🟢 2. Pronto p/ Site (Você)"])
-        
-        with t_falta:
-            st.write("**Produtos no estoque aguardando foto para o site:**")
-            if not df_full_inv.empty:
-                prods_com_foto = []
-                if not df_docs.empty and 'VINCULO' in df_docs.columns:
-                    fotos = df_docs[df_docs['TIPO'] == "Foto de Produto"]
-                    prods_com_foto = [str(p).split(" - ")[0].strip() for p in fotos['VINCULO'].dropna() if " - " in str(p)]
-                
-                df_falta = df_full_inv[~df_full_inv['CÓD. PRÓDUTO'].astype(str).str.strip().isin(prods_com_foto)]
-                if not df_falta.empty:
-                    st.dataframe(df_falta[['CÓD. PRÓDUTO', 'NOME DO PRODUTO', 'ESTOQUE ATUAL']], hide_index=True)
-                else: st.success("🎉 Nenhuma pendência! O estoque inteiro tem foto.")
+    with st.expander("🚀 Linha de Montagem Odoo (Site)", expanded=True):
+        t_falta, t_pronto = st.tabs(["🔴 1. Falta Foto (Bia)", "🟢 2. Pronto p/ Site (Você)"])
+        
+        with t_falta:
+            st.write("**Produtos no estoque aguardando foto para o site:**")
+            if not df_full_inv.empty:
+                prods_com_foto = []
+                if not df_docs.empty and 'VINCULO' in df_docs.columns:
+                    fotos = df_docs[df_docs['TIPO'] == "Foto de Produto"]
+                    prods_com_foto = [str(p).split(" - ")[0].strip() for p in fotos['VINCULO'].dropna() if " - " in str(p)]
+                
+                df_falta = df_full_inv[~df_full_inv['CÓD. PRÓDUTO'].astype(str).str.strip().isin(prods_com_foto)]
+                if not df_falta.empty:
+                    st.dataframe(df_falta[['CÓD. PRÓDUTO', 'NOME DO PRODUTO', 'ESTOQUE ATUAL']], hide_index=True)
+                else: 
+                    st.success("🎉 Nenhuma pendência! O estoque inteiro tem foto.")
 
-        with t_pronto:
-            st.write("**Fotos tiradas! Coloque no site e marque como publicado:**")
-            if not df_docs.empty and 'STATUS_ODOO' in df_docs.columns:
-                prontos = df_docs[(df_docs['TIPO'] == "Foto de Produto") & (df_docs['STATUS_ODOO'] == "Pronto para Site")]
-                if not prontos.empty:
-                    for idx, r in prontos.iterrows():
-                        c1, c2, c3 = st.columns([3, 1, 1])
-                        c1.write(f"📦 **{r['VINCULO']}**")
-                        c2.link_button("🖼️ Ver Foto", r['LINK_DRIVE'], use_container_width=True)
-                        if c3.button("✅ Publicado", key=f"btn_odoo_{idx}"):
-                            aba_doc = planilha_mestre.worksheet("DOCUMENTOS")
-                            cell = aba_doc.find(r['ID_ARQUIVO'])
-                            aba_doc.update_cell(cell.row, 7, "Publicado no Odoo")
-                            st.success("Atualizado!"); st.cache_resource.clear(); st.rerun()
-                        st.divider()
-                else: st.info("Sua fila de trabalho está limpa.")
+        with t_pronto:
+            st.write("**Fotos tiradas! Coloque no site e marque como publicado:**")
+            if not df_docs.empty and 'STATUS_ODOO' in df_docs.columns:
+                prontos = df_docs[(df_docs['TIPO'] == "Foto de Produto") & (df_docs['STATUS_ODOO'] == "Pronto para Site")]
+                if not prontos.empty:
+                    for idx, r in prontos.iterrows():
+                        c1, c2, c3 = st.columns([3, 1, 1])
+                        c1.write(f"📦 **{r['VINCULO']}**")
+                        c2.link_button("🖼️ Ver Foto", r['LINK_DRIVE'], use_container_width=True)
+                        if c3.button("✅ Publicado", key=f"btn_odoo_{idx}"):
+                            aba_doc = planilha_mestre.worksheet("DOCUMENTOS")
+                            cell = aba_doc.find(r['ID_ARQUIVO'])
+                            aba_doc.update_cell(cell.row, 7, "Publicado no Odoo")
+                            st.success("Atualizado!"); st.cache_resource.clear(); st.rerun()
+                        st.divider()
+                else: 
+                    st.info("Sua fila de trabalho está limpa.")
 
-    st.divider()
+    st.divider()
+    st.write("### 📤 Enviar Arquivo")
+    
+    lista_categorias = ["Foto de Produto", "Nota Fiscal", "Comprovante", "Recibo / Pgto", "Contrato", "Outros"]
+    cat_escolhida = st.selectbox("1️⃣ Categoria do Documento", lista_categorias)
+    
+    with st.form("form_upload_cloudinary", clear_on_submit=True):
+        st.write("2️⃣ **Detalhes e Arquivo**")
+        vinc_cli = "Nenhum"
+        vinc_prod = "Nenhum"
+        nome_livre = ""
+        
+        if cat_escolhida in ["Foto de Produto", "Nota Fiscal"]:
+            st.info("📦 O sistema dará o nome do arquivo automaticamente com base no produto.")
+            opcoes_prod = ["Nenhum"] + [f"{k} - {v['nome']}" for k, v in banco_de_produtos.items()]
+            vinc_prod = st.selectbox("Selecione o Produto:", opcoes_prod)
+        
+        elif cat_escolhida in ["Comprovante", "Recibo / Pgto"]:
+            st.info("👤 O sistema dará o nome do arquivo automaticamente com base na cliente.")
+            opcoes_cli = ["Nenhum"] + [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()]
+            vinc_cli = st.selectbox("Selecione a Cliente:", opcoes_cli)
+        
+        else:
+            nome_livre = st.text_input("Nome ou Descrição Breve", help="Exemplo: Conta de Luz Janeiro")
 
-    st.write("### 📤 Enviar Arquivo")
-    
-    lista_categorias = ["Foto de Produto", "Nota Fiscal", "Comprovante", "Recibo / Pgto", "Contrato", "Outros"]
-    cat_escolhida = st.selectbox("1️⃣ Categoria do Documento", lista_categorias)
-    
-    with st.form("form_upload_cloudinary", clear_on_submit=True):
-        st.write("2️⃣ **Detalhes e Arquivo**")
-        
-        vinc_cli = "Nenhum"
-        vinc_prod = "Nenhum"
-        nome_livre = ""
-        
-        if cat_escolhida in ["Foto de Produto", "Nota Fiscal"]:
-            st.info("📦 O sistema dará o nome do arquivo automaticamente com base no produto.")
-            opcoes_prod = ["Nenhum"] + [f"{k} - {v['nome']}" for k, v in banco_de_produtos.items()]
-            vinc_prod = st.selectbox("Selecione o Produto:", opcoes_prod)
-        
-        elif cat_escolhida in ["Comprovante", "Recibo / Pgto"]:
-            st.info("👤 O sistema dará o nome do arquivo automaticamente com base na cliente.")
-            opcoes_cli = ["Nenhum"] + [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()]
-            vinc_cli = st.selectbox("Selecione a Cliente:", opcoes_cli)
-        
-        else:
-            nome_livre = st.text_input("Nome ou Descrição Breve", help="Digite um nome fácil de lembrar. Exemplo: Conta de Luz Janeiro")
+        arquivo_subido = st.file_uploader("3️⃣ Escolha o arquivo (Imagem/PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
+        
+        if st.form_submit_button("Salvar no Cofre 🔒"):
+            erro = False
+            if not arquivo_subido:
+                st.error("⚠️ Você esqueceu de anexar o arquivo!"); erro = True
+            elif cat_escolhida in ["Foto de Produto", "Nota Fiscal"] and vinc_prod == "Nenhum":
+                st.error("⚠️ Selecione um produto."); erro = True
+            elif cat_escolhida in ["Comprovante", "Recibo / Pgto"] and vinc_cli == "Nenhum":
+                st.error("⚠️ Selecione uma cliente."); erro = True
+            elif cat_escolhida in ["Contrato", "Outros"] and not nome_livre:
+                st.error("⚠️ Digite um nome para o documento."); erro = True
 
-        arquivo_subido = st.file_uploader("3️⃣ Escolha o arquivo (Imagem/PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
-        
-        if st.form_submit_button("Salvar no Cofre 🔒"):
-            erro = False
-            if not arquivo_subido:
-                st.error("⚠️ Você esqueceu de anexar o arquivo!"); erro = True
-            elif cat_escolhida in ["Foto de Produto", "Nota Fiscal"] and vinc_prod == "Nenhum":
-                st.error("⚠️ Para esta categoria, você deve selecionar um produto."); erro = True
-            elif cat_escolhida in ["Comprovante", "Recibo / Pgto"] and vinc_cli == "Nenhum":
-                st.error("⚠️ Para esta categoria, você deve selecionar uma cliente."); erro = True
-            elif cat_escolhida in ["Contrato", "Outros"] and not nome_livre:
-                st.error("⚠️ Por favor, digite um nome para o documento."); erro = True
+            if not erro:
+                if vinc_prod != "Nenhum":
+                    nome_gerado = f"[{cat_escolhida.upper()}] {vinc_prod}"
+                    vinculo_final = vinc_prod
+                elif vinc_cli != "Nenhum":
+                    nome_gerado = f"[{cat_escolhida.upper()}] {vinc_cli}"
+                    vinculo_final = vinc_cli
+                else:
+                    nome_gerado = f"[{cat_escolhida.upper()}] {nome_livre}"
+                    vinculo_final = "-"
+                
+                nome_limpo = nome_gerado.replace("/", "-").replace(":", "")
 
-            if not erro:
-                if vinc_prod != "Nenhum":
-                    nome_gerado = f"[{cat_escolhida.upper()}] {vinc_prod}"
-                    vinculo_final = vinc_prod
-                elif vinc_cli != "Nenhum":
-                    nome_gerado = f"[{cat_escolhida.upper()}] {vinc_cli}"
-                    vinculo_final = vinc_cli
-                else:
-                    nome_gerado = f"[{cat_escolhida.upper()}] {nome_livre}"
-                    vinculo_final = "-"
-                
-                nome_limpo = nome_gerado.replace("/", "-").replace(":", "")
+                with st.spinner(f"Subindo para o servidor seguro... ⏳"):
+                    f_id, f_link = upload_para_cloudinary(arquivo_subido.getvalue(), nome_limpo, cat_escolhida)
+                    
+                    if f_id:
+                        try:
+                            aba_doc = planilha_mestre.worksheet("DOCUMENTOS")
+                            if len(aba_doc.get_all_values()) == 0:
+                                aba_doc.append_row(["DATA", "TIPO", "NOME", "ID_ARQUIVO", "LINK_DRIVE", "VINCULO", "STATUS_ODOO"])
+                            
+                            status_odoo = "Pronto para Site" if cat_escolhida == "Foto de Produto" else "-"
+                            
+                            aba_doc.append_row([
+                                datetime.now().strftime("%d/%m/%Y %H:%M"),
+                                cat_escolhida, nome_limpo, f_id, f_link, vinculo_final, status_odoo
+                            ], value_input_option='USER_ENTERED')
+                            st.success(f"✅ Arquivado com sucesso!"); st.cache_resource.clear(); st.rerun()
+                        except Exception as e: 
+                            st.error(f"Erro na planilha: {e}")
 
-                with st.spinner(f"Subindo para o servidor seguro... ⏳"):
-                    f_id, f_link = upload_para_cloudinary(arquivo_subido.getvalue(), nome_limpo, cat_escolhida)
-                    
-                    if f_id:
-                        try:
-                            aba_doc = planilha_mestre.worksheet("DOCUMENTOS")
-                            if len(aba_doc.get_all_values()) == 0:
-                                aba_doc.append_row(["DATA", "TIPO", "NOME", "ID_ARQUIVO", "LINK_DRIVE", "VINCULO", "STATUS_ODOO"])
-                            
-                            status_odoo = "Pronto para Site" if cat_escolhida == "Foto de Produto" else "-"
-                            
-                            aba_doc.append_row([
-                                datetime.now().strftime("%d/%m/%Y %H:%M"),
-                                cat_escolhida, nome_limpo, f_id, f_link, vinculo_final, status_odoo
-                            ], value_input_option='USER_ENTERED')
-                            st.success(f"✅ Arquivado com sucesso!"); st.cache_resource.clear(); st.rerun()
-                        except Exception as e: st.error(f"Erro na planilha: {e}")
-
-    st.divider()
-    st.write("### 🗂️ Histórico Geral de Documentos")
+    st.divider()
+    st.write("### 🗂️ Histórico Geral de Documentos")
     
     if not df_docs.empty:
-        # 🟢 NOVO: FILTRO POR CATEGORIA
         categorias_existentes = ["Tudo"] + sorted(df_docs['TIPO'].unique().tolist())
         filtro_cat = st.selectbox("Filtrar por Categoria:", categorias_existentes)
         
@@ -1171,7 +1172,6 @@ elif menu_selecionado == "📂 Documentos":
         if busca_doc:
             df_filtrado = df_filtrado[df_filtrado.apply(lambda r: busca_doc.lower() in str(r).lower(), axis=1)]
 
-        # Mostra os últimos 10
         for _, r in df_filtrado.sort_index(ascending=False).head(10).iterrows():
             with st.container():
                 col_a, col_b, col_c = st.columns([1, 3, 1])
