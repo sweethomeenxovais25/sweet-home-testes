@@ -16,18 +16,25 @@ import time
 
 def verificar_status_odoo(codigo_produto):
     cod_limpo = str(codigo_produto).strip()
-    # Esta é a URL que o robô usará para validar
     url_busca = f"https://sweethomecomfort.odoo.com/shop?&search={cod_limpo}"
     
     try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
         resposta = requests.get(url_busca, headers=headers, timeout=10)
+        conteudo = resposta.text.lower()
         
-        if "nenhum resultado encontrado" in resposta.text.lower():
+        # 🎯 CRITÉRIO DE FALHA: Se a frase de "Nenhum resultado" aparecer com o código, é um erro.
+        frase_erro = f'nenhum resultado para "{cod_limpo.lower()}"'
+        frase_erro_alt = "nenhum resultado encontrado"
+        
+        if frase_erro in conteudo or frase_erro_alt in conteudo:
             return False, ""
-        else:
-            # Se achou, o link de busca já serve como referência direta para o produto
+        
+        # 🎯 CRITÉRIO DE SUCESSO: Além de não ter erro, deve conter indícios de produtos (classes do Odoo)
+        if "oe_product" in conteudo or "o_wsale_products_item" in conteudo:
             return True, url_busca
+            
+        return False, ""
     except:
         return False, ""
 
@@ -1236,68 +1243,90 @@ elif menu_selecionado == "📂 Documentos":
                 else: 
                     st.info("Sua fila de trabalho está limpa.")
 
-    # --- ASSISTENTE DE SINCRONIZAÇÃO DE INVENTÁRIO (V3 - ANTI-ERRO 429) ---
-    with st.expander("🤖 Sincronizador de Inventário (Odoo)", expanded=False):
-        st.write("Verificação automática de estoque no site.")
+    # --- ASSISTENTE DE SINCRONIZAÇÃO MESTRE (INVENTÁRIO + DOCUMENTOS) ---
+    with st.expander("🤖 Sincronizador Inteligente Odoo", expanded=False):
+        st.write("Verificação de estoque, links de referência e limpeza de fila de fotos.")
         
-        if st.button("🚀 Iniciar Varredura de Inventário"):
+        if st.button("🚀 Iniciar Varredura Completa"):
             try:
+                # 1. CARREGAMENTO E FILTRAGEM (IGNORA TOTAIS)
                 aba_inv = planilha_mestre.worksheet("INVENTÁRIO")
                 dados_inv = aba_inv.get_all_values()
                 df_sync_inv = pd.DataFrame(dados_inv[1:], columns=dados_inv[0])
                 
-                # Filtra quem ainda não está "Publicado" (Coluna L)
-                pendentes_inv = df_sync_inv[df_sync_inv['STATUS ODOO'].astype(str).str.upper() != "PUBLICADO"]
+                # Filtra apenas linhas válidas: remove vazios, TOTAIS e quem já está Publicado
+                pendentes_inv = df_sync_inv[
+                    (df_sync_inv['CÓD. PRÓDUTO'].str.strip() != "") & 
+                    (~df_sync_inv['CÓD. PRÓDUTO'].str.contains("TOTAL", case=False, na=False)) &
+                    (df_sync_inv['STATUS ODOO'].astype(str).str.upper() != "PUBLICADO")
+                ]
                 
                 if not pendentes_inv.empty:
-                    st.info(f"🔍 Analisando {len(pendentes_inv)} produtos...")
+                    st.info(f"🔍 Iniciando análise de {len(pendentes_inv)} códigos pendentes...")
                     barra = st.progress(0)
+                    status_log = st.empty()
                     
-                    # 📺 ÁREA DE STATUS ORGANIZADA (Para não poluir a tela)
-                    status_log = st.empty() 
-                    lista_sucessos = []
+                    relatorio = {"sucesso": [], "falha": []}
+                    aba_doc = planilha_mestre.worksheet("DOCUMENTOS") # Para integração
                     
                     for i, (idx, r) in enumerate(pendentes_inv.iterrows()):
                         cod_p = str(r['CÓD. PRÓDUTO']).strip()
+                        status_log.markdown(f"🕵️ **Verificando:** {cod_p}...")
                         
-                        # 1. Atualiza o status no MESMO lugar (sem criar novas linhas)
-                        status_log.markdown(f"⏳ **Processando:** {cod_p} ({i+1}/{len(pendentes_inv)})")
-                        
-                        # 2. Robô vai ao site
+                        # Chamada ao robô de precisão
                         achou, link_produto = verificar_status_odoo(cod_p)
                         
                         if achou:
-                            linha_planilha = idx + 2
+                            linha_inv = idx + 2
+                            time.sleep(1.2) # Respeito ao limite do Google
                             
-                            # 3. Pausa estratégica para evitar o Erro 429 (Limite do Google)
-                            time.sleep(1.5) 
+                            # ATUALIZAÇÃO 1: INVENTÁRIO (Colunas K e L)
+                            aba_inv.update_cell(linha_inv, 11, link_produto) # Link
+                            aba_inv.update_cell(linha_inv, 12, "Publicado")     # Status
                             
-                            # Atualiza Coluna K (11) e L (12)
-                            aba_inv.update_cell(linha_planilha, 11, link_produto)
-                            aba_inv.update_cell(linha_planilha, 12, "Publicado")
+                            # ATUALIZAÇÃO 2: DOCUMENTOS (Integração Automática)
+                            # Busca todas as linhas em DOCUMENTOS que contenham esse código no VINCULO
+                            try:
+                                cells_doc = aba_doc.findall(cod_p)
+                                for c in cells_doc:
+                                    # Se for a coluna de vínculo (6), atualiza o status (coluna 7)
+                                    if c.col == 6:
+                                        aba_doc.update_cell(c.row, 7, "Publicado no Odoo")
+                            except:
+                                pass # Se não achar o código em documentos, segue em frente
                             
-                            lista_sucessos.append(cod_p)
+                            relatorio["sucesso"].append(cod_p)
+                        else:
+                            relatorio["falha"].append(cod_p)
                         
                         barra.progress((i + 1) / len(pendentes_inv))
                     
-                    # ✨ RELATÓRIO FINAL (Limpa o log de progresso e mostra o resumo)
+                    # 📊 RELATÓRIO FINAL DETALHADO
                     status_log.empty()
-                    if lista_sucessos:
-                        st.success(f"✅ Sincronização Concluída! {len(lista_sucessos)} produtos foram encontrados e atualizados.")
-                        with st.expander("📋 Ver produtos atualizados"):
-                            st.write(", ".join(lista_sucessos))
+                    st.divider()
+                    st.markdown("### 📋 Relatório de Sincronização")
+                    
+                    col_rel1, col_rel2 = st.columns(2)
+                    with col_rel1:
+                        st.success(f"**Detectados no Site ({len(relatorio['sucesso'])})**")
+                        if relatorio['sucesso']:
+                            st.caption(", ".join(relatorio['sucesso']))
+                    
+                    with col_rel2:
+                        st.warning(f"**Ainda Ausentes ({len(relatorio['falha'])})**")
+                        if relatorio['falha']:
+                            st.caption(", ".join(relatorio['falha']))
+                    
+                    if relatorio['sucesso']:
+                        st.info("💡 A fila de fotos foi atualizada. Itens publicados sumiram da Linha de Montagem.")
                         st.cache_resource.clear()
-                        st.rerun()
-                    else:
-                        st.warning("Varredura finalizada. Nenhum item novo detectado no site.")
+                        if st.button("Finalizar e Atualizar Sistema"):
+                            st.rerun()
                 else:
-                    st.info("O inventário já está 100% atualizado com o site.")
+                    st.success("Tudo em ordem! Não há itens pendentes para verificação.")
             
             except Exception as e:
-                if "429" in str(e):
-                    st.error("⚠️ O Google Sheets pediu uma pausa. Tente novamente em 1 minuto.")
-                else:
-                    st.error(f"Erro ao acessar o Inventário: {e}")
+                st.error(f"Erro na varredura: {e}")
 
     st.divider()
     st.write("### 📤 Enviar Arquivo")
