@@ -297,35 +297,41 @@ if menu_selecionado == "🛒 Vendas":
     # -----------------------------------------------------
     st.subheader("🛒 Registro de Venda")
     
-    # --- 1. CONFIGURAÇÃO GERAL DA VENDA (CABEÇALHO) ---
-    col_v1, col_v2 = st.columns(2)
-    with col_v1:
-        metodo = st.selectbox("Forma de Pagamento", ["Pix", "Dinheiro", "Cartão", "Sweet Flex"], key="venda_metodo_pg")
-        c_sel = st.selectbox("Selecionar Cliente", ["*** NOVO CLIENTE ***"] + [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()], key="venda_cliente_sel")
+    # 1. Você insere esta linha aqui (A tampa da caixa):
+    with st.container(border=True):
+        st.markdown("📝 **Dados da Venda**") # Um títulozinho para a borda fazer sentido
         
-        telefone_sugerido = ""
-        if c_sel != "*** NOVO CLIENTE ***":
-            id_cliente = c_sel.split(" - ")[0].strip()
-            if id_cliente in banco_de_clientes:
-                telefone_sugerido = banco_de_clientes[id_cliente].get('fone', "")
+        # 2. TODAS as linhas abaixo ganharam um "espaço" (TAB) para a direita:
+        col_v1, col_v2 = st.columns(2)
         
-        c_nome_novo = st.text_input("Nome Completo (se novo)", key="venda_nome_novo")
-        c_zap = st.text_input("WhatsApp", value=telefone_sugerido, key="zap_venda_input")
-        vendedor = st.text_input("Vendedor(a)", value="Bia", key="venda_vendedor_input")
+        with col_v1:
+            metodo = st.selectbox("Forma de Pagamento", ["Pix", "Dinheiro", "Cartão", "Sweet Flex"], key="venda_metodo_pg")
+            c_sel = st.selectbox("Selecionar Cliente", ["*** NOVO CLIENTE ***"] + [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()], key="venda_cliente_sel")
+            
+            telefone_sugerido = ""
+            if c_sel != "*** NOVO CLIENTE ***":
+                id_cliente = c_sel.split(" - ")[0].strip()
+                if id_cliente in banco_de_clientes:
+                    telefone_sugerido = banco_de_clientes[id_cliente].get('fone', "")
+            
+            c_nome_novo = st.text_input("Nome Completo (se novo)", key="venda_nome_novo")
+            c_zap = st.text_input("WhatsApp", value=telefone_sugerido, key="zap_venda_input")
+            vendedor = st.text_input("Vendedor(a)", value="Bia", key="venda_vendedor_input")
 
-    with col_v2:
-        detalhes_p = []
-        n_p = 1
-        if metodo == "Sweet Flex":
-            n_p = st.number_input("Número de Parcelas", 1, 12, 1, key="venda_n_parcelas")
-            cols_parc = st.columns(n_p)
-            for i in range(n_p):
-                with cols_parc[i]:
-                    dt = st.date_input(f"{i+1}ª Parc.", datetime.now(), format="DD/MM/YYYY", key=f"vd_data_parc_{i}")
-                    detalhes_p.append(dt.strftime("%d/%m/%Y"))
-        else:
-            detalhes_p = [datetime.now().strftime("%d/%m/%Y")]
-
+        with col_v2:
+            detalhes_p = []
+            n_p = 1
+            if metodo == "Sweet Flex":
+                n_p = st.number_input("Número de Parcelas", 1, 12, 1, key="venda_n_parcelas")
+                cols_parc = st.columns(n_p)
+                for i in range(n_p):
+                    with cols_parc[i]:
+                        dt = st.date_input(f"{i+1}ª Parc.", datetime.now(), format="DD/MM/YYYY", key=f"vd_data_parc_{i}")
+                        detalhes_p.append(dt.strftime("%d/%m/%Y"))
+            else:
+                detalhes_p = [datetime.now().strftime("%d/%m/%Y")]
+    
+    # O st.divider() fica fora do "with" para criar a linha de separação embaixo da caixa
     st.divider()
 
     # --- 2. ADIÇÃO DE PRODUTOS AO CARRINHO ---
@@ -350,10 +356,10 @@ if menu_selecionado == "🛒 Vendas":
     # Isso força o Streamlit a atualizar o valor na tela instantaneamente
     val_v = c_p3.number_input("Preço Un. (R$)", value=preco_da_planilha, min_value=0.0, step=0.01, key=f"preco_dinamico_{cod_p_temp}")
 
-    if c_p4.button("➕ Adicionar", use_container_width=True):
-        id_p = p_sel.split(" - ")[0]
-        nome_p = p_sel.split(" - ")[1].strip()
-        custo_un = float(banco_de_produtos.get(id_p, {}).get('custo', 0.0))
+    with c_p4:
+        st.write("") # <--- Isso cria um espaço vazio que "finge" ser um título
+        st.write("") # <--- Isso empurra o botão para baixo para alinhar com o Preço
+        if st.button("➕ Adicionar", use_container_width=True):
         
         item_carrinho = {
             "cod": id_p,
