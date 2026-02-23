@@ -296,13 +296,6 @@ if menu_selecionado == "🛒 Vendas":
     lista_selecao_limpa = [f"{v['full_cod']} - {v['nome']}" for v in produtos_filtrados_venda.values()]
     # -----------------------------------------------------
     st.subheader("🛒 Registro de Venda")
-    with st.container(border=True):
-        st.markdown("📝 **Dados da Venda**")
-        col_v1, col_v2 = st.columns(2)
-        # Atenção: as linhas abaixo (with col_v1, with col_v2) 
-        # agora devem ter um recuo (TAB) para a direita para ficarem dentro da caixa.
-        with col_v1:
-            metodo = st.selectbox(...)
     
     # --- 1. CONFIGURAÇÃO GERAL DA VENDA (CABEÇALHO) ---
     col_v1, col_v2 = st.columns(2)
