@@ -311,14 +311,14 @@ if menu_selecionado == "🛒 Vendas":
             c_sel = st.selectbox("Selecionar Cliente", ["*** NOVO CLIENTE ***"] + [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()], key="venda_cliente_sel")
             
             telefone_sugerido = ""
-            if c_sel != "*** NOVO CLIENTE ***":
-                id_cliente = c_sel.split(" - ")[0].strip()
-                if id_cliente in banco_de_clientes:
-                    telefone_sugerido = banco_de_clientes[id_cliente].get('fone', "")
-            
-            c_nome_novo = st.text_input("Nome Completo (se novo)", key="venda_nome_novo")
-            c_zap = st.text_input("WhatsApp", value=telefone_sugerido, key="zap_venda_input")
-            vendedor = st.text_input("Vendedor(a)", value="Bia", key="venda_vendedor_input")
+                if c_sel != "*** NOVO CLIENTE ***":
+                    id_cliente = c_sel.split(" - ")[0].strip()
+                    if id_cliente in banco_de_clientes:
+                        telefone_sugerido = banco_de_clientes[id_cliente].get('fone', "")
+                
+                c_nome_novo = st.text_input("Nome Completo (se novo)", key="venda_nome_novo")
+                c_zap = st.text_input("WhatsApp", value=telefone_sugerido, key="zap_venda_input")
+                vendedor = st.text_input("Vendedor(a)", value="Bia", key="venda_vendedor_input")
 
         with col_v2:
             detalhes_p = []
