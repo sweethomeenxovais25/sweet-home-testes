@@ -271,14 +271,30 @@ with st.sidebar:
             st.error("Sincronize a planilha para gerar o backup.")
             
 # ==========================================
-# --- SEÇÃO 1: VENDAS (MEMÓRIA ETERNA) ---
+# --- SEÇÃO 1: VENDAS (SISTEMA DE CARRINHO MULTI-ITENS) ---
 # ==========================================
 if menu_selecionado == "🛒 Vendas":
-    st.subheader("🛒 Registro de Venda")
-    metodo = st.selectbox("Forma de Pagamento", ["Pix", "Dinheiro", "Cartão", "Sweet Flex"], key="venda_metodo_pg", help="Escolha como a cliente vai pagar esta compra.")
+    st.subheader("🛒 Registro de Venda Multi-Itens")
     
-    with st.form("form_venda_final", clear_on_submit=True):
-        detalhes_p = []; n_p = 1 
+    # --- 1. CONFIGURAÇÃO GERAL DA VENDA (CABEÇALHO) ---
+    col_v1, col_v2 = st.columns(2)
+    with col_v1:
+        metodo = st.selectbox("Forma de Pagamento", ["Pix", "Dinheiro", "Cartão", "Sweet Flex"], key="venda_metodo_pg")
+        c_sel = st.selectbox("Selecionar Cliente", ["*** NOVO CLIENTE ***"] + [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()], key="venda_cliente_sel")
+        
+        telefone_sugerido = ""
+        if c_sel != "*** NOVO CLIENTE ***":
+            id_cliente = c_sel.split(" - ")[0].strip()
+            if id_cliente in banco_de_clientes:
+                telefone_sugerido = banco_de_clientes[id_cliente].get('fone', "")
+        
+        c_nome_novo = st.text_input("Nome Completo (se novo)", key="venda_nome_novo")
+        c_zap = st.text_input("WhatsApp", value=telefone_sugerido, key="zap_venda_input")
+        vendedor = st.text_input("Vendedor(a)", value="Bia", key="venda_vendedor_input")
+
+    with col_v2:
+        detalhes_p = []
+        n_p = 1
         if metodo == "Sweet Flex":
             n_p = st.number_input("Número de Parcelas", 1, 12, 1, key="venda_n_parcelas")
             cols_parc = st.columns(n_p)
@@ -286,124 +302,171 @@ if menu_selecionado == "🛒 Vendas":
                 with cols_parc[i]:
                     dt = st.date_input(f"{i+1}ª Parc.", datetime.now(), format="DD/MM/YYYY", key=f"vd_data_parc_{i}")
                     detalhes_p.append(dt.strftime("%d/%m/%Y"))
+        else:
+            detalhes_p = [datetime.now().strftime("%d/%m/%Y")]
 
-        col_esq, col_dir = st.columns(2)
-        with col_esq:
-            st.write("👤 **Dados da Cliente**")
-            c_sel = st.selectbox("Selecionar Cliente", ["*** NOVO CLIENTE ***"] + [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()], key="venda_cliente_sel")
-            telefone_sugerido = ""
-            if c_sel != "*** NOVO CLIENTE ***":
-                id_cliente = c_sel.split(" - ")[0].strip()
-                if id_cliente in banco_de_clientes:
-                    telefone_sugerido = banco_de_clientes[id_cliente].get('fone', "")
-            c_nome_novo = st.text_input("Nome Completo (se novo)", key="venda_nome_novo")
-            c_zap = st.text_input("WhatsApp", value=telefone_sugerido, key=f"zap_venda_{c_sel}", help="Coloque o DDD e o número. Exemplo: 81999999999")
+    st.divider()
 
-        with col_dir:
-            st.write("📦 **Produto**")
-            p_sel = st.selectbox("Item do Estoque", [f"{k} - {v['nome']}" for k, v in banco_de_produtos.items()], key="venda_produto_sel")
-            cc1, cc2, cc3 = st.columns(3)
-            qtd_v = cc1.number_input("Qtd", 1, key="venda_qtd_input")
-            val_v = cc2.number_input("Preço Un.", 0.0, key="venda_val_input")
-            desc_v = cc3.number_input("Desconto (R$)", 0.0, key="venda_desc_input", help="Valor do desconto em Reais (R$). Deixe zero se não houver.")
-            vendedor = st.text_input("Vendedor(a)", value="Bia", key="venda_vendedor_input")
+    # --- 2. ADIÇÃO DE PRODUTOS AO CARRINHO ---
+    st.markdown("### 🛍️ Adicionar Produtos")
+    c_p1, c_p2, c_p3, c_p4 = st.columns([3, 1, 1, 1])
+    
+    p_sel = c_p1.selectbox("Item do Estoque", [f"{k} - {v['nome']}" for k, v in banco_de_produtos.items()], key="venda_produto_sel")
+    qtd_v = c_p2.number_input("Qtd", 1, min_value=1, key="venda_qtd_input")
+    
+    # Puxa preço de venda sugerido do banco
+    cod_p_temp = p_sel.split(" - ")[0]
+    preco_sugerido = float(banco_de_produtos.get(cod_p_temp, {}).get('venda', 0.0))
+    val_v = c_p3.number_input("Preço Un. (R$)", value=preco_sugerido, key="venda_val_input")
 
-        enviar = st.form_submit_button("Finalizar Venda 🚀")
+    if c_p4.button("➕ Adicionar", use_container_width=True):
+        id_p = p_sel.split(" - ")[0]
+        nome_p = p_sel.split(" - ")[1].strip()
+        custo_un = float(banco_de_produtos.get(id_p, {}).get('custo', 0.0))
+        
+        item_carrinho = {
+            "cod": id_p,
+            "nome": nome_p,
+            "qtd": qtd_v,
+            "preco": val_v,
+            "custo": custo_un,
+            "subtotal": qtd_v * val_v
+        }
+        st.session_state['carrinho'].append(item_carrinho)
+        st.toast(f"✅ {nome_p} no carrinho!")
 
-        if enviar:
-            if c_sel == "*** NOVO CLIENTE ***":
-                if not c_nome_novo or not c_zap: 
-                    st.error("⚠️ Preencha Nome e Zap!"); st.stop()
-                nome_cli = c_nome_novo.strip()
-                if not modo_teste:
-                    try:
-                        aba_cli = planilha_mestre.worksheet("CARTEIRA DE CLIENTES")
-                        dados_c = aba_cli.get_all_values()
-                        nomes_up = [l[1].strip().upper() for l in dados_c[1:]]
-                        if nome_cli.upper() in nomes_up:
-                            cod_cli = dados_c[nomes_up.index(nome_cli.upper())+1][0]
-                        else:
-                            cod_cli = f"CLI-{len(dados_c):03d}"
-                            aba_cli.append_row([cod_cli, nome_cli, c_zap.strip(), "", datetime.now().strftime("%d/%m/%Y"), 0, "", "Incompleto"], value_input_option='RAW')
-                            st.toast(f"👤 {nome_cli} cadastrada!")
-                    except Exception as e: 
-                        st.error(f"Erro no cadastro: {e}"); st.stop()
-                else: cod_cli = "CLI-TESTE"
-            else:
-                cod_cli = c_sel.split(" - ")[0]
-                nome_cli = banco_de_clientes[cod_cli]['nome']
+    # --- 3. EXIBIÇÃO DO CARRINHO E FINALIZAÇÃO ---
+    if st.session_state['carrinho']:
+        st.markdown("#### 🛒 Itens Selecionados")
+        df_car = pd.DataFrame(st.session_state['carrinho'])
+        st.dataframe(df_car[['nome', 'qtd', 'preco', 'subtotal']], use_container_width=True, hide_index=True)
+        
+        subtotal_venda = df_car['subtotal'].sum()
+        
+        col_f1, col_f2, col_f3 = st.columns([2, 1, 1])
+        desc_v = col_f1.number_input("Desconto Total na Compra (R$)", 0.0, key="venda_desc_total")
+        
+        total_com_desconto = subtotal_venda - desc_v
+        col_f2.metric("Subtotal", f"R$ {subtotal_venda:,.2f}")
+        col_f3.metric("Total a Pagar", f"R$ {total_com_desconto:,.2f}", delta=f"- R$ {desc_v:,.2f}" if desc_v > 0 else None)
 
-            v_bruto = qtd_v * val_v
-            t_liq = v_bruto - desc_v
-            desc_percentual = desc_v / v_bruto if v_bruto > 0 else 0
-            cod_p = p_sel.split(" - ")[0]
-            nome_p = p_sel.split(" - ")[1].strip()
-            custo_un = float(banco_de_produtos[cod_p].get('custo', 0.0)) if cod_p in banco_de_produtos else 0.0
+        c_btn1, c_btn2 = st.columns(2)
+        if c_btn1.button("🗑️ Limpar Tudo", use_container_width=True):
+            st.session_state['carrinho'] = []
+            st.rerun()
 
-            if not modo_teste:
+        if c_btn2.button("Finalizar Venda 🚀", type="primary", use_container_width=True):
+            # Validação de Cliente Novo
+            if c_sel == "*** NOVO CLIENTE ***" and (not c_nome_novo or not c_zap):
+                st.error("⚠️ Preencha Nome e Zap para novo cliente!"); st.stop()
+
+            with st.spinner("Salvando venda e gerando recibo..."):
                 try:
-                    aba_v = planilha_mestre.worksheet("VENDAS")
-                    idx_ins = aba_v.find("TOTAIS").row 
-                    eh_parc = "Sim" if metodo == "Sweet Flex" else "Não"
-                    f_atraso = '=SE(OU(INDIRETO("W"&LIN())="Pago"; INDIRETO("W"&LIN())="Em dia"); 0; MÁXIMO(0; HOJE() - INDIRETO("V"&LIN())))'
-                    f_k = '=SE(INDIRETO("I"&LIN())=""; ""; ARRED(INDIRETO("I"&LIN()) * (1 - INDIRETO("J"&LIN())); 2))'
-                    f_l = '=SE(INDIRETO("H"&LIN())=""; ""; ARRED(INDIRETO("H"&LIN()) * INDIRETO("K"&LIN()); 2))'
-                    f_m = '=SE(INDIRETO("L"&LIN())=""; ""; ARRED(INDIRETO("L"&LIN()) - (INDIRETO("H"&LIN()) * INDIRETO("G"&LIN())); 2))'
-                    f_n = '=SE(INDIRETO("L"&LIN())=""; ""; SEERRO(INDIRETO("M"&LIN()) / INDIRETO("L"&LIN()); ""))'
-                    f_r = '=SE(INDIRETO("L"&LIN())=""; ""; SE(INDIRETO("P"&LIN())="Não"; INDIRETO("L"&LIN()); 0))'
+                    # 1. Identificação/Cadastro do Cliente
+                    if c_sel == "*** NOVO CLIENTE ***":
+                        nome_cli = c_nome_novo.strip()
+                        if not modo_teste:
+                            aba_cli = planilha_mestre.worksheet("CARTEIRA DE CLIENTES")
+                            dados_c = aba_cli.get_all_values()
+                            nomes_up = [l[1].strip().upper() for l in dados_c[1:]]
+                            if nome_cli.upper() in nomes_up:
+                                cod_cli = dados_c[nomes_up.index(nome_cli.upper())+1][0]
+                            else:
+                                cod_cli = f"CLI-{len(dados_c):03d}"
+                                aba_cli.append_row([cod_cli, nome_cli, c_zap.strip(), "", datetime.now().strftime("%d/%m/%Y"), 0, "", "Incompleto"], value_input_option='RAW')
+                        else: cod_cli = "CLI-TESTE"
+                    else:
+                        cod_cli = c_sel.split(" - ")[0]
+                        nome_cli = banco_de_clientes[cod_cli]['nome']
+
+                    # 2. Gravação de Itens (Loop na Planilha)
+                    if not modo_teste:
+                        aba_v = planilha_mestre.worksheet("VENDAS")
+                        for item in st.session_state['carrinho']:
+                            # Distribuição proporcional do desconto por item para manter lucro exato
+                            proporcao_desc = (item['subtotal'] / subtotal_venda) if subtotal_venda > 0 else 0
+                            desconto_proporcional = desc_v * proporcao_desc
+                            desc_percentual = desconto_proporcional / item['subtotal'] if item['subtotal'] > 0 else 0
+                            
+                            t_liq_item = item['subtotal'] - desconto_proporcional
+                            eh_parc = "Sim" if metodo == "Sweet Flex" else "Não"
+                            
+                            # Fórmulas Inteligentes
+                            f_atraso = '=SE(OU(INDIRETO("W"&LIN())="Pago"; INDIRETO("W"&LIN())="Em dia"); 0; MÁXIMO(0; HOJE() - INDIRETO("V"&LIN())))'
+                            f_k = '=SE(INDIRETO("I"&LIN())=""; ""; ARRED(INDIRETO("I"&LIN()) * (1 - INDIRETO("J"&LIN())); 2))'
+                            f_l = '=SE(INDIRETO("H"&LIN())=""; ""; ARRED(INDIRETO("H"&LIN()) * INDIRETO("K"&LIN()); 2))'
+                            f_m = '=SE(INDIRETO("L"&LIN())=""; ""; ARRED(INDIRETO("L"&LIN()) - (INDIRETO("H"&LIN()) * INDIRETO("G"&LIN())); 2))'
+                            f_n = '=SE(INDIRETO("L"&LIN())=""; ""; SEERRO(INDIRETO("M"&LIN()) / INDIRETO("L"&LIN()); ""))'
+                            f_r = '=SE(INDIRETO("L"&LIN())=""; ""; SE(INDIRETO("P"&LIN())="Não"; INDIRETO("L"&LIN()); 0))'
+                            
+                            linha = [
+                                "", datetime.now().strftime("%d/%m/%Y"), cod_cli, nome_cli, 
+                                item['cod'], item['nome'], item['custo'], item['qtd'], item['preco'], 
+                                desc_percentual, f_k, f_l, f_m, f_n, metodo, eh_parc, n_p, f_r, 
+                                t_liq_item/n_p if eh_parc=="Sim" else 0, 
+                                t_liq_item if eh_parc=="Não" else 0, 
+                                t_liq_item if eh_parc=="Sim" else 0, 
+                                detalhes_p[0] if (eh_parc=="Sim" and detalhes_p) else "", 
+                                "Pendente" if eh_parc=="Sim" else "Pago", f_atraso
+                            ]
+                            idx_ins = aba_v.find("TOTAIS").row
+                            aba_v.insert_row(linha, index=idx_ins, value_input_option='RAW')
+
+                    # 3. Geração do Recibo Único e Elegante
+                    recibo_texto = (
+                        f"🌸 *DOCE LAR - RECIBO DE COMPRA* 🌸\n"
+                        f"━━━━━━━━━━━━━━━━━━━\n"
+                        f"Olá, eu sou a Bia! ✨ É um prazer atender você, *{nome_cli.split(' ')[0]}*.\n"
+                        f"Aqui está o resumo detalhado da sua felicidade:\n\n"
+                    )
+                    for item in st.session_state['carrinho']:
+                        recibo_texto += f"🛍️ {item['qtd']}x {item['nome']} - R$ {item['subtotal']:,.2f}\n"
                     
-                    linha = ["", datetime.now().strftime("%d/%m/%Y"), cod_cli, nome_cli, cod_p, nome_p, custo_un, qtd_v, val_v, desc_percentual, f_k, f_l, f_m, f_n, metodo, eh_parc, n_p, f_r, t_liq/n_p if eh_parc=="Sim" else 0, t_liq if eh_parc=="Não" else 0, t_liq if eh_parc=="Sim" else 0, detalhes_p[0] if (eh_parc=="Sim" and detalhes_p) else "", "Pendente" if eh_parc=="Sim" else "Pago", f_atraso]
-                    aba_v.insert_row(linha, index=idx_ins, value_input_option='RAW')
+                    recibo_texto += f"━━━━━━━━━━━━━━━━━━━\n"
+                    recibo_texto += f"💰 *Subtotal:* R$ {subtotal_venda:,.2f}\n"
+                    if desc_v > 0:
+                        recibo_texto += f"📉 *Desconto:* - R$ {desc_v:,.2f}\n"
+                    recibo_texto += f"✅ *TOTAL FINAL:* *R$ {total_com_desconto:,.2f}*\n\n"
+                    recibo_texto += f"💳 *Forma de Pagto:* {metodo}\n"
+                    recibo_texto += f"🗓️ *Data:* {datetime.now().strftime('%d/%m/%Y')}\n"
+                    
+                    if metodo == "Sweet Flex":
+                        recibo_texto += f"\n📝 *Plano de Pagamento ({n_p}x):*\n"
+                        for i, data_p in enumerate(detalhes_p):
+                            recibo_texto += f"🔹 {i+1}ª Parcela: {data_p} - R$ {total_com_desconto/n_p:,.2f}\n"
+                    
+                    recibo_texto += f"\n━━━━━━━━━━━━━━━━━━━\n"
+                    recibo_texto += f"👤 *Vendedor(a):* {vendedor}\n"
+                    recibo_texto += f"✨ *Obrigada pela preferência!*"
+
                     st.success("✅ Venda registrada com sucesso!")
-                    st.cache_resource.clear() 
+                    st.code(recibo_texto, language="text")
+                    
+                    zap_limpo = c_zap.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+                    st.link_button("📲 Enviar Recibo Único para o WhatsApp", f"https://wa.me/55{zap_limpo}?text={urllib.parse.quote(recibo_texto)}", use_container_width=True, type="primary")
+
+                    # Limpeza Final
+                    st.session_state['carrinho'] = []
+                    st.cache_resource.clear()
+                    
                 except Exception as e:
-                    st.error(f"Erro ao registrar: {e}")
-            else:
-                st.info("🧪 Modo Teste: Simulação realizada com sucesso!")
+                    st.error(f"Erro ao processar venda: {e}")
 
-            st.divider()
-            recibo_texto = (
-                f"🌸 *RECIBO SWEET HOME ENXOVAIS*\n"
-                f"━━━━━━━━━━━━━━━━━━━\n"
-                f"Olá, *{nome_cli.split(' ')[0]}*! Segue o resumo da sua compra:\n\n"
-                f"📦 *Produto:* {qtd_v}x {nome_p}\n"
-                f"💰 *Valor Total:* R$ {t_liq:.2f}\n"
-                f"💳 *Forma de Pagto:* {metodo}\n"
-                f"🗓️ *Data:* {datetime.now().strftime('%d/%m/%Y')}\n"
-                f"👤 *Vendedor(a):* {vendedor}\n"
-            )
-            if metodo == "Sweet Flex":
-                recibo_texto += f"\n📝 *Plano de Pagamento:* {n_p}x de R$ {t_liq/n_p:.2f}\n"
-                for i, data_p in enumerate(detalhes_p):
-                    recibo_texto += f"🔹 {i+1}ª Parcela: {data_p}\n"
-            recibo_texto += f"\n━━━━━━━━━━━━━━━━━━━\n✨ *Obrigada pela preferência!*"
-
-            st.code(recibo_texto, language="text")
-            zap_limpo = c_zap.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
-            st.link_button("📲 Enviar Recibo para o WhatsApp", f"https://wa.me/55{zap_limpo}?text={urllib.parse.quote(recibo_texto)}", use_container_width=True, type="primary")
-
-    # 📝 HISTÓRICO REAL EM BLOCO EXPANSIVO (DIRETO DA PLANILHA)
+    # --- MANTENDO HISTÓRICO E BORRACHA MÁGICA ---
     st.divider()
     with st.expander("📝 Ver Histórico de Vendas Recentes (Últimas 10)", expanded=False):
         try:
-            # Puxa os dados da aba VENDAS para conferência permanente
             dados_v = planilha_mestre.worksheet("VENDAS").get_all_values()
             if len(dados_v) > 1:
                 df_v_real = pd.DataFrame(dados_v[1:], columns=dados_v[0])
-                
-                # Limpeza rápida: remove linhas de totais e espaços vazios
-                df_v_real = df_v_real[~df_v_real['CLIENTE'].str.contains("TOTAIS", case=False, na=False)]
+                df_v_real = df_v_real[~df_v_real['CLIENTE'].astype(str).str.contains("TOTAIS", case=False, na=False)]
                 df_v_real = df_v_real[df_v_real['CLIENTE'] != ""]
-                
-                # Seleciona colunas essenciais e inverte para o topo ser a mais nova
                 historico_display = df_v_real[['DATA DA VENDA', 'CLIENTE', 'PRODUTO', 'TOTAL R$', 'STATUS']].tail(10).iloc[::-1]
-                
                 st.dataframe(historico_display, use_container_width=True, hide_index=True)
-                st.info("💡 Este histórico é permanente e reflete o que já está salvo no banco de dados.")
-            else:
-                st.info("Nenhuma venda registrada ainda.")
-        except Exception as e:
-            st.warning(f"Aguardando conexão com a planilha... ({e})")
+            else: st.info("Nenhuma venda registrada ainda.")
+        except Exception as e: st.warning("Sincronize a planilha para ver o histórico.")
+
+    # [O código da Borracha Mágica (Edição de Vendas) continua exatamente como você já tinha abaixo deste ponto]
 
 # ==========================================
     # ✏️ BORRACHA MÁGICA: EDIÇÃO SEGURA DE VENDAS
