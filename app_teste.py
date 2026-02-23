@@ -471,7 +471,7 @@ if menu_selecionado == "🛒 Vendas":
                     idx_metodo = lista_metodos.index(metodo_atual) if metodo_atual in lista_metodos else 0
 
                     with st.form(f"form_edicao_{linha_real}"):
-                        st.write("#### 🔄 Atualizar Dados")
+                        st.write("#### 🔄 Atualizar Dados", help="📝 COMO USAR:\nAltere apenas os campos que estavam errados na venda original.\n\n🎯 QUANDO USAR:\nPara corrigir erros de digitação rápidos (ex: selecionou a cliente errada, trocou o produto ou errou o valor).\n\n⚠️ AVISO IMPORTANTE:\nUse apenas para arrumar erros do dia a dia. Não use essa ferramenta para bagunçar vendas antigas, pois ela altera a planilha financeira oficial!")
                         e_c1, e_c2 = st.columns(2)
                         novo_cliente = e_c1.selectbox("Cliente Oficial", lista_clientes, index=idx_cliente)
                         novo_produto = e_c2.selectbox("Produto Correto", lista_produtos, index=idx_produto)
@@ -543,7 +543,17 @@ if menu_selecionado == "🛒 Vendas":
     if 'recibo_correcao' in st.session_state:
         st.success("✅ Venda atualizada na planilha com sucesso!")
         recibo = st.session_state['recibo_correcao']
-        st.info(f"**Resumo do Ajuste:**\n\n👤 **Cliente:** {recibo['cliente']}\n📦 **Produto:** {recibo['produto']}\n💰 **Novo Total:** R$ {recibo['total']:.2f}\n💳 **Pagto:** {recibo['metodo']}")
+        
+        st.markdown("#### 📋 Resumo do Ajuste")
+        tabela_resumo = f"""
+| Informação | Registro Corrigido |
+| :--- | :--- |
+| 👤 **Cliente** | {recibo['cliente']} |
+| 📦 **Produto** | {recibo['produto']} |
+| 💰 **Valor Total** | R$ {recibo['total']:.2f} |
+| 💳 **Pagamento** | {recibo['metodo']} |
+"""
+        st.markdown(tabela_resumo)
         
         if st.button("✖️ Fechar Aviso", key="fechar_aviso_correcao"):
             del st.session_state['recibo_correcao']
