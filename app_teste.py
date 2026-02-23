@@ -12,6 +12,7 @@ import io
 import google.generativeai as genai
 from PIL import Image
 import requests
+import time
 
 def verificar_status_odoo(codigo_produto):
     cod_limpo = str(codigo_produto).strip()
@@ -1235,57 +1236,68 @@ elif menu_selecionado == "📂 Documentos":
                 else: 
                     st.info("Sua fila de trabalho está limpa.")
 
-    # --- ASSISTENTE DE SINCRONIZAÇÃO DE INVENTÁRIO ---
+    # --- ASSISTENTE DE SINCRONIZAÇÃO DE INVENTÁRIO (V3 - ANTI-ERRO 429) ---
     with st.expander("🤖 Sincronizador de Inventário (Odoo)", expanded=False):
-        st.write("O robô verificará o site e preencherá as Colunas K (Link) e L (Status) no Inventário.")
+        st.write("Verificação automática de estoque no site.")
         
         if st.button("🚀 Iniciar Varredura de Inventário"):
             try:
-                # 1. Acessamos a aba correta
                 aba_inv = planilha_mestre.worksheet("INVENTÁRIO")
                 dados_inv = aba_inv.get_all_values()
                 df_sync_inv = pd.DataFrame(dados_inv[1:], columns=dados_inv[0])
                 
-                # 2. Filtramos apenas o que ainda não tem Link ou Status no site
-                # Procuramos na coluna L (STATUS ODOO) o que não está "Publicado"
+                # Filtra quem ainda não está "Publicado" (Coluna L)
                 pendentes_inv = df_sync_inv[df_sync_inv['STATUS ODOO'].astype(str).str.upper() != "PUBLICADO"]
                 
                 if not pendentes_inv.empty:
-                    st.info(f"🔍 Analisando {len(pendentes_inv)} produtos no inventário...")
+                    st.info(f"🔍 Analisando {len(pendentes_inv)} produtos...")
                     barra = st.progress(0)
-                    sucessos = 0
+                    
+                    # 📺 ÁREA DE STATUS ORGANIZADA (Para não poluir a tela)
+                    status_log = st.empty() 
+                    lista_sucessos = []
                     
                     for i, (idx, r) in enumerate(pendentes_inv.iterrows()):
-                        # O código do produto está na coluna A (índice 0)
                         cod_p = str(r['CÓD. PRÓDUTO']).strip()
                         
-                        # O robô vai ao site
+                        # 1. Atualiza o status no MESMO lugar (sem criar novas linhas)
+                        status_log.markdown(f"⏳ **Processando:** {cod_p} ({i+1}/{len(pendentes_inv)})")
+                        
+                        # 2. Robô vai ao site
                         achou, link_produto = verificar_status_odoo(cod_p)
                         
                         if achou:
-                            # A linha na planilha é o índice do DF + 2 (por causa do cabeçalho e índice 0)
                             linha_planilha = idx + 2
                             
-                            # Atualiza Coluna K (Link Ref - 11) e Coluna L (Status Odoo - 12)
-                            aba_inv.update_cell(linha_planilha, 11, link_produto) # Coluna K
-                            aba_inv.update_cell(linha_planilha, 12, "Publicado")     # Coluna L
+                            # 3. Pausa estratégica para evitar o Erro 429 (Limite do Google)
+                            time.sleep(1.5) 
                             
-                            st.write(f"✅ Produto **{cod_p}** encontrado e vinculado!")
-                            sucessos += 1
+                            # Atualiza Coluna K (11) e L (12)
+                            aba_inv.update_cell(linha_planilha, 11, link_produto)
+                            aba_inv.update_cell(linha_planilha, 12, "Publicado")
+                            
+                            lista_sucessos.append(cod_p)
                         
                         barra.progress((i + 1) / len(pendentes_inv))
                     
-                    if sucessos > 0:
-                        st.success(f"✨ Sincronização concluída! {sucessos} produtos atualizados no Inventário.")
+                    # ✨ RELATÓRIO FINAL (Limpa o log de progresso e mostra o resumo)
+                    status_log.empty()
+                    if lista_sucessos:
+                        st.success(f"✅ Sincronização Concluída! {len(lista_sucessos)} produtos foram encontrados e atualizados.")
+                        with st.expander("📋 Ver produtos atualizados"):
+                            st.write(", ".join(lista_sucessos))
                         st.cache_resource.clear()
                         st.rerun()
                     else:
-                        st.warning("Nenhum dos produtos pendentes foi detectado no site ainda.")
+                        st.warning("Varredura finalizada. Nenhum item novo detectado no site.")
                 else:
-                    st.info("Todos os produtos do inventário já estão com status atualizado.")
+                    st.info("O inventário já está 100% atualizado com o site.")
             
             except Exception as e:
-                st.error(f"Erro ao acessar o Inventário: {e}")
+                if "429" in str(e):
+                    st.error("⚠️ O Google Sheets pediu uma pausa. Tente novamente em 1 minuto.")
+                else:
+                    st.error(f"Erro ao acessar o Inventário: {e}")
 
     st.divider()
     st.write("### 📤 Enviar Arquivo")
