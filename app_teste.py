@@ -295,36 +295,45 @@ if menu_selecionado == "🛒 Vendas":
     # Criamos a lista final apenas com os códigos mais recentes
     lista_selecao_limpa = [f"{v['full_cod']} - {v['nome']}" for v in produtos_filtrados_venda.values()]
     # -----------------------------------------------------
-    st.subheader("🛒 Registro de Venda")
     
+    # ==========================================
     # --- 1. CONFIGURAÇÃO GERAL DA VENDA (CABEÇALHO) ---
-    col_v1, col_v2 = st.columns(2)
-    with col_v1:
-        metodo = st.selectbox("Forma de Pagamento", ["Pix", "Dinheiro", "Cartão", "Sweet Flex"], key="venda_metodo_pg")
-        c_sel = st.selectbox("Selecionar Cliente", ["*** NOVO CLIENTE ***"] + [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()], key="venda_cliente_sel")
-        
-        telefone_sugerido = ""
-        if c_sel != "*** NOVO CLIENTE ***":
-            id_cliente = c_sel.split(" - ")[0].strip()
-            if id_cliente in banco_de_clientes:
-                telefone_sugerido = banco_de_clientes[id_cliente].get('fone', "")
-        
-        c_nome_novo = st.text_input("Nome Completo (se novo)", key="venda_nome_novo")
-        c_zap = st.text_input("WhatsApp", value=telefone_sugerido, key="zap_venda_input")
-        vendedor = st.text_input("Vendedor(a)", value="Bia", key="venda_vendedor_input")
+    # ==========================================
+    with st.container(border=True):
+        # 1. Título centralizado e DENTRO do quadro para ditar a largura total
+        st.markdown("<h3 style='text-align: center;'>🛒 Registro de Venda</h3>", unsafe_allow_html=True)
+        st.divider()
 
-    with col_v2:
-        detalhes_p = []
-        n_p = 1
-        if metodo == "Sweet Flex":
-            n_p = st.number_input("Número de Parcelas", 1, 12, 1, key="venda_n_parcelas")
-            cols_parc = st.columns(n_p)
-            for i in range(n_p):
-                with cols_parc[i]:
-                    dt = st.date_input(f"{i+1}ª Parc.", datetime.now(), format="DD/MM/YYYY", key=f"vd_data_parc_{i}")
-                    detalhes_p.append(dt.strftime("%d/%m/%Y"))
-        else:
-            detalhes_p = [datetime.now().strftime("%d/%m/%Y")]
+        # 2. Mantendo EXATAMENTE a sua estrutura original: um embaixo do outro
+        col_v1, col_v2 = st.columns(2)
+        
+        with col_v1:
+            metodo = st.selectbox("Forma de Pagamento", ["Pix", "Dinheiro", "Cartão", "Sweet Flex"], key="venda_metodo_pg")
+            c_sel = st.selectbox("Selecionar Cliente", ["*** NOVO CLIENTE ***"] + [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()], key="venda_cliente_sel")
+            
+            telefone_sugerido = ""
+            if c_sel != "*** NOVO CLIENTE ***":
+                id_cliente = c_sel.split(" - ")[0].strip()
+                if id_cliente in banco_de_clientes:
+                    telefone_sugerido = banco_de_clientes[id_cliente].get('fone', "")
+            
+            c_nome_novo = st.text_input("Nome Completo (se novo)", key="venda_nome_novo")
+            c_zap = st.text_input("WhatsApp", value=telefone_sugerido, key="zap_venda_input")
+            vendedor = st.text_input("Vendedor(a)", value="Bia", key="venda_vendedor_input")
+
+        with col_v2:
+            # 3. O "espaço vazio" à direita é protegido aqui para as parcelas do Sweet Flex
+            detalhes_p = []
+            n_p = 1
+            if metodo == "Sweet Flex":
+                n_p = st.number_input("Número de Parcelas", 1, 12, 1, key="venda_n_parcelas")
+                cols_parc = st.columns(n_p)
+                for i in range(n_p):
+                    with cols_parc[i]:
+                        dt = st.date_input(f"{i+1}ª Parc.", datetime.now(), format="DD/MM/YYYY", key=f"vd_data_parc_{i}")
+                        detalhes_p.append(dt.strftime("%d/%m/%Y"))
+            else:
+                detalhes_p = [datetime.now().strftime("%d/%m/%Y")]
 
     st.divider()
 
