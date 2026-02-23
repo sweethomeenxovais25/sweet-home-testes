@@ -62,20 +62,40 @@ def buscar_dados_usuario(nome_usuario):
 # ==========================================
 estilo_sweet_clean = """
 <style>
+    /* 1. Tela Principal Branca com a Listra Café na Extrema Direita */
     [data-testid="stAppViewContainer"] {
         background-color: #ffffff !important;
         border-right: 12px solid #31241b !important;
     }
+    
+    /* 2. Barra Lateral (Tom Areia Muito Claro) */
     [data-testid="stSidebar"] {
         background-color: #FCF8F2 !important;
         border-right: 1px solid #f6debc !important;
     }
+
+    /* ✨ O EXORCISMO DA SETA FANTASMA ✨ */
+    /* Pega a seta de abrir e a de fechar diretamente pelo código do Streamlit */
+    [data-testid="collapsedControl"] svg, 
+    [data-testid="collapsedControl"] path,
+    [data-testid="stSidebar"] button svg,
+    [data-testid="stSidebar"] button path {
+        color: #31241b !important;
+        fill: #31241b !important;
+        stroke: #31241b !important;
+    }
+
+    /* Força os textos comuns a ficarem escuros (caso o navegador esteja no modo escuro) */
     .stMarkdown, p, span, label, div[data-testid="stMetricValue"] {
         color: #31241b !important;
     }
+
+    /* 3. Títulos na cor Café Intenso */
     h1, h2, h3, h4 {
         color: #31241b !important;
     }
+
+    /* 4. Botões Principais no tom Caramelo */
     .stButton>button {
         background-color: #A67B5B !important; 
         color: #ffffff !important;
@@ -83,11 +103,24 @@ estilo_sweet_clean = """
         border-radius: 6px !important;
         border: none !important;
         box-shadow: 2px 2px 8px rgba(0,0,0,0.1) !important;
+        transition: all 0.2s ease-in-out !important;
     }
+    
     .stButton>button:hover {
         background-color: #8B5A2B !important;
         color: #ffffff !important;
+        transform: scale(1.02);
     }
+    
+    /* Protege a letra do botão para continuar branca */
+    .stButton>button p, .stButton>button span {
+        color: #ffffff !important;
+    }
+
+    /* Limpeza do cabeçalho e rodapé */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {background-color: transparent !important;}
 </style>
 """
 st.markdown(estilo_sweet_clean, unsafe_allow_html=True)
@@ -98,23 +131,32 @@ st.markdown(estilo_sweet_clean, unsafe_allow_html=True)
 if not st.session_state['autenticado']:
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
-        try: st.image("logo_sweet_teste.png", use_container_width=True)
-        except: st.warning("🌸 Sweet Home Enxovais")
+        try:
+            st.image("logo_sweet_teste.png", use_container_width=True)
+        except:
+            st.warning("🌸 Sweet Home Enxovais")
         
         st.markdown("<h2 style='text-align: center;'>Gestão Sweet</h2>", unsafe_allow_html=True)
+
         with st.form("form_login"):
             usuario_input = st.text_input("Usuário").strip()
             senha_input = st.text_input("Senha", type="password").strip()
             entrar = st.form_submit_button("Entrar no Sistema 🚀", use_container_width=True)
+            
             if entrar:
                 try:
                     usuarios_permitidos = st.secrets["usuarios"]
-                    if usuario_input in usuarios_permitidos and str(usuarios_permitidos[usuario_input]) == senha_input:
-                        st.session_state['autenticado'] = True
-                        st.session_state['usuario_logado'] = usuario_input
-                        st.rerun()
-                    else: st.error("❌ Credenciais inválidas.")
-                except: st.error("Erro nos Secrets.")
+                    if usuario_input in usuarios_permitidos:
+                        if str(usuarios_permitidos[usuario_input]) == senha_input:
+                            st.session_state['autenticado'] = True
+                            st.session_state['usuario_logado'] = usuario_input
+                            st.rerun()
+                        else:
+                            st.error("❌ Senha incorreta.")
+                    else:
+                        st.error("❌ Usuário não encontrado.")
+                except Exception as e:
+                    st.error("Erro ao acessar cofre de senhas. Verifique os Secrets.")
     st.stop()
 
 # ==========================================
