@@ -274,6 +274,11 @@ with st.sidebar:
 # --- SEÇÃO 1: VENDAS (SISTEMA DE CARRINHO MULTI-ITENS) ---
 # ==========================================
 if menu_selecionado == "🛒 Vendas":
+    
+    # 💡 A FECHADURA DA MEMÓRIA ENTRA EXATAMENTE AQUI:
+    if 'carrinho' not in st.session_state:
+        st.session_state['carrinho'] = []
+
     # --- FILTRO INTELIGENTE DE VERSÕES (LATEST VERSION) ---
     produtos_filtrados_venda = {}
     for cod_completo, info in banco_de_produtos.items():
