@@ -31,15 +31,15 @@ if 'historico_estoque' not in st.session_state:
     
 # --- AUXILIARES TÉCNICOS ---
 def limpar_v(v):
-    if pd.isna(v) or v == "": return 0.0
-    numero = pd.to_numeric(str(v).replace('R$', '').replace('.', '').replace(',', '.').strip(), errors='coerce') or 0.0
-    return round(numero, 2)
+    if pd.isna(v) or v == "": return 0.0
+    numero = pd.to_numeric(str(v).replace('R$', '').replace('.', '').replace(',', '.').strip(), errors='coerce') or 0.0
+    return round(numero, 2)
 
 def limpar_texto(texto):
-    if not isinstance(texto, str):
-        return ""
-    texto_sem_acento = unicodedata.normalize('NFD', texto).encode('ascii', 'ignore').decode("utf-8")
-    return texto_sem_acento.lower().strip()
+    if not isinstance(texto, str):
+        return ""
+    texto_sem_acento = unicodedata.normalize('NFD', texto).encode('ascii', 'ignore').decode("utf-8")
+    return texto_sem_acento.lower().strip()
 
 # ==========================================
 # 🎨 1.5. IDENTIDADE VISUAL (SWEET CLEAN)
