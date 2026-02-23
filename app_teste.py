@@ -524,7 +524,7 @@ elif menu_selecionado == "📦 Estoque":
                                 aba.update_acell(f"C{lin_p}", comp_c + q_nova)
                                 aba.update_acell(f"J{lin_p}", datetime.now().strftime("%d/%m/%Y"))
                                 # Escreve o Log Permanente
-                                planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "REPOSIÇÃO", nome_e, f"+{q_nova} un. (Cód: {cod_e})", st.session_state.get('usuario_logado', 'Bia')], value_input_option='USER_ENTERED')
+                                planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "REPOSIÇÃO", nome_e, f"+{q_nova} un. (Cód: {cod_e})", st.session_state.get('usuario_logado', 'Bia')], value_input_option='RAW')
                                 st.success("Estoque Atualizado!"); st.cache_resource.clear(); st.rerun()
 
                 elif acao == "2. Novo Lote (Preço Novo)":
@@ -542,10 +542,10 @@ elif menu_selecionado == "📦 Estoque":
                                 if puxar: aba.update_acell(f"C{lin_p}", vend_g)
                                 nova_linha = [n_cod, f"{nome_e} (Lote {int(ext)+1})", q_l + (est_h if puxar else 0), cu_l, f_total_e, 3, 0, f_estoque_h, pr_l, datetime.now().strftime("%d/%m/%Y"), ""]
                                 celula_totais = aba.find("TOTAIS")
-                                if celula_totais: aba.insert_row(nova_linha, index=celula_totais.row, value_input_option='USER_ENTERED')
-                                else: aba.append_row(nova_linha, value_input_option='USER_ENTERED')
+                                if celula_totais: aba.insert_row(nova_linha, index=celula_totais.row, value_input_option='RAW')
+                                else: aba.append_row(nova_linha, value_input_option='RAW')
                                 # Escreve o Log Permanente
-                                planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "NOVO LOTE", nome_e, f"Lote {n_cod} com {q_l} un.", st.session_state.get('usuario_logado', 'Bia')], value_input_option='USER_ENTERED')
+                                planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "NOVO LOTE", nome_e, f"Lote {n_cod} com {q_l} un.", st.session_state.get('usuario_logado', 'Bia')], value_input_option='RAW')
                                 st.success(f"Lote {n_cod} criado!"); st.cache_resource.clear(); st.rerun()
 
                 elif acao == "3. Correção":
@@ -556,7 +556,7 @@ elif menu_selecionado == "📦 Estoque":
                                 aba = planilha_mestre.worksheet("INVENTÁRIO")
                                 aba.update_acell(f"C{lin_p}", real + vend_g)
                                 # Escreve o Log Permanente
-                                planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "CORREÇÃO", nome_e, f"Ajustado para {real} un.", st.session_state.get('usuario_logado', 'Bia')], value_input_option='USER_ENTERED')
+                                planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "CORREÇÃO", nome_e, f"Ajustado para {real} un.", st.session_state.get('usuario_logado', 'Bia')], value_input_option='RAW')
                                 st.success("Corrigido!"); st.cache_resource.clear(); st.rerun()
 
     st.divider()
@@ -571,10 +571,10 @@ elif menu_selecionado == "📦 Estoque":
                     f_estoque_h = '=SE(INDIRETO("C"&LIN())=""; ""; INDIRETO("C"&LIN()) - INDIRETO("G"&LIN()))'
                     linha_manual = [n_c, n_n, n_q, n_custo, f_total_e, 3, 0, f_estoque_h, n_v, datetime.now().strftime("%d/%m/%Y"), ""]
                     celula_totais = aba.find("TOTAIS")
-                    if celula_totais: aba.insert_row(linha_manual, index=celula_totais.row, value_input_option='USER_ENTERED')
-                    else: aba.append_row(linha_manual, value_input_option='USER_ENTERED')
+                    if celula_totais: aba.insert_row(linha_manual, index=celula_totais.row, value_input_option='RAW')
+                    else: aba.append_row(linha_manual, value_input_option='RAW')
                     # Escreve o Log Permanente
-                    planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "CADASTRO", n_n, f"Novo item Cód: {n_c}", st.session_state.get('usuario_logado', 'Bia')], value_input_option='USER_ENTERED')
+                    planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "CADASTRO", n_n, f"Novo item Cód: {n_c}", st.session_state.get('usuario_logado', 'Bia')], value_input_option='RAW')
                     st.success("✅ Cadastrado!"); st.cache_resource.clear(); st.rerun()
 
     st.divider()
