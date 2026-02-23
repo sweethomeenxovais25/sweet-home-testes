@@ -17,21 +17,18 @@ import time
 def verificar_status_odoo(codigo_produto):
     cod_limpo = str(codigo_produto).strip()
     url_busca = f"https://sweethomecomfort.odoo.com/shop?&search={cod_limpo}"
-    
     try:
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
         resposta = requests.get(url_busca, headers=headers, timeout=10)
         conteudo = resposta.text.lower()
         
-        # Critério de erro: se a frase de "Nenhum resultado" aparecer para o código específico
-        frase_erro = f'nenhum resultado para "{cod_limpo.lower()}"'
-        if frase_erro in conteudo or "nenhum resultado encontrado" in conteudo:
+        # Frases de erro específicas do seu site
+        if f'nenhum resultado para "{cod_limpo.lower()}"' in conteudo or "nenhum resultado encontrado" in conteudo:
             return False, ""
         
-        # Critério de sucesso: presença de elementos de produto do Odoo
+        # Confirmação visual de que o produto existe
         if "oe_product" in conteudo or "o_wsale_products_item" in conteudo:
             return True, url_busca
-            
         return False, ""
     except:
         return False, ""
@@ -1241,103 +1238,108 @@ elif menu_selecionado == "📂 Documentos":
                 else: 
                     st.info("Sua fila de trabalho está limpa.")
 
-    # --- ASSISTENTE DE SINCRONIZAÇÃO MESTRE (V7 - INTELIGÊNCIA DE GRUPO & RELATÓRIO PRO) ---
+    # --- ASSISTENTE DE SINCRONIZAÇÃO MESTRE (V10 - FOCO EM 'TOTAIS' & SEQUENCIAL) ---
     with st.expander("🤖 Sincronizador Inteligente Odoo", expanded=False):
-        st.write("Varredura inteligente: O status da versão mais nova (.1, .2) define o grupo todo.")
+        st.write("Varredura organizada linha a linha. Para exatamente na linha de 'TOTAIS'.")
         
-        if st.button("🚀 Iniciar Varredura Completa", use_container_width=True):
+        if st.button("🚀 Iniciar Varredura Sequencial", use_container_width=True):
             try:
-                # 1. CARREGAMENTO E LIMPEZA
+                # 1. CARREGAMENTO DOS DADOS
                 aba_inv = planilha_mestre.worksheet("INVENTÁRIO")
                 dados_inv = aba_inv.get_all_values()
                 df_inv = pd.DataFrame(dados_inv[1:], columns=dados_inv[0])
                 
-                # Filtro inicial de segurança
-                df_valido = df_inv[
-                    (df_inv['CÓD. PRÓDUTO'].str.strip() != "") & 
-                    (~df_inv['CÓD. PRÓDUTO'].str.contains("TOTAL", case=False, na=False)) &
-                    (df_inv['STATUS ODOO'].astype(str).str.upper() != "PUBLICADO")
-                ].copy()
+                # 2. LOCALIZAR A LINHA DE 'TOTAIS' (LIMITE MÁXIMO)
+                # Buscamos o índice da primeira linha que contém a palavra exata 'TOTAIS'
+                idx_limite = df_inv[df_inv['CÓD. PRÓDUTO'].str.upper().str.contains("TOTAIS", na=False)].index.min()
+                
+                # Se encontrar 'TOTAIS', cortamos o DF ali. Senão, processamos tudo.
+                df_processar = df_inv.iloc[:idx_limite].copy() if not pd.isna(idx_limite) else df_inv.copy()
+                
+                # Remove apenas linhas realmente vazias no meio do caminho
+                df_processar = df_processar[df_processar['CÓD. PRÓDUTO'].str.strip() != ""]
 
-                if df_valido.empty:
-                    st.success("✅ Tudo atualizado! Nenhuma pendência no inventário.")
+                if df_processar.empty:
+                    st.warning("Nenhum produto pendente encontrado antes da linha de 'TOTAIS'.")
                 else:
-                    # 💡 MÁGICA: Criamos a "Família" do código (ex: 800.1 vira 800)
-                    df_valido['BASE_CODE'] = df_valido['CÓD. PRÓDUTO'].apply(lambda x: str(x).split('.')[0].strip())
-                    
-                    # Agrupamos por base para processar uma família de cada vez
-                    grupos = df_valido.groupby('BASE_CODE')
-                    total_grupos = len(grupos)
-                    
-                    st.info(f"📦 Analisando {total_grupos} famílias de produtos...")
+                    st.info(f"🔍 Iniciando varredura em {len(df_processar)} linhas (Parada em: TOTAIS).")
                     barra = st.progress(0)
                     status_frame = st.empty()
                     dados_relatorio = []
                     aba_doc = planilha_mestre.worksheet("DOCUMENTOS")
+                    
+                    # Cache para evitar múltiplas buscas da mesma família (.1, .2) no site
+                    cache_familias = {} 
 
-                    for i, (base, frame_grupo) in enumerate(grupos):
-                        # Identificamos o código mais recente da família (último da lista)
-                        mais_recente = frame_grupo.iloc[-1]
-                        cod_caçula = str(mais_recente['CÓD. PRÓDUTO']).strip()
+                    # 3. LOOP LINHA POR LINHA
+                    for i, (idx, row) in enumerate(df_processar.iterrows()):
+                        cod_atual = str(row['CÓD. PRÓDUTO']).strip()
+                        base_code = cod_atual.split('.')[0].strip()
+                        linha_real = idx + 2
                         
-                        status_frame.markdown(f"🕵️ **Analisando Família {base}:** Verificando versão `{cod_caçula}`...")
+                        status_frame.markdown(f"⏳ **Processando Linha {linha_real}:** `{cod_atual}`")
 
-                        # Busca no site apenas a versão mais nova
-                        achou, link_site = verificar_status_odoo(cod_caçula)
+                        # Inteligência de Versão: Localiza a versão mais nova da família na lista de processamento
+                        familia = df_processar[df_processar['CÓD. PRÓDUTO'].str.startswith(base_code)]
+                        cod_referencia = str(familia.iloc[-1]['CÓD. PRÓDUTO']).strip()
+
+                        # Verifica no site se ainda não pesquisou essa família
+                        if cod_referencia not in cache_familias:
+                            achou, link = verificar_status_odoo(cod_referencia)
+                            cache_familias[cod_referencia] = (achou, link)
                         
-                        # Agora aplicamos o resultado para TODOS os membros da família na planilha
-                        for idx_interno, linha_membro in frame_grupo.iterrows():
-                            linha_planilha = idx_interno + 2
-                            cod_membro = str(linha_membro['CÓD. PRÓDUTO']).strip()
+                        online, link_prod = cache_familias[cod_referencia]
+                        
+                        # Pausa para evitar bloqueio da API do Google (Erro 429)
+                        time.sleep(1.3)
+
+                        if online:
+                            # Se a referência (caçula) está online, atualizamos o inventário
+                            status_msg = "Publicado" if cod_atual == cod_referencia else "Publicado (Versão Nova)"
+                            aba_inv.update_cell(linha_real, 11, link_prod) # Coluna K
+                            aba_inv.update_cell(linha_real, 12, status_msg) # Coluna L
                             
-                            time.sleep(1.2) # Respeito ao limite do Google (Quota 429)
+                            # Integração Automática com DOCUMENTOS (Para limpar a Linha de Montagem)
+                            try:
+                                cells_doc = aba_doc.findall(cod_atual)
+                                for c in cells_doc:
+                                    if c.col == 6: # Coluna VINCULO (F)
+                                        aba_doc.update_cell(c.row, 7, "Publicado no Odoo")
+                            except: pass
+                            
+                            res_final = "✅ Publicado"
+                        else:
+                            # Se não está no site, marca como Não Publicado
+                            aba_inv.update_cell(linha_real, 12, "Não Publicado")
+                            res_final = "❌ Não Encontrado"
 
-                            if achou:
-                                # Se o caçula está no site, o membro está "Publicado"
-                                status_txt = "Publicado" if cod_membro == cod_caçula else "Publicado (Versão Nova)"
-                                aba_inv.update_cell(linha_planilha, 11, link_site) # Coluna K
-                                aba_inv.update_cell(linha_planilha, 12, status_txt) # Coluna L
-                                
-                                # Sincronização com DOCUMENTOS (Para limpar a Linha de Montagem)
-                                try:
-                                    cells_doc = aba_doc.findall(cod_membro)
-                                    for c in cells_doc:
-                                        if c.col == 6: # Coluna VINCULO
-                                            aba_doc.update_cell(c.row, 7, "Publicado no Odoo")
-                                except: pass
-                                
-                                res_relatorio = "✅ Publicado"
-                            else:
-                                # Se o caçula não está, a família toda é marcada como "Não Publicado"
-                                aba_inv.update_cell(linha_planilha, 12, "Não Publicado")
-                                res_relatorio = "❌ Não encontrado"
+                        dados_relatorio.append({
+                            "Linha": linha_real,
+                            "Produto": cod_atual,
+                            "Status Final": res_final
+                        })
+                        barra.progress((i + 1) / len(df_processar))
 
-                            dados_relatorio.append({
-                                "Família": base,
-                                "Código SKU": cod_membro,
-                                "Resultado": res_relatorio,
-                                "Versão Avaliada": cod_caçula
-                            })
-                        
-                        barra.progress((i + 1) / total_grupos)
-
-                    # --- 📊 RELATÓRIO FINAL (PADRÃO PROFISSIONAL) ---
+                    # --- 📊 RELATÓRIO VISUAL COLORIDO ---
                     status_frame.empty()
                     st.divider()
+                    st.write("### 📋 Resumo da Sincronização")
                     
-                    with st.expander("📋 Detalhes da Sincronização", expanded=True):
-                        st.dataframe(
-                            pd.DataFrame(dados_relatorio),
-                            column_config={
-                                "Resultado": st.column_config.TextColumn("Status no Site", help="Resultado da busca do robô"),
-                                "Família": st.column_config.TextColumn("Grupo")
-                            },
-                            hide_index=True,
-                            use_container_width=True
-                        )
+                    df_rel = pd.DataFrame(dados_relatorio)
                     
-                    st.success("Sincronização concluída com inteligência de grupo!")
-                    if st.button("🔄 Finalizar e Atualizar Linha de Montagem", use_container_width=True):
+                    # Função para aplicar cores na tabela
+                    def colorir_status(val):
+                        color = '#d4edda' if '✅' in val else '#f8d7da' # Verde claro ou Vermelho claro
+                        return f'background-color: {color}; color: black; font-weight: bold;'
+
+                    st.dataframe(
+                        df_rel.style.applymap(colorir_status, subset=['Status Final']),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                    
+                    st.success("Sincronização concluída com sucesso!")
+                    if st.button("🔄 Atualizar Listas do Sistema", use_container_width=True):
                         st.cache_resource.clear()
                         st.rerun()
             
