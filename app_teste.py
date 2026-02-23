@@ -15,16 +15,29 @@ import requests
 
 def verificar_status_odoo(codigo_produto):
     cod_limpo = str(codigo_produto).strip()
+    # URL de busca configurada para o domínio informado
     url = f"https://sweethomecomfort.odoo.com/shop?&search={cod_limpo}"
+    
     try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        resposta = requests.get(url, headers=headers, timeout=5)
-        if "nenhum resultado encontrado" in resposta.text.lower():
-            return "🔴" # Não está no site
-        else:
-            return "🟢" # Está no site
-    except:
-        return "⚪" # Erro de conexão
+        # Cabeçalho robusto para simular um navegador real
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+        }
+        # Aumentamos o timeout para 10 segundos para garantir a resposta em conexões lentas
+        resposta = requests.get(url, headers=headers, timeout=10)
+        conteudo = resposta.text.lower()
+        
+        # Se a frase de "não encontrado" estiver no HTML, o produto não está no site
+        if "nenhum resultado encontrado" in conteudo:
+            return "🔴"
+        
+        # Se encontrar classes de produto do Odoo ou o próprio código, confirma o status
+        if "oe_product" in conteudo or cod_limpo in conteudo:
+            return "🟢"
+            
+        return "🔴"
+    except Exception:
+        return "⚪" # Indica erro de conexão ou site fora do ar
 
 # ==========================================
 # 1. CONFIGURAÇÃO ÚNICA DA PÁGINA
