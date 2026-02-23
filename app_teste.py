@@ -1205,37 +1205,63 @@ elif menu_selecionado == "📂 Documentos":
     with st.expander("🚀 Linha de Montagem Odoo (Site)", expanded=True):
         t_falta, t_pronto = st.tabs(["🔴 1. Falta Foto (Bia)", "🟢 2. Pronto p/ Site (Você)"])
         
+        # --- ABA 1: O QUE A BIA PRECISA FOTOGRAFAR ---
         with t_falta:
-            st.write("**Produtos no estoque aguardando foto para o site:**")
+            st.write("**Produtos no inventário aguardando foto para o site:**")
             if not df_full_inv.empty:
                 prods_com_foto = []
+                # Verifica na aba DOCUMENTOS quem já tem foto
                 if not df_docs.empty and 'VINCULO' in df_docs.columns:
                     fotos = df_docs[df_docs['TIPO'] == "Foto de Produto"]
                     prods_com_foto = [str(p).split(" - ")[0].strip() for p in fotos['VINCULO'].dropna() if " - " in str(p)]
                 
-                df_falta = df_full_inv[~df_full_inv['CÓD. PRÓDUTO'].astype(str).str.strip().isin(prods_com_foto)]
-                if not df_falta.empty:
-                    st.dataframe(df_falta[['CÓD. PRÓDUTO', 'NOME DO PRODUTO', 'ESTOQUE ATUAL']], hide_index=True)
-                else: 
-                    st.success("🎉 Nenhuma pendência! O estoque inteiro tem foto.")
+                # Filtra o inventário tirando quem já tem foto
+                df_falta = df_full_inv[~df_full_inv['CÓD. PRÓDUTO'].astype(str).str.strip().isin(prods_com_foto)].copy()
+                
+                # Limpeza de segurança: Remove linhas vazias e a linha de 'TOTAIS'
+                df_falta = df_falta[
+                    (df_falta['CÓD. PRÓDUTO'].str.strip() != "") & 
+                    (~df_falta['CÓD. PRÓDUTO'].str.upper().str.contains("TOTAIS", na=False))
+                ]
 
+                if not df_falta.empty:
+                    # 💡 AQUI ESTÁ A MUDANÇA: Substituímos ESTOQUE ATUAL por STATUS ODOO
+                    st.dataframe(
+                        df_falta[['CÓD. PRÓDUTO', 'NOME DO PRODUTO', 'STATUS ODOO']], 
+                        hide_index=True,
+                        use_container_width=True
+                    )
+                else: 
+                    st.success("🎉 Nenhuma pendência! O inventário inteiro tem foto.")
+
+        # --- ABA 2: O QUE VOCÊ PRECISA PUBLICAR ---
         with t_pronto:
             st.write("**Fotos tiradas! Coloque no site e marque como publicado:**")
             if not df_docs.empty and 'STATUS_ODOO' in df_docs.columns:
+                # Puxa apenas o que a Bia fotografou e ainda não foi pro site
                 prontos = df_docs[(df_docs['TIPO'] == "Foto de Produto") & (df_docs['STATUS_ODOO'] == "Pronto para Site")]
+                
                 if not prontos.empty:
                     for idx, r in prontos.iterrows():
                         c1, c2, c3 = st.columns([3, 1, 1])
                         c1.write(f"📦 **{r['VINCULO']}**")
                         c2.link_button("🖼️ Ver Foto", r['LINK_DRIVE'], use_container_width=True)
+                        
+                        # Botão manual (caso você não queira usar o robô e queira dar baixa na mão)
                         if c3.button("✅ Publicado", key=f"btn_odoo_{idx}"):
-                            aba_doc = planilha_mestre.worksheet("DOCUMENTOS")
-                            cell = aba_doc.find(r['ID_ARQUIVO'])
-                            aba_doc.update_cell(cell.row, 7, "Publicado no Odoo")
-                            st.success("Atualizado!"); st.cache_resource.clear(); st.rerun()
+                            try:
+                                aba_doc = planilha_mestre.worksheet("DOCUMENTOS")
+                                cell = aba_doc.find(r['ID_ARQUIVO'])
+                                aba_doc.update_cell(cell.row, 7, "Publicado no Odoo")
+                                st.success("Atualizado!")
+                                st.cache_data.clear()
+                                st.cache_resource.clear()
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro ao atualizar: {e}")
                         st.divider()
                 else: 
-                    st.info("Sua fila de trabalho está limpa.")
+                    st.info("Sua fila de trabalho está limpa. 🚀")
 
     # --- 🤖 SEÇÃO: SINCRONIZADOR INTELIGENTE ODOO (V14) ---
     with st.expander("🤖 Sincronizador Inteligente (Análise de Versões)", expanded=True):
