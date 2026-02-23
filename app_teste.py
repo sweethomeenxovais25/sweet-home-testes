@@ -404,6 +404,125 @@ if menu_selecionado == "🛒 Vendas":
             st.warning(f"Aguardando conexão com a planilha... ({e})")
 
 # ==========================================
+# ✏️ BORRACHA MÁGICA: EDIÇÃO SEGURA DE VENDAS
+# ==========================================
+    with st.expander("✏️ Corrigir Venda Recente", expanded=False):
+        st.write("Escolha uma venda recente abaixo para corrigir cliente, produto ou valores. O sistema atualizará a planilha sem criar linhas duplicadas.")
+        
+        try:
+            aba_vendas = planilha_mestre.worksheet("VENDAS")
+            dados_v = aba_vendas.get_all_values()
+            
+            if len(dados_v) > 1:
+                vendas_recentes = []
+                # Pega as últimas 20 vendas, de trás para frente
+                for i in range(len(dados_v)-1, max(0, len(dados_v)-21), -1):
+                    linha = dados_v[i]
+                    if "TOTAIS" not in str(linha[3]).upper() and linha[3] != "":
+                        # linha[1]=Data, linha[3]=Cliente, linha[5]=Produto
+                        vendas_recentes.append(f"Linha {i+1} | Data: {linha[1]} | Cliente: {linha[3]} | Item: {linha[5]}")
+                
+                venda_selecionada = st.selectbox("Selecione a venda com erro:", ["---"] + vendas_recentes, help="Mostra apenas as últimas 20 vendas para facilitar a busca.")
+                
+                if venda_selecionada != "---":
+                    linha_real = int(venda_selecionada.split(" | ")[0].replace("Linha ", ""))
+                    linha_dados = dados_v[linha_real - 1]
+                    
+                    # Recuperando o que está na planilha agora
+                    cod_cli_atual = linha_dados[2]
+                    nome_cli_atual = linha_dados[3]
+                    cod_prod_atual = linha_dados[4]
+                    nome_prod_atual = linha_dados[5]
+                    
+                    # Limpeza segura de números para o formulário
+                    try: qtd_atual = float(linha_dados[7].replace(",", "."))
+                    except: qtd_atual = 1.0
+                    try: val_atual = float(linha_dados[8].replace("R$", "").replace(".", "").replace(",", ".").strip())
+                    except: val_atual = 0.0
+                    try: desc_perc_atual = float(linha_dados[9].replace("%", "").replace(",", "."))
+                    except: desc_perc_atual = 0.0
+                    desc_reais_atual = (qtd_atual * val_atual) * desc_perc_atual
+                    
+                    metodo_atual = linha_dados[14]
+
+                    # Preparando as listas oficiais de seleção
+                    lista_clientes = [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()]
+                    cliente_str_atual = f"{cod_cli_atual} - {nome_cli_atual}"
+                    idx_cliente = lista_clientes.index(cliente_str_atual) if cliente_str_atual in lista_clientes else 0
+
+                    lista_produtos = [f"{k} - {v['nome']}" for k, v in banco_de_produtos.items()]
+                    produto_str_atual = f"{cod_prod_atual} - {nome_prod_atual}"
+                    idx_produto = lista_produtos.index(produto_str_atual) if produto_str_atual in lista_produtos else 0
+
+                    lista_metodos = ["Pix", "Dinheiro", "Cartão", "Sweet Flex"]
+                    idx_metodo = lista_metodos.index(metodo_atual) if metodo_atual in lista_metodos else 0
+
+                    with st.form(f"form_edicao_{linha_real}"):
+                        st.write("#### 🔄 Atualizar Dados")
+                        e_c1, e_c2 = st.columns(2)
+                        novo_cliente = e_c1.selectbox("Cliente Oficial", lista_clientes, index=idx_cliente, help="Selecione a cliente correta na lista.")
+                        novo_produto = e_c2.selectbox("Produto Correto", lista_produtos, index=idx_produto)
+                        
+                        e_c3, e_c4, e_c5 = st.columns(3)
+                        nova_qtd = e_c3.number_input("Quantidade", value=int(qtd_atual) if qtd_atual.is_integer() else qtd_atual, min_value=1)
+                        novo_val = e_c4.number_input("Preço Un. (R$)", value=float(val_atual))
+                        novo_desc = e_c5.number_input("Desconto (R$)", value=float(desc_reais_atual))
+                        
+                        novo_metodo = st.selectbox("Forma de Pagto", lista_metodos, index=idx_metodo)
+                        
+                        if st.form_submit_button("💾 Salvar Correção", type="primary"):
+                            try:
+                                # Desmembrando os dados selecionados
+                                n_cod_cli = novo_cliente.split(" - ")[0]
+                                n_nome_cli = " - ".join(novo_cliente.split(" - ")[1:])
+                                n_cod_prod = novo_produto.split(" - ")[0]
+                                n_nome_prod = " - ".join(novo_produto.split(" - ")[1:])
+                                n_custo = float(banco_de_produtos.get(n_cod_prod, {}).get('custo', 0.0))
+                                
+                                # Refazendo a matemática
+                                n_v_bruto = nova_qtd * novo_val
+                                n_desc_perc = novo_desc / n_v_bruto if n_v_bruto > 0 else 0
+                                n_t_liq = n_v_bruto - novo_desc
+                                
+                                eh_parc = "Sim" if novo_metodo == "Sweet Flex" else "Não"
+                                
+                                # Mantém o número de parcelas originais se for Flex
+                                try: num_parc = int(linha_dados[16])
+                                except: num_parc = 1
+                                if num_parc <= 0: num_parc = 1
+                                
+                                val_parc = n_t_liq / num_parc if eh_parc == "Sim" else 0
+                                val_vista = n_t_liq if eh_parc == "Não" else 0
+                                val_total_flex = n_t_liq if eh_parc == "Sim" else 0
+                                
+                                # Pacote de Atualização Cirúrgica (só mexe no que precisa)
+                                atualizacoes = [
+                                    {'range': f'C{linha_real}', 'values': [[n_cod_cli]]},
+                                    {'range': f'D{linha_real}', 'values': [[n_nome_cli]]},
+                                    {'range': f'E{linha_real}', 'values': [[n_cod_prod]]},
+                                    {'range': f'F{linha_real}', 'values': [[n_nome_prod]]},
+                                    {'range': f'G{linha_real}', 'values': [[n_custo]]},
+                                    {'range': f'H{linha_real}', 'values': [[nova_qtd]]},
+                                    {'range': f'I{linha_real}', 'values': [[novo_val]]},
+                                    {'range': f'J{linha_real}', 'values': [[n_desc_perc]]},
+                                    {'range': f'O{linha_real}', 'values': [[novo_metodo]]},
+                                    {'range': f'P{linha_real}', 'values': [[eh_parc]]},
+                                    {'range': f'S{linha_real}', 'values': [[val_parc]]},
+                                    {'range': f'T{linha_real}', 'values': [[val_vista]]},
+                                    {'range': f'U{linha_real}', 'values': [[val_total_flex]]}
+                                ]
+                                aba_vendas.batch_update(atualizacoes, value_input_option='RAW')
+                                
+                                st.success("✅ Erro corrigido com sucesso! A planilha foi atualizada.")
+                                st.cache_resource.clear()
+                                st.rerun()
+                                
+                            except Exception as e:
+                                st.error(f"⚠️ Erro ao salvar: {e}")
+        except Exception as e:
+            st.info("Aguardando carregamento dos dados para edição.")
+
+# ==========================================
 # --- SEÇÃO 2: FINANCEIRO (COM RASTRO FIFO) ---
 # ==========================================
 elif menu_selecionado == "💰 Financeiro":
