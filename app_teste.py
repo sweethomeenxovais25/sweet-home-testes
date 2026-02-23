@@ -113,35 +113,35 @@ st.markdown(estilo_sweet_clean, unsafe_allow_html=True)
 # 🔒 2. FASE DE LOGIN & SEGURANÇA
 # ==========================================
 if not st.session_state['autenticado']:
-    col1, col2, col3 = st.columns([1, 1.5, 1])
-    with col2:
-        try:
-            st.image("logo_sweet_teste.png", use_container_width=True)
-        except:
-            st.warning("🌸 Sweet Home Enxovais")
-        
-        st.markdown("<h2 style='text-align: center;'>Gestão Sweet</h2>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 1.5, 1])
+    with col2:
+        try:
+            st.image("logo_sweet_teste.png", use_container_width=True)
+        except:
+            st.warning("🌸 Sweet Home Enxovais")
+        
+        st.markdown("<h2 style='text-align: center;'>Gestão Sweet</h2>", unsafe_allow_html=True)
 
-        with st.form("form_login"):
-            usuario_input = st.text_input("Usuário").strip()
-            senha_input = st.text_input("Senha", type="password").strip()
-            entrar = st.form_submit_button("Entrar no Sistema 🚀", use_container_width=True)
-            
-            if entrar:
-                try:
-                    usuarios_permitidos = st.secrets["usuarios"]
-                    if usuario_input in usuarios_permitidos:
-                        if str(usuarios_permitidos[usuario_input]) == senha_input:
-                            st.session_state['autenticado'] = True
-                            st.session_state['usuario_logado'] = usuario_input
-                            st.rerun()
-                        else:
-                            st.error("❌ Senha incorreta.")
-                    else:
-                        st.error("❌ Usuário não encontrado.")
-                except Exception as e:
-                    st.error("Erro ao acessar cofre de senhas. Verifique os Secrets.")
-    st.stop()
+        with st.form("form_login"):
+            usuario_input = st.text_input("Usuário").strip()
+            senha_input = st.text_input("Senha", type="password").strip()
+            entrar = st.form_submit_button("Entrar no Sistema 🚀", use_container_width=True)
+            
+            if entrar:
+                try:
+                    usuarios_permitidos = st.secrets["usuarios"]
+                    if usuario_input in usuarios_permitidos:
+                        if str(usuarios_permitidos[usuario_input]) == senha_input:
+                            st.session_state['autenticado'] = True
+                            st.session_state['usuario_logado'] = usuario_input
+                            st.rerun()
+                        else:
+                            st.error("❌ Senha incorreta.")
+                    else:
+                        st.error("❌ Usuário não encontrado.")
+                except Exception as e:
+                    st.error("Erro ao acessar cofre de senhas. Verifique os Secrets.")
+    st.stop()
 
 # ==========================================
 # 🚀 3. SISTEMA LIBERADO (CONEXÕES E DADOS)
