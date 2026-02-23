@@ -359,7 +359,6 @@ if menu_selecionado == "🛒 Vendas":
     val_v = c_p3.number_input("Preço Un. (R$)", value=preco_da_planilha, min_value=0.0, step=0.01, key=f"preco_dinamico_{cod_p_temp}")
 
     with c_p4:
-
         st.write("")
         st.write("") 
         st.write("")
