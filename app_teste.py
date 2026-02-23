@@ -15,21 +15,16 @@ import requests
 
 def verificar_status_odoo(codigo_produto):
     cod_limpo = str(codigo_produto).strip()
-    # Usando o link exato que você validou
     url = f"https://sweethomecomfort.odoo.com/shop?&search={cod_limpo}"
-    
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
-        resposta = requests.get(url, headers=headers, timeout=10)
-        texto_site = resposta.text.lower()
-        
-        # Procuramos a frase de erro que você viu no site
-        if "nenhum resultado encontrado" in texto_site:
-            return "🔴 Pendente"
+        resposta = requests.get(url, headers=headers, timeout=5)
+        if "nenhum resultado encontrado" in resposta.text.lower():
+            return "🔴" # Não está no site
         else:
-            return "🟢 No Site"
-    except Exception as e:
-        return f"⚠️ Erro: {e}"
+            return "🟢" # Está no site
+    except:
+        return "⚪" # Erro de conexão
 
 # ==========================================
 # 1. CONFIGURAÇÃO ÚNICA DA PÁGINA
@@ -1202,25 +1197,6 @@ elif menu_selecionado == "📂 Documentos":
         df_docs = pd.DataFrame()
 
     with st.expander("🚀 Linha de Montagem Odoo (Site)", expanded=True):
-            # --- NOVIDADE: Busca Manual para Teste Imediato ---
-            st.markdown("### 🔍 Testar Código no Odoo")
-            col_t1, col_t2 = st.columns([3, 1])
-            cod_teste = col_t1.text_input("Digite um código (Ex: 101.2):", key="input_teste_odoo")
-            
-            if col_t2.button("Verificar Status", use_container_width=True):
-                if cod_teste:
-                    with st.spinner("Consultando Odoo..."):
-                        res = verificar_status_odoo(cod_teste)
-                        if "🟢" in res:
-                            st.success(f"O produto **{cod_teste}** foi encontrado no site! ✅")
-                        else:
-                            st.warning(f"O produto **{cod_teste}** ainda não está no site. ❌")
-                else:
-                    st.error("Digite um código primeiro!")
-            
-            st.divider() # Uma linha para separar o teste da fila real
-
-            # --- SUAS ABAS ORIGINAIS ---
             t_falta, t_pronto = st.tabs(["🔴 1. Falta Foto (Bia)", "🟢 2. Pronto p/ Site (Você)"])
             
             with t_falta:
@@ -1243,22 +1219,19 @@ elif menu_selecionado == "📂 Documentos":
                     prontos = df_docs[(df_docs['TIPO'] == "Foto de Produto") & (df_docs['STATUS_ODOO'] == "Pronto para Site")]
                     if not prontos.empty:
                         for idx, r in prontos.iterrows():
-                            c1, c2, c3, c4 = st.columns([2.5, 1, 1.2, 1.2])
-                            cod_prod = str(r['VINCULO']).split(" - ")[0].strip()
+                            # Extraímos o código e o robô verifica o site automaticamente
+                            cod_p = str(r['VINCULO']).split(" - ")[0].strip()
+                            status_icone = verificar_status_odoo(cod_p)
                             
-                            c1.write(f"📦 **{r['VINCULO']}**")
+                            # Mantemos a estrutura exata de 3 colunas que você enviou
+                            c1, c2, c3 = st.columns([3, 1, 1])
+                            
+                            # A mágica: O nome do produto já aparece com a bolinha de status
+                            c1.write(f"{status_icone} **{r['VINCULO']}**")
+                            
                             c2.link_button("🖼️ Ver Foto", r['LINK_DRIVE'], use_container_width=True)
                             
-                            # Botão de checagem automática na linha do produto
-                            if c3.button("🔍 Checar Site", key=f"chk_odoo_{idx}", use_container_width=True):
-                                with st.spinner("Buscando..."):
-                                    status_site = verificar_status_odoo(cod_prod)
-                                    if "🟢" in status_site:
-                                        st.toast(f"Tudo Certo! {cod_prod} está ONLINE! 🟢", icon="✅")
-                                    else:
-                                        st.toast(f"Atenção: {cod_prod} ainda NÃO está no site. 🔴", icon="⚠️")
-                            
-                            if c4.button("✅ Publicado", key=f"btn_odoo_{idx}", use_container_width=True):
+                            if c3.button("✅ Publicado", key=f"btn_odoo_{idx}"):
                                 aba_doc = planilha_mestre.worksheet("DOCUMENTOS")
                                 cell = aba_doc.find(r['ID_ARQUIVO'])
                                 aba_doc.update_cell(cell.row, 7, "Publicado no Odoo")
