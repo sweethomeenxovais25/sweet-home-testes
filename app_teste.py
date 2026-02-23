@@ -183,11 +183,22 @@ ESPECIFICACOES = [
     "https://www.googleapis.com/auth/drive.file"
 ]
 
+# 👇 1. PRIMEIRO: O SISTEMA SE CONECTA AO GOOGLE E ABRE A PLANILHA
+try:
+    # Atenção: Esta parte puxa as credenciais e cria a variável "planilha_mestre"
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], ESPECIFICACOES)
+    client = gspread.authorize(creds)
+    planilha_mestre = client.open_by_key(ID_PLANILHA)
+except Exception as e:
+    st.error(f"Erro na conexão com o Google Sheets: {e}")
+    st.stop() # Se não conectar, ele para aqui e avisa.
+
+# 👇 2. DEPOIS: O GATILHO RODA (Agora que a planilha_mestre já existe!)
 # ====================================================
 # 🤖 GATILHO DE REGISTRO (MODO DETETIVE LIGADO)
 # ====================================================
 if st.session_state.get('precisa_registrar_acesso'):
-    st.warning("🕵️‍♂️ Iniciando tentativa de registro na planilha...") # Aviso para vermos se ele entrou aqui
+    st.warning("🕵️‍♂️ Iniciando tentativa de registro na planilha...") 
     try:
         aba_usuario = planilha_mestre.worksheet("USUARIO") 
         st.write("✅ 1. Encontrou a aba USUARIO.")
