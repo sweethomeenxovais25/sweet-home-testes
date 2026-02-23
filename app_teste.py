@@ -11,7 +11,7 @@ import cloudinary.uploader
 import io
 import google.generativeai as genai
 from PIL import Image
-import plotly.express as px # Essencial para os novos gráficos
+import plotly.express as px
 
 # ==========================================
 # 1. CONFIGURAÇÃO ÚNICA DA PÁGINA
@@ -146,6 +146,7 @@ if 'acesso_registrado' not in st.session_state:
 
 @st.cache_resource(ttl=600)
 def carregar_dados():
+    if not planilha_mestre: return {}, {}, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     def ler(n):
         try:
             aba = planilha_mestre.worksheet(n)
@@ -163,7 +164,17 @@ def carregar_dados():
 
     # Retorna os 7 itens na ordem correta
     return banco_prod, banco_cli, df_inv, ler("FINANCEIRO"), ler("VENDAS"), ler("PAINEL"), df_cli
-    banco_de_produtos, banco_de_clientes, df_full_inv, df_financeiro, df_vendas_hist, df_painel_resumo, df_clientes_full = carregar_dados()
+
+# 💡 AQUI ESTÁ A CORREÇÃO DE VARIAVEL: Fora da função, para funcionar nas Vendas!
+banco_de_produtos, banco_de_clientes, df_full_inv, df_financeiro, df_vendas_hist, df_painel_resumo, df_clientes_full = carregar_dados()
+
+# ☁️ Função Cloudinary
+def upload_para_cloudinary(file_bytes, file_name, pasta_destino):
+    try:
+        cloudinary.config(cloud_name=st.secrets["cloudinary"]["cloud_name"], api_key=st.secrets["cloudinary"]["api_key"], api_secret=st.secrets["cloudinary"]["api_secret"], secure=True)
+        res = cloudinary.uploader.upload(file_bytes, folder=f"SweetHome/{pasta_destino}", public_id=file_name, resource_type="auto")
+        return res.get('public_id'), res.get('secure_url')
+    except: return None, None
 
 # ==========================================
 # 📱 BARRA LATERAL (SIDEBAR)
@@ -186,7 +197,7 @@ with st.sidebar:
     menu_selecionado = st.radio(
         "Navegação",
         ["🛒 Vendas", "💰 Financeiro", "📦 Estoque", "👥 Clientes", "📂 Documentos", "⚙️ Perfil e Equipe"], 
-        key="nav_v_final_1" 
+        key="nav_v_final" 
     )
     
     st.divider()
@@ -196,95 +207,8 @@ with st.sidebar:
         st.session_state['autenticado'] = False; st.rerun()
 
 # ==========================================
-# 🎯 LÓGICA DE CONTEÚDO (IF/ELIF)
+# 🎯 LÓGICA DE CONTEÚDO (IF/ELIF UNIFICADO)
 # ==========================================
-
-if menu_selecionado == "🛒 Vendas":
-    st.title("🛒 Gestão de Vendas")
-    # ... Seu código de vendas aqui ...
-
-elif menu_selecionado == "💰 Financeiro":
-    st.markdown("### 📈 Resumo Geral Sweet Home")
-    if not df_vendas_hist.empty:
-        try:
-            # Mapeamento Seguro por Posição (L=11, M=12, O=14, U=20)
-            df_vendas_hist['V_TOT'] = df_vendas_hist.iloc[:, 11].apply(limpar_v)
-            df_vendas_hist['V_LUC'] = df_vendas_hist.iloc[:, 12].apply(limpar_v)
-            df_vendas_hist['V_SAL'] = df_vendas_hist.iloc[:, 20].apply(limpar_v)
-            df_vendas_hist['V_FOR'] = df_vendas_hist.iloc[:, 14]
-
-            v_brutas = df_vendas_hist['V_TOT'].sum()
-            l_bruto = df_vendas_hist['V_LUC'].sum()
-            s_devedor = df_vendas_hist['V_SAL'].sum()
-            t_recebido = v_brutas - s_devedor
-            
-            # Liquidez
-            v_vista = df_vendas_hist[df_vendas_hist['V_FOR'] != 'Sweet Flex']['V_TOT'].sum()
-            liq = (v_vista / v_brutas * 100) if v_brutas > 0 else 0
-
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Vendas Totais", f"R$ {v_brutas:,.2f}")
-            c2.metric("Lucro Bruto", f"R$ {l_bruto:,.2f}")
-            c3.metric("Total Recebido", f"R$ {t_recebido:,.2f}")
-            c4.metric("Saldo Devedor", f"R$ {s_devedor:,.2f}", delta=f"{(s_devedor/v_brutas*100):.1f}%", delta_color="inverse")
-
-            # Termômetro
-            st.markdown("---")
-            if liq >= 70: st.success(f"🟢 **Saúde de Caixa: EXCELENTE** ({liq:.1f}% à vista)")
-            elif liq >= 40: st.warning(f"🟡 **Saúde de Caixa: ATENÇÃO** ({liq:.1f}% à vista)")
-            else: st.error(f"🔴 **Saúde de Caixa: CRÍTICA** ({liq:.1f}% à vista)")
-            st.progress(min(liq/100, 1.0))
-
-            with st.expander("📊 Detalhamento e Tendências"):
-                tab1, tab2 = st.tabs(["💳 Meios de Pagamento", "🎟️ Ticket Médio"])
-                with tab1:
-                    v_meio = df_vendas_hist.groupby('V_FOR')['V_TOT'].sum().reset_index()
-                    fig = px.pie(v_meio, values='V_TOT', names='V_FOR', hole=.4, color_discrete_sequence=['#31241b', '#A67B5B', '#d4a373', '#f6debc'])
-                    fig.update_traces(hovertemplate='R$ %{value:,.2f}')
-                    st.plotly_chart(fig, use_container_width=True)
-                with tab2:
-                    tick = df_vendas_hist.groupby('V_FOR')['V_TOT'].mean().round(2).reset_index()
-                    fig2 = px.bar(tick, x='V_FOR', y='V_TOT', text='V_TOT', color_discrete_sequence=['#A67B5B'])
-                    fig2.update_traces(texttemplate='R$ %{text:.2f}', textposition='outside')
-                    st.plotly_chart(fig2, use_container_width=True)
-        except Exception as e: st.error(f"Erro no Painel: {e}")
-
-elif menu_selecionado == "⚙️ Perfil e Equipe":
-    st.title("⚙️ Configurações")
-    t1, t2 = st.tabs(["👤 Meu Perfil", "👥 Gestão de Equipe"])
-    
-    with t1:
-        if dados_logado:
-            st.write(f"Olá, {dados_logado['NOME_COMPLETO']}")
-            with st.form("edit_perfil"):
-                n_nome = st.text_input("Nome", value=dados_logado['NOME_COMPLETO'])
-                n_cargo = st.text_input("Cargo", value=dados_logado['CARGO'])
-                n_foto = st.file_uploader("Trocar Foto", type=['jpg', 'png'])
-                if st.form_submit_button("Salvar"):
-                    aba_u = planilha_mestre.worksheet("USUARIOS")
-                    lin = aba_u.col_values(1).index(st.session_state['usuario_logado']) + 1
-                    url = dados_logado['FOTO_URL']
-                    if n_foto:
-                        # Reuso sua função de upload
-                        _, url = upload_para_cloudinary(n_foto.read(), n_foto.name, "Perfis")
-                    aba_u.update_acell(f"B{lin}", n_nome)
-                    aba_u.update_acell(f"C{lin}", n_cargo)
-                    aba_u.update_acell(f"D{lin}", url)
-                    st.success("Perfil atualizado!"); st.cache_resource.clear(); st.rerun()
-
-    with t2:
-        if st.session_state['usuario_logado'] in ['Admin', 'Bia_CEO']:
-            with st.form("novo_u"):
-                u_log = st.text_input("Login")
-                u_nom = st.text_input("Nome Completo")
-                u_car = st.selectbox("Cargo", ["Vendedor(a)", "Gerente"])
-                if st.form_submit_button("Cadastrar"):
-                    aba_u = planilha_mestre.worksheet("USUARIOS")
-                    aba_u.append_row([u_log, u_nom, u_car, "", "Colaborador", "Nunca"])
-                    st.success("Usuário criado!")
-        else: st.info("🔒 Área restrita.")
-
-# ... Outros Elifs (Estoque, Clientes, Documentos) seguem aqui ...
 
 # ==========================================
 # --- SEÇÃO 1: VENDAS (MEMÓRIA ETERNA) ---
@@ -331,7 +255,7 @@ if menu_selecionado == "🛒 Vendas":
                 if not c_nome_novo or not c_zap: 
                     st.error("⚠️ Preencha Nome e Zap!"); st.stop()
                 nome_cli = c_nome_novo.strip()
-                if not modo_teste:
+                if not st.session_state.get('toggle_teste', False):
                     try:
                         aba_cli = planilha_mestre.worksheet("CARTEIRA DE CLIENTES")
                         dados_c = aba_cli.get_all_values()
@@ -356,7 +280,7 @@ if menu_selecionado == "🛒 Vendas":
             nome_p = p_sel.split(" - ")[1].strip()
             custo_un = float(banco_de_produtos[cod_p].get('custo', 0.0)) if cod_p in banco_de_produtos else 0.0
 
-            if not modo_teste:
+            if not st.session_state.get('toggle_teste', False):
                 try:
                     aba_v = planilha_mestre.worksheet("VENDAS")
                     idx_ins = aba_v.find("TOTAIS").row 
@@ -468,8 +392,6 @@ if menu_selecionado == "🛒 Vendas":
                     val_atual = limpar_para_editar(linha_dados[8])
                     desc_perc_atual = limpar_para_editar(linha_dados[9], is_perc=True)
                     
-                    # ✨ TRAVA DE SEGURANÇA CONTRA BUGS ANTIGOS ✨
-                    # Se o percentual na planilha estiver absurdo (maior que 100%) ou negativo, zera para não confundir.
                     if desc_perc_atual > 1.0 or desc_perc_atual < 0:
                         desc_reais_atual = 0.0
                     else:
@@ -628,7 +550,6 @@ elif menu_selecionado == "💰 Financeiro":
             with st.expander("📊 Análise de Desempenho e Tendências", expanded=False):
                 t_faturamento, t_pagamentos, t_ticket = st.tabs(["📈 Faturamento", "💳 Meios de Pagamento", "🎟️ Ticket Médio"])
                 
-                import plotly.express as px
                 paleta_sweet = ['#31241b', '#8d5524', '#d4a373', '#f6debc'] # Marrons e Beges da marca
 
                 with t_faturamento:
@@ -636,7 +557,6 @@ elif menu_selecionado == "💰 Financeiro":
                     df_fin['DATA_DT'] = pd.to_datetime(df_fin['DATA DA VENDA'], format='%d/%m/%Y', errors='coerce')
                     vendas_dia = df_fin.groupby('DATA_DT')['VALOR_NUM'].sum().reset_index()
                     
-                    # Gráfico de Área com Formatação de R$ no hover
                     fig_fat = px.area(vendas_dia, x='DATA_DT', y='VALOR_NUM',
                                      labels={'VALOR_NUM': 'Total Vendido', 'DATA_DT': 'Data'},
                                      color_discrete_sequence=[paleta_sweet[0]])
@@ -657,7 +577,6 @@ elif menu_selecionado == "💰 Financeiro":
 
                 with t_ticket:
                     st.write("#### Valor Médio por Venda (Ticket Médio)")
-                    # Arredondando para 2 casas decimais para evitar o erro visual
                     ticket_meio = df_fin.groupby('FORMA_PG')['VALOR_NUM'].mean().round(2).reset_index()
                     
                     fig_ticket = px.bar(ticket_meio, x='FORMA_PG', y='VALOR_NUM',
@@ -797,14 +716,11 @@ elif menu_selecionado == "📦 Estoque":
             if st.button("🧠 Ler Documento", use_container_width=True):
                 with st.spinner("A IA está analisando a imagem. Isso leva alguns segundos... ⏳"):
                     try:
-                        # Conecta com a sua chave
                         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
                         modelo_ia = genai.GenerativeModel('gemini-2.5-flash')
                         
-                        # Prepara a imagem
                         img = Image.open(foto_nf)
                         
-                        # A "ordem" rigorosa e estruturada para a IA
                         prompt = """
                         Você é o assistente de estoque da 'Sweet Home Enxovais'. 
                         Sua tarefa é ler esta nota fiscal ou recibo e extrair os produtos.
@@ -818,13 +734,11 @@ elif menu_selecionado == "📦 Estoque":
                         3. Se a imagem não for uma nota fiscal ou estiver ilegível, retorne APENAS a frase: "⚠️ Documento ilegível ou não reconhecido. Tente enviar uma foto mais nítida."
                         """
                         
-                        # A mágica acontece aqui
                         resposta = modelo_ia.generate_content([prompt, img])
                         
                         st.success("✅ Leitura Concluída!")
                         st.markdown("#### 📋 Produtos Identificados na Nota:")
                         
-                        # Exibe a resposta da IA nativamente como uma tabela bonita no Streamlit
                         st.markdown(resposta.text)
                         
                         st.warning("💡 Dica: Use a lista acima para copiar os nomes e dar a entrada rápida no 'Radar de Entrada' logo abaixo.")
@@ -1185,76 +1099,38 @@ elif menu_selecionado == "📂 Documentos":
         st.info("O cofre geral está vazio. Comece a enviar arquivos!")
 
 # ==========================================
-# --- SEÇÃO: PERFIL E EQUIPE ---
+# --- SEÇÃO 6: PERFIL E EQUIPE ---
 # ==========================================
 elif menu_selecionado == "⚙️ Perfil e Equipe":
-    st.markdown("### ⚙️ Gestão de Perfil e Colaboradores")
+    st.title("⚙️ Configurações de Perfil")
+    tab_p, tab_e = st.tabs(["👤 Meu Perfil", "👥 Gestão de Equipe"])
     
-    tab_meu_perfil, tab_equipe = st.tabs(["👤 Meu Perfil", "👥 Gestão de Equipe"])
-    
-    # --- ABA 1: MEU PERFIL (A Bia ou Você editam seus próprios dados) ---
-    with tab_meu_perfil:
-        st.write("#### Minhas Informações")
+    with tab_p:
         if dados_logado:
-            # Mostra a foto atual em tamanho maior no centro
-            if dados_logado.get('FOTO_URL'):
-                st.image(dados_logado.get('FOTO_URL'), width=150)
-            
-            with st.form("form_meu_perfil"):
-                col_e1, col_e2 = st.columns(2)
-                novo_nome = col_e1.text_input("Nome Completo", value=dados_logado.get('NOME_COMPLETO', ""))
-                novo_cargo = col_e2.text_input("Seu Cargo", value=dados_logado.get('CARGO', ""))
-                
-                nova_foto = st.file_uploader("Trocar Foto de Perfil (Cloudinary)", type=['png', 'jpg', 'jpeg'])
-                
-                if st.form_submit_button("💾 Salvar Alterações", type="primary"):
-                    try:
-                        aba_u = planilha_mestre.worksheet("USUARIOS")
-                        lista_usuarios = aba_u.col_values(1)
-                        linha_u = lista_usuarios.index(st.session_state['usuario_logado']) + 1
-                        
-                        url_foto_final = dados_logado.get('FOTO_URL', "")
-                        if nova_foto:
-                            # Faz o upload para a pasta de perfis
-                            upload_res = cloudinary.uploader.upload(nova_foto, folder="perfis_sweet_home")
-                            url_foto_final = upload_res['secure_url']
-                        
-                        # Atualiza as colunas B (Nome), C (Cargo) e D (Foto)
-                        aba_u.update_acell(f"B{linha_u}", novo_nome)
-                        aba_u.update_acell(f"C{linha_u}", novo_cargo)
-                        aba_u.update_acell(f"D{linha_u}", url_foto_final)
-                        
-                        st.success("✅ Suas informações foram atualizadas!")
-                        st.cache_resource.clear()
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Erro ao salvar: {e}")
+            with st.form("form_perfil_jean"):
+                n_nom = st.text_input("Nome Completo", value=dados_logado.get('NOME_COMPLETO', ""))
+                n_car = st.text_input("Cargo", value=dados_logado.get('CARGO', ""))
+                n_fot = st.file_uploader("Alterar Foto (Cloudinary)", type=['jpg', 'png'])
+                if st.form_submit_button("💾 Salvar"):
+                    aba_u = planilha_mestre.worksheet("USUARIOS")
+                    lin = aba_u.col_values(1).index(st.session_state['usuario_logado']) + 1
+                    url = dados_logado.get('FOTO_URL', "")
+                    if n_fot:
+                        # Chama a sua função de upload que já existe no topo
+                        _, url = upload_para_cloudinary(n_fot.read(), n_fot.name, "Perfis")
+                    aba_u.update_acell(f"B{lin}", n_nom)
+                    aba_u.update_acell(f"C{lin}", n_car)
+                    aba_u.update_acell(f"D{lin}", url)
+                    st.success("Perfil atualizado!"); st.cache_resource.clear(); st.rerun()
 
-    # --- ABA 2: GESTÃO DE EQUIPE (Apenas Admin ou Bia_CEO criam novos) ---
-    with tab_equipe:
+    with tab_e:
         if st.session_state['usuario_logado'] in ['Admin', 'Bia_CEO']:
-            st.write("#### ➕ Cadastrar Novo Colaborador")
-            with st.form("form_novo_usuario", clear_on_submit=True):
-                c_u1, c_u2 = st.columns(2)
-                n_usuario = c_u1.text_input("Login (Ex: bia_vendas)", help="Este será o nome usado no login.")
-                n_nome = c_u2.text_input("Nome Completo")
-                
-                c_u3, c_u4 = st.columns(2)
-                n_cargo = c_u3.selectbox("Cargo", ["Vendedor(a)", "Gerente", "Estoquista"])
-                n_perm = c_u4.selectbox("Nível de Acesso", ["Colaborador", "Admin"])
-                
-                st.caption("⚠️ Nota: O novo colaborador deve ser cadastrado também nos Secrets do Streamlit para ter uma senha válida.")
-                
-                if st.form_submit_button("Registrar Colaborador"):
-                    if n_usuario and n_nome:
-                        try:
-                            aba_u = planilha_mestre.worksheet("USUARIOS")
-                            # Colunas: USUARIO, NOME_COMPLETO, CARGO, FOTO_URL, PERMISSAO, ULTIMO_ACESSO
-                            aba_u.append_row([n_usuario, n_nome, n_cargo, "", n_perm, "Nunca"], value_input_option='RAW')
-                            st.success(f"✅ {n_nome} foi adicionado à base de usuários!")
-                        except Exception as e:
-                            st.error(f"Erro na planilha: {e}")
-                    else:
-                        st.warning("Preencha o Login e o Nome para continuar.")
+            with st.form("form_novo_user"):
+                u_l = st.text_input("Login")
+                u_n = st.text_input("Nome Completo")
+                if st.form_submit_button("➕ Criar"):
+                    aba_u = planilha_mestre.worksheet("USUARIOS")
+                    aba_u.append_row([u_l, u_n, "Vendedor(a)", "", "Colaborador", "Nunca"])
+                    st.success("Criado!")
         else:
             st.info("🔒 Esta aba é exclusiva para Administradores da Sweet Home.")
