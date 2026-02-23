@@ -316,7 +316,7 @@ if menu_selecionado == "🛒 Vendas":
     
     # Puxa preço de venda sugerido do banco
     cod_p_temp = p_sel.split(" - ")[0]
-    preco_sugerido = float(banco_de_produtos.get(cod_p_temp, {}).get('venda', 0.0))
+    preco_sugerido = limpar_v(banco_de_produtos.get(cod_p_temp, {}).get('venda', 0.0))
     val_v = c_p3.number_input("Preço Un. (R$)", value=float(preco_sugerido), min_value=0.0, key="venda_val_input")
 
     if c_p4.button("➕ Adicionar", use_container_width=True):
