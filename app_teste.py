@@ -28,6 +28,8 @@ if 'historico_sessao' not in st.session_state:
     st.session_state['historico_sessao'] = []
 if 'historico_estoque' not in st.session_state:
     st.session_state['historico_estoque'] = []
+if 'carrinho' not in st.session_state:
+    st.session_state['carrinho'] = []    
     
 # --- AUXILIARES TÉCNICOS ---
 def limpar_v(v):
