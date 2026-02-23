@@ -240,8 +240,10 @@ with st.sidebar:
 
     st.title("🛠️ Painel Sweet Home")
     
-    menu_selecionado = st.sidebar.radio(
-        "Navegação",
+    menu_selecionado = st.sidebar.radio
+st.write(f"DEBUG: Você selecionou a opção: |{menu_selecionado}|")
+
+("Navegação",
         ["🛒 Vendas", "💰 Financeiro", "📦 Estoque", "👥 Clientes", "📂 Documentos", "⚙️ Perfil e Equipe"], 
         key="navegacao_principal_sweet"
     )
