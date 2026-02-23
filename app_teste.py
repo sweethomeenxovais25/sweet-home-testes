@@ -158,34 +158,18 @@ if not st.session_state['autenticado']:
                         if str(usuarios_permitidos[usuario_input]) == senha_input:
                             st.session_state['autenticado'] = True
                             st.session_state['usuario_logado'] = usuario_input
-
-                            # ====================================================
-                            # 🤖 GATILHO SILENCIOSO: REGISTRO DE ACESSO
-                            # ====================================================
-                            try:
-                                # Agora procurando a aba no plural!
-                                aba_usuario = planilha_mestre.worksheet("USUARIOS")
-                                agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-                                
-                                celula_nome = aba_usuario.find(usuario_input)
-                                
-                                if celula_nome:
-                                    cabecalhos = aba_usuario.row_values(1)
-                                    col_acesso = cabecalhos.index("ULTIMO_ACESSO") + 1
-                                    
-                                    aba_usuario.update_cell(celula_nome.row, col_acesso, agora)
-                            except Exception as e:
-                                pass # Ignora qualquer erro e deixa a pessoa entrar
-                            # ====================================================
-
-                            st.rerun() # Entra no sistema!
+                            
+                            # 💡 O SINAL: Avisamos ao sistema que precisa anotar o acesso!
+                            st.session_state['precisa_registrar_acesso'] = True 
+                            
+                            st.rerun() # Entra no sistema
                         else:
                             st.error("❌ Senha incorreta.")
                     else:
                         st.error("❌ Usuário não encontrado.")
                 except Exception as e:
                     st.error("Erro ao acessar cofre de senhas. Verifique os Secrets.")
-    st.stop()
+    st.stop() # Bloqueia quem não logou
 
 # ==========================================
 # 🚀 3. SISTEMA LIBERADO (CONEXÕES E DADOS)
@@ -198,6 +182,26 @@ ESPECIFICACOES = [
     'https://www.googleapis.com/auth/spreadsheets',
     "https://www.googleapis.com/auth/drive.file"
 ]
+
+# ====================================================
+# 🤖 GATILHO DE REGISTRO (Agora o robô já tem a caneta!)
+# ====================================================
+if st.session_state.get('precisa_registrar_acesso'):
+    try:
+        aba_usuario = planilha_mestre.worksheet("USUARIO") 
+        agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        
+        celula_nome = aba_usuario.find(st.session_state['usuario_logado'])
+        
+        if celula_nome:
+            cabecalhos = aba_usuario.row_values(1)
+            col_acesso = cabecalhos.index("ULTIMO_ACESSO") + 1
+            aba_usuario.update_cell(celula_nome.row, col_acesso, agora)
+            
+        st.session_state['precisa_registrar_acesso'] = False 
+    except Exception as e:
+        st.session_state['precisa_registrar_acesso'] = False
+# ====================================================
 
 # ☁️ Função de Upload Rápido para Cloudinary (Nova Engine de Arquivos)
 def upload_para_cloudinary(file_bytes, file_name, pasta_destino):
