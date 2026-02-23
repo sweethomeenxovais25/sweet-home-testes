@@ -926,16 +926,50 @@ elif menu_selecionado == "💰 Financeiro":
 
         # --- 🕒 HISTÓRICO DE ABATIMENTOS (LÊ A ABA FINANCEIRO) ---
         st.markdown("---")
-        st.write("#### 🕒 Últimos Abatimentos Registrados (Banco de Dados)")
+        st.subheader("🕒 Últimos Abatimentos Registrados")
+        
         try:
             aba_f_hist = planilha_mestre.worksheet("FINANCEIRO")
-            df_f_hist = pd.DataFrame(aba_f_hist.get_all_records())
-            # Filtra apenas registros de entrada real (Abatimentos PAGO)
-            abatimentos = df_f_hist[df_f_hist['STATUS'] == "PAGO"].tail(5).iloc[::-1]
-            if not abatimentos.empty:
-                st.dataframe(abatimentos[['DATA', 'CLIENTE', 'ENTRADA R$', 'OBS']], use_container_width=True, hide_index=True)
-            else: st.info("Nenhum abatimento localizado na planilha.")
-        except: st.info("O histórico aparecerá após o primeiro recebimento.")
+            dados_f = aba_f_hist.get_all_values()
+
+            if len(dados_f) > 1:
+                # Cria o DataFrame com as colunas reais da sua planilha
+                df_f_hist = pd.DataFrame(dados_f[1:], columns=dados_f[0])
+
+                # Limpeza de segurança nos nomes das colunas
+                df_f_hist.columns = [c.strip() for c in df_f_hist.columns]
+                
+                # Filtro pelo STATUS que você definiu na Coluna G
+                if 'STATUS' in df_f_hist.columns:
+                    df_f_hist['STATUS'] = df_f_hist['STATUS'].str.strip().str.upper()
+                    # Filtra apenas o que está PAGO e pega os últimos 5
+                    abatimentos = df_f_hist[df_f_hist['STATUS'] == "PAGO"].tail(5).iloc[::-1]
+                else:
+                    abatimentos = pd.DataFrame()
+
+                if not abatimentos.empty:
+                    # Exibição organizada com os nomes de colunas que você passou
+                    st.dataframe(
+                        abatimentos[['DATA', 'NOME', 'VALOR_PAGO', 'OBS']],
+                        column_config={
+                            "DATA": st.column_config.TextColumn("📅 Data"),
+                            "NOME": st.column_config.TextColumn("👤 Cliente"),
+                            "VALOR_PAGO": st.column_config.TextColumn("💰 Valor Pago"),
+                            "OBS": st.column_config.TextColumn("📝 Observação")
+                        },
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                else:
+                    st.info("ℹ️ Nenhum abatimento com status 'PAGO' foi localizado.")
+            else:
+                st.info("ℹ️ A planilha financeira ainda está vazia.")
+
+        except Exception as e:
+            if st.session_state.get('usuario_logado') == 'Admin':
+                st.error(f"Erro técnico: {e}")
+            else:
+                st.info("🕒 O histórico aparecerá após o primeiro recebimento ser registrado.")
 
     st.divider()
 
