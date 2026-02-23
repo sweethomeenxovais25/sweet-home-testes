@@ -160,30 +160,32 @@ if not st.session_state['autenticado']:
                             st.session_state['usuario_logado'] = usuario_input
 
                             # ====================================================
-                            # 🤖 GATILHO DETETIVE: REGISTRO DE ACESSO
+                            # 🤖 GATILHO SILENCIOSO: REGISTRO DE ACESSO
                             # ====================================================
                             try:
-                                # 1. Confirme se aqui está no SINGULAR igual à planilha
-                                aba_usuario = planilha_mestre.worksheet("USUARIO") 
+                                # Agora procurando a aba no plural!
+                                aba_usuario = planilha_mestre.worksheet("USUARIOS")
                                 agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                                 
-                                # 2. Procura o nome exato (Maiúsculas/Minúsculas importam!)
                                 celula_nome = aba_usuario.find(usuario_input)
                                 
                                 if celula_nome:
                                     cabecalhos = aba_usuario.row_values(1)
                                     col_acesso = cabecalhos.index("ULTIMO_ACESSO") + 1
                                     
-                                    # 3. Carimba a hora
                                     aba_usuario.update_cell(celula_nome.row, col_acesso, agora)
-                                else:
-                                    st.error(f"❌ O robô não encontrou o nome '{usuario_input}' na coluna A da aba USUARIO.")
-                                    st.stop() # Trava a tela para você ler
-                                    
                             except Exception as e:
-                                st.error(f"❌ Erro ao tentar carimbar a planilha: {e}")
-                                st.stop() # Trava a tela para você ler
+                                pass # Ignora qualquer erro e deixa a pessoa entrar
                             # ====================================================
+
+                            st.rerun() # Entra no sistema!
+                        else:
+                            st.error("❌ Senha incorreta.")
+                    else:
+                        st.error("❌ Usuário não encontrado.")
+                except Exception as e:
+                    st.error("Erro ao acessar cofre de senhas. Verifique os Secrets.")
+    st.stop()
 
 # ==========================================
 # 🚀 3. SISTEMA LIBERADO (CONEXÕES E DADOS)
