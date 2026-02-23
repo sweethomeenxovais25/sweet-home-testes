@@ -301,6 +301,7 @@ if menu_selecionado == "🛒 Vendas":
     # 1. Você insere esta linha aqui (A tampa da caixa):
     with st.container(border=True):
         st.markdown("📝 **Dados da Venda**") # Um títulozinho para a borda fazer sentido
+        st.divider() # Linha fina para separar o título dos dados
         
         # 2. TODAS as linhas abaixo ganharam um "espaço" (TAB) para a direita:
         col_v1, col_v2 = st.columns(2)
@@ -358,10 +359,12 @@ if menu_selecionado == "🛒 Vendas":
     val_v = c_p3.number_input("Preço Un. (R$)", value=preco_da_planilha, min_value=0.0, step=0.01, key=f"preco_dinamico_{cod_p_temp}")
 
     with c_p4:
+
+
+        
+        st.write("")
         st.write("") 
         st.write("")
-        
-        # Degrau 2: O bloco do botão (Abertura com ':')
         if st.button("➕ Adicionar", use_container_width=True):
             
             # Degrau 3: TUDO abaixo precisa estar alinhado aqui (Dois Tabs da margem)
