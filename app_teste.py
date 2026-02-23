@@ -151,12 +151,11 @@ def carregar_dados():
     def ler(n):
         try:
             aba = planilha_mestre.worksheet(n)
-            dados = aba.get_all_values()
-            if len(dados) <= 1: return pd.DataFrame()
-            
-            df = pd.DataFrame(dados[1:], columns=dados[0])
+            d = aba.get_all_values()
+            if len(d) <= 1: return pd.DataFrame()
+            df = pd.DataFrame(d[1:], columns=d[0])
+            # A sua trava original voltou aqui:
             if not df.empty:
-                # 🔥 AQUI ESTÁ A SUA MÁGICA RESTAURADA: Remove TOTAIS e linhas vazias
                 df = df[~df.iloc[:, 0].astype(str).str.contains("TOTAIS", case=False, na=False)]
                 df = df[df.iloc[:, 1].astype(str).str.strip() != ""]
             return df
@@ -210,6 +209,20 @@ with st.sidebar:
     if st.button("🔄 Sincronizar", use_container_width=True):
         st.cache_resource.clear(); st.rerun()
     if st.button("Sair 🚪", use_container_width=True):
+        st.divider()
+    with st.expander("🛡️ Backup do Sistema"):
+        st.markdown("<small>Faça o download seguro dos seus dados para o computador.</small>", unsafe_allow_html=True)
+        try:
+            if not df_vendas_hist.empty:
+                st.download_button("📥 Baixar Vendas", df_vendas_hist.to_csv(index=False).encode('utf-8'), f"Vendas_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
+            if not df_full_inv.empty:
+                st.download_button("📥 Baixar Estoque", df_full_inv.to_csv(index=False).encode('utf-8'), f"Estoque_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
+            if not df_clientes_full.empty:
+                st.download_button("📥 Baixar Clientes", df_clientes_full.to_csv(index=False).encode('utf-8'), f"Clientes_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
+            if not df_financeiro.empty:
+                st.download_button("📥 Baixar Financeiro", df_financeiro.to_csv(index=False).encode('utf-8'), f"Financeiro_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", use_container_width=True)
+        except Exception as e:
+            st.error("Sincronize a planilha para gerar o backup.")
         st.session_state['autenticado'] = False; st.rerun()
 
 # ==========================================
@@ -1109,68 +1122,77 @@ elif menu_selecionado == "📂 Documentos":
 # --- SEÇÃO 6: PERFIL E EQUIPE ---
 # ==========================================
 elif menu_selecionado == "⚙️ Perfil e Equipe":
-    st.markdown("### ⚙️ Gestão de Perfil e Equipe")
+    st.markdown("### ⚙️ Gestão de Perfil e Colaboradores")
     
-    tab_p, tab_e = st.tabs(["👤 Meu Perfil", "👥 Gestão de Colaboradores"])
+    # Aqui criamos as abas com os nomes corretos
+    tab_meu_perfil, tab_equipe = st.tabs(["👤 Meu Perfil", "👥 Gestão de Equipe"])
     
-    with tab_p:
-        if dados_logado:
-            st.write("#### Atualize suas informações:")
-            
-            # Mostra a foto atual bonitona no topo
-            if dados_logado.get('FOTO_URL'):
-                st.image(dados_logado.get('FOTO_URL'), width=120)
-                
-            with st.form("form_perfil_oficial"):
-                c1, c2 = st.columns(2)
-                n_nom = c1.text_input("Nome Completo", value=dados_logado.get('NOME_COMPLETO', ""))
-                n_car = c2.text_input("Seu Cargo", value=dados_logado.get('CARGO', ""))
-                
-                n_fot = st.file_uploader("Trocar Foto de Perfil (Cloudinary)", type=['jpg', 'png', 'jpeg'])
-                
-                if st.form_submit_button("💾 Salvar Alterações", type="primary"):
-                    try:
-                        aba_u = planilha_mestre.worksheet("USUARIOS")
-                        lin = aba_u.col_values(1).index(st.session_state['usuario_logado']) + 1
-                        url = dados_logado.get('FOTO_URL', "")
-                        
-                        if n_fot:
-                            _, url = upload_para_cloudinary(n_fot.read(), n_fot.name, "Perfis")
-                            
-                        aba_u.update_acell(f"B{lin}", n_nom)
-                        aba_u.update_acell(f"C{lin}", n_car)
-                        aba_u.update_acell(f"D{lin}", url)
-                        
-                        st.success("✅ Perfil atualizado com sucesso!")
-                        st.cache_resource.clear()
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Erro ao conectar com a planilha: {e}")
+    with tab_meu_perfil:
+        st.write("#### Minhas Informações")
+        
+        # Puxa o nome e cargo (mesmo se for o Admin no primeiro acesso)
+        nome_atual = dados_logado.get('NOME_COMPLETO', "") if dados_logado else st.session_state['usuario_logado']
+        cargo_atual = dados_logado.get('CARGO', "") if dados_logado else "Administrador"
+        
+        if dados_logado and dados_logado.get('FOTO_URL'):
+            st.image(dados_logado.get('FOTO_URL'), width=150)
         else:
-            st.warning("⚠️ Seu usuário não está cadastrado na aba USUARIOS. Fale com o administrador.")
+            st.info("Nenhuma foto de perfil cadastrada ainda.")
+            
+        with st.form("form_meu_perfil"):
+            col_e1, col_e2 = st.columns(2)
+            novo_nome = col_e1.text_input("Nome Completo", value=nome_atual)
+            novo_cargo = col_e2.text_input("Seu Cargo", value=cargo_atual)
+            
+            nova_foto = st.file_uploader("Trocar Foto de Perfil (Cloudinary)", type=['png', 'jpg', 'jpeg'])
+            
+            if st.form_submit_button("💾 Salvar Alterações", type="primary"):
+                try:
+                    aba_u = planilha_mestre.worksheet("USUARIOS")
+                    lista_usuarios = aba_u.col_values(1)
+                    
+                    url_foto_final = dados_logado.get('FOTO_URL', "") if dados_logado else ""
+                    if nova_foto:
+                        _, url_foto_final = upload_para_cloudinary(nova_foto.read(), nova_foto.name, "Perfis")
+                    
+                    # 💡 A Mágica do Admin: Se o seu login ainda não estiver na planilha, cria agora!
+                    if st.session_state['usuario_logado'] not in lista_usuarios:
+                        aba_u.append_row([st.session_state['usuario_logado'], novo_nome, novo_cargo, url_foto_final, "Admin", "Agora"], value_input_option='RAW')
+                    else:
+                        linha_u = lista_usuarios.index(st.session_state['usuario_logado']) + 1
+                        aba_u.update_acell(f"B{linha_u}", novo_nome)
+                        aba_u.update_acell(f"C{linha_u}", novo_cargo)
+                        aba_u.update_acell(f"D{linha_u}", url_foto_final)
+                        
+                    st.success("✅ Suas informações foram atualizadas!")
+                    st.cache_resource.clear()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao salvar: {e}")
 
-    with tab_e:
+    with tab_equipe:
         if st.session_state['usuario_logado'] in ['Admin', 'Bia_CEO']:
-            st.write("#### ➕ Cadastrar Novo Acesso")
-            with st.form("form_nova_conta", clear_on_submit=True):
+            st.write("#### ➕ Cadastrar Novo Colaborador")
+            with st.form("form_novo_usuario", clear_on_submit=True):
                 c_u1, c_u2 = st.columns(2)
-                u_l = c_u1.text_input("Login do Sistema", help="Ex: joao_vendas. Esse nome deve estar nos secrets.")
-                u_n = c_u2.text_input("Nome Completo do Colaborador")
+                n_usuario = c_u1.text_input("Login (Ex: bia_vendas)", help="Este será o nome usado no login.")
+                n_nome = c_u2.text_input("Nome Completo")
                 
                 c_u3, c_u4 = st.columns(2)
-                u_c = c_u3.selectbox("Cargo", ["Vendedor(a)", "Gerente", "Estoquista"])
-                u_p = c_u4.selectbox("Permissão", ["Colaborador", "Admin"])
+                n_cargo = c_u3.selectbox("Cargo", ["Vendedor(a)", "Gerente", "Estoquista"])
+                n_perm = c_u4.selectbox("Nível de Acesso", ["Colaborador", "Admin"])
                 
-                if st.form_submit_button("Criar Usuário na Planilha"):
-                    if u_l and u_n:
+                st.caption("⚠️ Nota: O novo colaborador deve ser cadastrado também nos Secrets do Streamlit para ter uma senha válida.")
+                
+                if st.form_submit_button("Registrar Colaborador"):
+                    if n_usuario and n_nome:
                         try:
                             aba_u = planilha_mestre.worksheet("USUARIOS")
-                            # Cria com as 6 colunas exatas da sua planilha
-                            aba_u.append_row([u_l, u_n, u_c, "", u_p, "Nunca"], value_input_option='RAW')
-                            st.success(f"✅ Colaborador(a) {u_n} adicionado(a)!")
+                            aba_u.append_row([n_usuario, n_nome, n_cargo, "", n_perm, "Nunca"], value_input_option='RAW')
+                            st.success(f"✅ {n_nome} foi adicionado à base de usuários!")
                         except Exception as e:
                             st.error(f"Erro na planilha: {e}")
                     else:
-                        st.warning("Preencha o Login e o Nome.")
+                        st.warning("Preencha o Login e o Nome para continuar.")
         else:
-            st.info("🔒 Esta área é exclusiva para Administradores.")
+            st.info("🔒 Esta aba é exclusiva para Administradores da Sweet Home.")
