@@ -424,8 +424,7 @@ if menu_selecionado == "🛒 Vendas":
                 if c_sel == "*** NOVO CLIENTE ***" and (not c_nome_novo or not c_zap):
                     st.error("⚠️ Preencha Nome e Zap para novo cliente!"); st.stop()
 
-                # 👇 O SEGREDO ESTÁ AQUI: Este bloco inteiro ganhou um "Tab" (espaço) para a direita
-                # Agora ele SÓ vai rodar se o botão for realmente clicado!
+                # 👇 Tudo daqui para baixo agora pertence SOMENTE ao clique do botão!
                 with st.spinner("Salvando venda e gerando recibo..."):
                     try:
                         # 1. Identificação/Cadastro do Cliente
@@ -444,83 +443,79 @@ if menu_selecionado == "🛒 Vendas":
                         else:
                             cod_cli = c_sel.split(" - ")[0]
                             nome_cli = banco_de_clientes[cod_cli]['nome']
-                            
-                        # ⚠️ ATENÇÃO: Todo o resto do seu código de salvar a venda na planilha 
-                        # e a limpeza do carrinho (st.session_state['carrinho'] = []) 
-                        # precisa continuar alinhado com esse "if" e "else" de cima!
 
-                    # 2. Gravação de Itens (Loop na Planilha)
-                    if not modo_teste:
-                        aba_v = planilha_mestre.worksheet("VENDAS")
+                        # 2. Gravação de Itens (Loop na Planilha)
+                        if not modo_teste:
+                            aba_v = planilha_mestre.worksheet("VENDAS")
+                            for item in st.session_state['carrinho']:
+                                # Distribuição proporcional do desconto por item para manter lucro exato
+                                proporcao_desc = (item['subtotal'] / subtotal_venda) if subtotal_venda > 0 else 0
+                                desconto_proporcional = desc_v * proporcao_desc
+                                desc_percentual = desconto_proporcional / item['subtotal'] if item['subtotal'] > 0 else 0
+                                
+                                t_liq_item = item['subtotal'] - desconto_proporcional
+                                eh_parc = "Sim" if metodo == "Sweet Flex" else "Não"
+                                
+                                # Fórmulas Inteligentes
+                                f_atraso = '=SE(OU(INDIRETO("W"&LIN())="Pago"; INDIRETO("W"&LIN())="Em dia"); 0; MÁXIMO(0; HOJE() - INDIRETO("V"&LIN())))'
+                                f_k = '=SE(INDIRETO("I"&LIN())=""; ""; ARRED(INDIRETO("I"&LIN()) * (1 - INDIRETO("J"&LIN())); 2))'
+                                f_l = '=SE(INDIRETO("H"&LIN())=""; ""; ARRED(INDIRETO("H"&LIN()) * INDIRETO("K"&LIN()); 2))'
+                                f_m = '=SE(INDIRETO("L"&LIN())=""; ""; ARRED(INDIRETO("L"&LIN()) - (INDIRETO("H"&LIN()) * INDIRETO("G"&LIN())); 2))'
+                                f_n = '=SE(INDIRETO("L"&LIN())=""; ""; SEERRO(INDIRETO("M"&LIN()) / INDIRETO("L"&LIN()); ""))'
+                                f_r = '=SE(INDIRETO("L"&LIN())=""; ""; SE(INDIRETO("P"&LIN())="Não"; INDIRETO("L"&LIN()); 0))'
+                                
+                                linha = [
+                                    "", datetime.now().strftime("%d/%m/%Y"), cod_cli, nome_cli, 
+                                    item['cod'], item['nome'], item['custo'], item['qtd'], item['preco'], 
+                                    desc_percentual, f_k, f_l, f_m, f_n, metodo, eh_parc, n_p, f_r, 
+                                    t_liq_item/n_p if eh_parc=="Sim" else 0, 
+                                    t_liq_item if eh_parc=="Não" else 0, 
+                                    t_liq_item if eh_parc=="Sim" else 0, 
+                                    detalhes_p[0] if (eh_parc=="Sim" and detalhes_p) else "", 
+                                    "Pendente" if eh_parc=="Sim" else "Pago", f_atraso
+                                ]
+                                idx_ins = aba_v.find("TOTAIS").row
+                                aba_v.insert_row(linha, index=idx_ins, value_input_option='RAW')
+
+                        # 3. Geração do Recibo Único e Elegante
+                        recibo_texto = (
+                            f"🌸 *DOCE LAR - RECIBO DE COMPRA* 🌸\n"
+                            f"━━━━━━━━━━━━━━━━━━━\n"
+                            f"Olá, eu sou a Bia! ✨ É um prazer atender você, *{nome_cli.split(' ')[0]}*.\n"
+                            f"Aqui está o resumo detalhado da sua felicidade:\n\n"
+                        )
                         for item in st.session_state['carrinho']:
-                            # Distribuição proporcional do desconto por item para manter lucro exato
-                            proporcao_desc = (item['subtotal'] / subtotal_venda) if subtotal_venda > 0 else 0
-                            desconto_proporcional = desc_v * proporcao_desc
-                            desc_percentual = desconto_proporcional / item['subtotal'] if item['subtotal'] > 0 else 0
-                            
-                            t_liq_item = item['subtotal'] - desconto_proporcional
-                            eh_parc = "Sim" if metodo == "Sweet Flex" else "Não"
-                            
-                            # Fórmulas Inteligentes
-                            f_atraso = '=SE(OU(INDIRETO("W"&LIN())="Pago"; INDIRETO("W"&LIN())="Em dia"); 0; MÁXIMO(0; HOJE() - INDIRETO("V"&LIN())))'
-                            f_k = '=SE(INDIRETO("I"&LIN())=""; ""; ARRED(INDIRETO("I"&LIN()) * (1 - INDIRETO("J"&LIN())); 2))'
-                            f_l = '=SE(INDIRETO("H"&LIN())=""; ""; ARRED(INDIRETO("H"&LIN()) * INDIRETO("K"&LIN()); 2))'
-                            f_m = '=SE(INDIRETO("L"&LIN())=""; ""; ARRED(INDIRETO("L"&LIN()) - (INDIRETO("H"&LIN()) * INDIRETO("G"&LIN())); 2))'
-                            f_n = '=SE(INDIRETO("L"&LIN())=""; ""; SEERRO(INDIRETO("M"&LIN()) / INDIRETO("L"&LIN()); ""))'
-                            f_r = '=SE(INDIRETO("L"&LIN())=""; ""; SE(INDIRETO("P"&LIN())="Não"; INDIRETO("L"&LIN()); 0))'
-                            
-                            linha = [
-                                "", datetime.now().strftime("%d/%m/%Y"), cod_cli, nome_cli, 
-                                item['cod'], item['nome'], item['custo'], item['qtd'], item['preco'], 
-                                desc_percentual, f_k, f_l, f_m, f_n, metodo, eh_parc, n_p, f_r, 
-                                t_liq_item/n_p if eh_parc=="Sim" else 0, 
-                                t_liq_item if eh_parc=="Não" else 0, 
-                                t_liq_item if eh_parc=="Sim" else 0, 
-                                detalhes_p[0] if (eh_parc=="Sim" and detalhes_p) else "", 
-                                "Pendente" if eh_parc=="Sim" else "Pago", f_atraso
-                            ]
-                            idx_ins = aba_v.find("TOTAIS").row
-                            aba_v.insert_row(linha, index=idx_ins, value_input_option='RAW')
+                            recibo_texto += f"🛍️ {item['qtd']}x {item['nome']} - R$ {item['subtotal']:,.2f}\n"
+                        
+                        recibo_texto += f"━━━━━━━━━━━━━━━━━━━\n"
+                        recibo_texto += f"💰 *Subtotal:* R$ {subtotal_venda:,.2f}\n"
+                        if desc_v > 0:
+                            recibo_texto += f"📉 *Desconto:* - R$ {desc_v:,.2f}\n"
+                        recibo_texto += f"✅ *TOTAL FINAL:* *R$ {total_com_desconto:,.2f}*\n\n"
+                        recibo_texto += f"💳 *Forma de Pagto:* {metodo}\n"
+                        recibo_texto += f"🗓️ *Data:* {datetime.now().strftime('%d/%m/%Y')}\n"
+                        
+                        if metodo == "Sweet Flex":
+                            recibo_texto += f"\n📝 *Plano de Pagamento ({n_p}x):*\n"
+                            for i, data_p in enumerate(detalhes_p):
+                                recibo_texto += f"🔹 {i+1}ª Parcela: {data_p} - R$ {total_com_desconto/n_p:,.2f}\n"
+                        
+                        recibo_texto += f"\n━━━━━━━━━━━━━━━━━━━\n"
+                        recibo_texto += f"👤 *Vendedor(a):* {vendedor}\n"
+                        recibo_texto += f"✨ *Obrigada pela preferência!*"
 
-                    # 3. Geração do Recibo Único e Elegante
-                    recibo_texto = (
-                        f"🌸 *DOCE LAR - RECIBO DE COMPRA* 🌸\n"
-                        f"━━━━━━━━━━━━━━━━━━━\n"
-                        f"Olá, eu sou a Bia! ✨ É um prazer atender você, *{nome_cli.split(' ')[0]}*.\n"
-                        f"Aqui está o resumo detalhado da sua felicidade:\n\n"
-                    )
-                    for item in st.session_state['carrinho']:
-                        recibo_texto += f"🛍️ {item['qtd']}x {item['nome']} - R$ {item['subtotal']:,.2f}\n"
-                    
-                    recibo_texto += f"━━━━━━━━━━━━━━━━━━━\n"
-                    recibo_texto += f"💰 *Subtotal:* R$ {subtotal_venda:,.2f}\n"
-                    if desc_v > 0:
-                        recibo_texto += f"📉 *Desconto:* - R$ {desc_v:,.2f}\n"
-                    recibo_texto += f"✅ *TOTAL FINAL:* *R$ {total_com_desconto:,.2f}*\n\n"
-                    recibo_texto += f"💳 *Forma de Pagto:* {metodo}\n"
-                    recibo_texto += f"🗓️ *Data:* {datetime.now().strftime('%d/%m/%Y')}\n"
-                    
-                    if metodo == "Sweet Flex":
-                        recibo_texto += f"\n📝 *Plano de Pagamento ({n_p}x):*\n"
-                        for i, data_p in enumerate(detalhes_p):
-                            recibo_texto += f"🔹 {i+1}ª Parcela: {data_p} - R$ {total_com_desconto/n_p:,.2f}\n"
-                    
-                    recibo_texto += f"\n━━━━━━━━━━━━━━━━━━━\n"
-                    recibo_texto += f"👤 *Vendedor(a):* {vendedor}\n"
-                    recibo_texto += f"✨ *Obrigada pela preferência!*"
+                        st.success("✅ Venda registrada com sucesso!")
+                        st.code(recibo_texto, language="text")
+                        
+                        zap_limpo = c_zap.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+                        st.link_button("📲 Enviar Recibo Único para o WhatsApp", f"https://wa.me/55{zap_limpo}?text={urllib.parse.quote(recibo_texto)}", use_container_width=True, type="primary")
 
-                    st.success("✅ Venda registrada com sucesso!")
-                    st.code(recibo_texto, language="text")
-                    
-                    zap_limpo = c_zap.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
-                    st.link_button("📲 Enviar Recibo Único para o WhatsApp", f"https://wa.me/55{zap_limpo}?text={urllib.parse.quote(recibo_texto)}", use_container_width=True, type="primary")
-
-                    # Limpeza Final
-                    st.session_state['carrinho'] = []
-                    st.cache_resource.clear()
-                    
-                except Exception as e:
-                    st.error(f"Erro ao processar venda: {e}")
+                        # Limpeza Final (AGORA SIM, BEM GUARDADA NO LUGAR CERTO)
+                        st.session_state['carrinho'] = []
+                        st.cache_resource.clear()
+                        
+                    except Exception as e:
+                        st.error(f"Erro ao processar venda: {e}")
 
     # --- MANTENDO HISTÓRICO E BORRACHA MÁGICA ---
     st.divider()
