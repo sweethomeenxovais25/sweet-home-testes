@@ -23,12 +23,12 @@ def verificar_status_odoo(codigo_produto):
         resposta = requests.get(url_busca, headers=headers, timeout=10)
         conteudo = resposta.text.lower()
         
-        # Se a frase exata de "Nenhum resultado" aparecer, o robô assume que não existe
+        # Critério de erro: se a frase de "Nenhum resultado" aparecer para o código específico
         frase_erro = f'nenhum resultado para "{cod_limpo.lower()}"'
         if frase_erro in conteudo or "nenhum resultado encontrado" in conteudo:
             return False, ""
         
-        # Confirmação de que há produtos na página (classe padrão do Odoo)
+        # Critério de sucesso: presença de elementos de produto do Odoo
         if "oe_product" in conteudo or "o_wsale_products_item" in conteudo:
             return True, url_busca
             
@@ -1241,103 +1241,99 @@ elif menu_selecionado == "📂 Documentos":
                 else: 
                     st.info("Sua fila de trabalho está limpa.")
 
-    # --- ASSISTENTE DE SINCRONIZAÇÃO MESTRE (V4 - COM RELATÓRIO E LÓGICA DE VERSÃO) ---
+    # --- ASSISTENTE DE SINCRONIZAÇÃO MESTRE (V6 - RELATÓRIO PROFISSIONAL & STATUS DE FALHA) ---
     with st.expander("🤖 Sincronizador Inteligente Odoo", expanded=False):
-        st.write("Varredura de Inventário e Documentos com prioridade para versões recentes (.1, .2).")
+        st.write("Varredura completa: Atualiza Inventário (Links/Status) e limpa a Linha de Montagem.")
         
-        if st.button("🚀 Iniciar Varredura e Gerar Relatório"):
+        if st.button("🚀 Iniciar Varredura Completa", use_container_width=True):
             try:
-                # 1. CARREGAMENTO E LIMPEZA (IGNORA TOTAIS)
+                # 1. CARREGAMENTO DOS DADOS
                 aba_inv = planilha_mestre.worksheet("INVENTÁRIO")
                 dados_inv = aba_inv.get_all_values()
                 df_inv = pd.DataFrame(dados_inv[1:], columns=dados_inv[0])
                 
-                # Filtra apenas linhas com códigos reais, ignorando a linha de TOTAIS
+                # Filtro: Ignora vazios, TOTAIS e quem já é "Publicado" (para não repetir trabalho desnecessário)
                 df_valido = df_inv[
                     (df_inv['CÓD. PRÓDUTO'].str.strip() != "") & 
-                    (~df_inv['CÓD. PRÓDUTO'].str.contains("TOTAL", case=False, na=False))
+                    (~df_inv['CÓD. PRÓDUTO'].str.contains("TOTAL", case=False, na=False)) &
+                    (df_inv['STATUS ODOO'].astype(str).str.upper() != "PUBLICADO")
                 ].copy()
 
                 if df_valido.empty:
-                    st.warning("Nenhum produto pendente encontrado no Inventário.")
+                    st.success("✅ Tudo atualizado! Não há itens pendentes de verificação no inventário.")
                 else:
-                    st.info(f"🔍 Analisando {len(df_valido)} linhas de produtos...")
+                    st.info(f"🔍 Analisando {len(df_valido)} códigos no inventário...")
                     barra = st.progress(0)
                     status_dinamico = st.empty()
                     
-                    # Contentores para o relatório final
-                    relatorio_sucesso = []
-                    relatorio_nao_encontrado = []
-                    relatorio_versao_antiga = []
-
+                    dados_relatorio = []
                     aba_doc = planilha_mestre.worksheet("DOCUMENTOS")
 
                     for i, (idx, r) in enumerate(df_valido.iterrows()):
                         cod_atual = str(r['CÓD. PRÓDUTO']).strip()
-                        # Lógica de Versão: Separa o código base (ex: 800)
                         base_code = cod_atual.split('.')[0]
-                        
-                        status_dinamico.markdown(f"⏳ **Verificando:** {cod_atual}...")
+                        status_dinamico.markdown(f"⏳ **Consultando:** `{cod_atual}`")
 
                         # 2. VERIFICAÇÃO NO SITE
                         achou, link_site = verificar_status_odoo(cod_atual)
+                        linha_planilha = idx + 2
                         
-                        if achou:
-                            # 3. IDENTIFICA SE É A VERSÃO MAIS RECENTE
-                            # Procuramos no DF se existe uma versão maior (ex: se estamos na 800 e existe a 800.1)
-                            outras_versoes = df_valido[df_valido['CÓD. PRÓDUTO'].str.startswith(base_code)]['CÓD. PRÓDUTO'].tolist()
-                            is_latest = cod_atual == outras_versoes[-1] # Assume que a última da lista é a mais nova
+                        # Pausa obrigatória para respeitar o limite do Google (Erro 429)
+                        time.sleep(1.5) 
 
-                            if is_latest:
-                                linha_planilha = idx + 2
-                                time.sleep(1.2) # Evita Erro 429
+                        if achou:
+                            # LÓGICA DE VERSÃO: Identifica se é a versão mais nova (ex: .1, .2)
+                            outras_versoes = df_valido[df_valido['CÓD. PRÓDUTO'].str.startswith(base_code)]['CÓD. PRÓDUTO'].tolist()
+                            
+                            if cod_atual == outras_versoes[-1]:
+                                # ATUALIZA INVENTÁRIO (Sucesso)
+                                aba_inv.update_cell(linha_planilha, 11, link_site) # Coluna K
+                                aba_inv.update_cell(linha_planilha, 12, "Publicado")  # Coluna L
                                 
-                                # ATUALIZA INVENTÁRIO (Colunas K e L)
-                                aba_inv.update_cell(linha_planilha, 11, link_site) # Link
-                                aba_inv.update_cell(linha_planilha, 12, "Publicado") # Status
-                                
-                                # ATUALIZA DOCUMENTOS (Integração)
+                                # ATUALIZA DOCUMENTOS (Integração com Linha de Montagem)
                                 try:
+                                    # Procura o código na aba de Documentos (Coluna F - VINCULO)
                                     cells_doc = aba_doc.findall(cod_atual)
                                     for c in cells_doc:
-                                        if c.col == 6: # Coluna VINCULO
+                                        if c.col == 6: 
                                             aba_doc.update_cell(c.row, 7, "Publicado no Odoo")
                                 except: pass
                                 
-                                relatorio_sucesso.append(f"{cod_atual} (Atualizado)")
+                                res_obs = "✅ Publicado & Integrado"
                             else:
-                                relatorio_versao_antiga.append(cod_atual)
+                                res_obs = "ℹ️ Versão Antiga (Ignorada)"
                         else:
-                            relatorio_nao_encontrado.append(cod_atual)
+                            # 3. ATUALIZA INVENTÁRIO (Falha - Agora escreve na planilha!)
+                            aba_inv.update_cell(linha_planilha, 12, "Não Publicado") # Coluna L
+                            res_obs = "❌ Não encontrado no site"
                         
+                        dados_relatorio.append({
+                            "Código SKU": cod_atual,
+                            "Resultado da Análise": res_obs,
+                            "Horário": datetime.now().strftime("%H:%M:%S")
+                        })
                         barra.progress((i + 1) / len(df_valido))
 
-                    # --- 📊 IMPLEMENTAÇÃO DO RELATÓRIO VISUAL ---
+                    # --- 📊 RELATÓRIO FINAL EM TABELA ---
                     status_dinamico.empty()
                     st.divider()
-                    st.markdown("### 📊 Relatório Final de Sincronização")
                     
-                    c1, c2, c3 = st.columns(3)
+                    with st.expander("📋 Detalhes da Varredura (Relatório Final)", expanded=True):
+                        df_relatorio = pd.DataFrame(dados_relatorio)
+                        st.dataframe(
+                            df_relatorio, 
+                            column_config={
+                                "Resultado da Análise": st.column_config.TextColumn("Status Final"),
+                                "Código SKU": st.column_config.TextColumn("Produto")
+                            },
+                            hide_index=True, 
+                            use_container_width=True
+                        )
                     
-                    with c1:
-                        st.success(f"**Publicados ({len(relatorio_sucesso)})**")
-                        for item in relatorio_sucesso:
-                            st.caption(f"✅ {item}")
-                    
-                    with c2:
-                        st.warning(f"**Não no Site ({len(relatorio_nao_encontrado)})**")
-                        for item in relatorio_nao_encontrado:
-                            st.caption(f"❌ {item}")
-                            
-                    with c3:
-                        st.info(f"**Versões Antigas ({len(relatorio_versao_antiga)})**")
-                        for item in relatorio_versao_antiga:
-                            st.caption(f"ℹ️ {item} (Ignorada)")
-
-                    if relatorio_sucesso:
+                    st.success("Sincronização concluída! Clique no botão abaixo para atualizar a Linha de Montagem.")
+                    if st.button("🔄 Finalizar e Atualizar Sistema", use_container_width=True):
                         st.cache_resource.clear()
-                        if st.button("Finalizar e Recarregar Sistema"):
-                            st.rerun()
+                        st.rerun()
             
             except Exception as e:
                 st.error(f"Erro na varredura: {e}")
