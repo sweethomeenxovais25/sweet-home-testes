@@ -333,7 +333,11 @@ if menu_selecionado == "🛒 Vendas":
     c_p1, c_p2, c_p3, c_p4 = st.columns([3, 1, 1, 1])
     
     # 1. Seleção do Produto
-    p_sel = c_p1.selectbox("Item do Estoque", [f"{k} - {v['nome']}" for k, v in banco_de_produtos.items()], key="venda_produto_sel")
+    p_sel = c_p1.selectbox(
+        "Item do Estoque", 
+        sorted(lista_selecao_limpa), # Deixa em ordem alfabética/numérica
+        key="venda_produto_sel"
+    )
     
     # 2. Recuperação do preço direto da planilha (usando o ID do produto selecionado)
     cod_p_temp = p_sel.split(" - ")[0]
