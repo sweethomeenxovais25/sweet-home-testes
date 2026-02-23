@@ -337,70 +337,75 @@ if menu_selecionado == "🛒 Vendas":
     st.divider()
 
     # --- 2. ADIÇÃO DE PRODUTOS AO CARRINHO ---
-    st.markdown("### 🛍️ Adicionar Produtos")
-    c_p1, c_p2, c_p3, c_p4 = st.columns([3, 1, 1, 1])
-    
-    # 1. Seleção do Produto
-    p_sel = c_p1.selectbox(
-        "Item do Estoque", 
-        sorted(lista_selecao_limpa), # Deixa em ordem alfabética/numérica
-        key="venda_produto_sel"
-    )
-    
-    # 2. Recuperação do preço direto da planilha (usando o ID do produto selecionado)
-    cod_p_temp = p_sel.split(" - ")[0]
-    preco_da_planilha = limpar_v(banco_de_produtos.get(cod_p_temp, {}).get('venda', 0.0))
-    
-    # 3. Campos de entrada
-    qtd_v = c_p2.number_input("Qtd", value=1, min_value=1, key="venda_qtd_input")
-    
-    # O segredo está aqui: o value recebe o preco_da_planilha e a KEY muda conforme o produto
-    # Isso força o Streamlit a atualizar o valor na tela instantaneamente
-    val_v = c_p3.number_input("Preço Un. (R$)", value=preco_da_planilha, min_value=0.0, step=0.01, key=f"preco_dinamico_{cod_p_temp}")
+    # Colocamos tudo dentro de um container com borda para ocupar a largura total
+    with st.container(border=True):
+        st.markdown("### 🛍️ Adicionar Produtos")
+        
+        # Ajustamos as proporções: 3.5 para o produto esticar e preencher o lado direito
+        c_p1, c_p2, c_p3, c_p4 = st.columns([3.5, 0.8, 1.2, 1])
+        
+        with c_p1:
+            p_sel = st.selectbox("Item do Estoque", sorted(lista_selecao_limpa), key="venda_produto_sel")
+        
+        with c_p2:
+            qtd_v = st.number_input("Qtd", value=1, min_value=1, key="venda_qtd_input")
+        
+        with c_p3:
+            cod_p_temp = p_sel.split(" - ")[0]
+            preco_da_planilha = limpar_v(banco_de_produtos.get(cod_p_temp, {}).get('venda', 0.0))
+            val_v = st.number_input("Preço Un. (R$)", value=preco_da_planilha, min_value=0.0, step=0.01, key=f"preco_dinamico_{cod_p_temp}")
 
-    with c_p4:
-        st.write("")
-        st.write("") 
-        st.write("")
-        if st.button("➕ Adicionar", use_container_width=True):
+        with c_p4:
+            # 💡 SOLUÇÃO DO DESALINHAMENTO:
+            # Criamos um rótulo HTML invisível que tem a mesma altura dos textos "Qtd" e "Preço"
+            st.markdown("<label style='display:block; margin-bottom:13px;'>&nbsp;</label>", unsafe_allow_html=True)
             
-            # Degrau 3: TUDO abaixo precisa estar alinhado aqui (Dois Tabs da margem)
-            id_p = p_sel.split(" - ")[0]
-            nome_p = p_sel.split(" - ")[1].strip()
-            custo_un = float(banco_de_produtos.get(id_p, {}).get('custo', 0.0))
-            
-            item_carrinho = {
-                "cod": id_p,
-                "nome": nome_p,
-                "qtd": qtd_v,
-                "preco": val_v,
-                "custo": custo_un,
-                "subtotal": qtd_v * val_v
-            }
-            st.session_state['carrinho'].append(item_carrinho)
-            st.toast(f"✅ {nome_p} no carrinho!")
+            if st.button("➕ Adicionar", use_container_width=True):
+                # MANTEMOS TODA A SUA LÓGICA ORIGINAL ABAIXO:
+                id_p = p_sel.split(" - ")[0]
+                nome_p = p_sel.split(" - ")[1].strip()
+                custo_un = float(banco_de_produtos.get(id_p, {}).get('custo', 0.0))
+                
+                item_carrinho = {
+                    "cod": id_p,
+                    "nome": nome_p,
+                    "qtd": qtd_v,
+                    "preco": val_v,
+                    "custo": custo_un,
+                    "subtotal": qtd_v * val_v
+                }
+                st.session_state['carrinho'].append(item_carrinho)
+                st.toast(f"✅ {nome_p} no carrinho!")
 
     # --- 3. EXIBIÇÃO DO CARRINHO E FINALIZAÇÃO ---
     if st.session_state['carrinho']:
-        st.markdown("#### 🛒 Itens Selecionados")
-        df_car = pd.DataFrame(st.session_state['carrinho'])
-        st.dataframe(df_car[['nome', 'qtd', 'preco', 'subtotal']], use_container_width=True, hide_index=True)
-        
-        subtotal_venda = df_car['subtotal'].sum()
-        
-        col_f1, col_f2, col_f3 = st.columns([2, 1, 1])
-        desc_v = col_f1.number_input("Desconto Total na Compra (R$)", 0.0, key="venda_desc_total")
-        
-        total_com_desconto = subtotal_venda - desc_v
-        col_f2.metric("Subtotal", f"R$ {subtotal_venda:,.2f}")
-        col_f3.metric("Total a Pagar", f"R$ {total_com_desconto:,.2f}", delta=f"- R$ {desc_v:,.2f}" if desc_v > 0 else None)
+        st.write("") # Pequeno respiro visual entre as caixas
+        with st.container(border=True): # Moldura também para o Carrinho
+            st.markdown("#### 🛒 Itens Selecionados")
+            df_car = pd.DataFrame(st.session_state['carrinho'])
+            st.dataframe(df_car[['nome', 'qtd', 'preco', 'subtotal']], use_container_width=True, hide_index=True)
+            
+            subtotal_venda = df_car['subtotal'].sum()
+            
+            st.divider()
+            col_f1, col_f2, col_f3 = st.columns([2, 1, 1])
+            
+            with col_f1:
+                desc_v = st.number_input("Desconto Total na Compra (R$)", 0.0, key="venda_desc_total")
+            
+            total_com_desconto = subtotal_venda - desc_v
+            
+            # Usando métricas para preencher visualmente e profissionalizar o total
+            col_f2.metric("Subtotal", f"R$ {subtotal_venda:,.2f}")
+            col_f3.metric("Total a Pagar", f"R$ {total_com_desconto:,.2f}", delta=f"- R$ {desc_v:,.2f}" if desc_v > 0 else None)
 
-        c_btn1, c_btn2 = st.columns(2)
-        if c_btn1.button("🗑️ Limpar Tudo", use_container_width=True):
-            st.session_state['carrinho'] = []
-            st.rerun()
+            c_btn1, c_btn2 = st.columns(2)
+            if c_btn1.button("🗑️ Limpar Tudo", use_container_width=True):
+                st.session_state['carrinho'] = []
+                st.rerun()
 
-        if c_btn2.button("Finalizar Venda 🚀", type="primary", use_container_width=True):
+            if c_btn2.button("Finalizar Venda 🚀", type="primary", use_container_width=True):
+                # A partir daqui, todo o seu código de Loop, Planilha e Recibo da Bia continua exatamente igual...
             # Validação de Cliente Novo
             if c_sel == "*** NOVO CLIENTE ***" and (not c_nome_novo or not c_zap):
                 st.error("⚠️ Preencha Nome e Zap para novo cliente!"); st.stop()
