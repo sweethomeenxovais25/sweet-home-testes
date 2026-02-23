@@ -18,15 +18,14 @@ def verificar_status_odoo(codigo_produto):
     cod_limpo = str(codigo_produto).strip()
     url_busca = f"https://sweethomecomfort.odoo.com/shop?&search={cod_limpo}"
     try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        headers = {'User-Agent': 'Mozilla/5.0'}
         resposta = requests.get(url_busca, headers=headers, timeout=10)
         conteudo = resposta.text.lower()
         
-        # Frases de erro específicas do seu site
+        # Validação rigorosa: se o código pesquisado não retorna produto
         if f'nenhum resultado para "{cod_limpo.lower()}"' in conteudo or "nenhum resultado encontrado" in conteudo:
             return False, ""
         
-        # Confirmação visual de que o produto existe
         if "oe_product" in conteudo or "o_wsale_products_item" in conteudo:
             return True, url_busca
         return False, ""
@@ -1238,111 +1237,106 @@ elif menu_selecionado == "📂 Documentos":
                 else: 
                     st.info("Sua fila de trabalho está limpa.")
 
-    # --- ASSISTENTE DE SINCRONIZAÇÃO MESTRE (V10 - FOCO EM 'TOTAIS' & SEQUENCIAL) ---
-    with st.expander("🤖 Sincronizador Inteligente Odoo", expanded=False):
-        st.write("Varredura organizada linha a linha. Para exatamente na linha de 'TOTAIS'.")
+    # --- ASSISTENTE DE SINCRONIZAÇÃO MESTRE (V11 - ANÁLISE DE VERSÕES E DEFASAGEM) ---
+    with st.expander("🤖 Sincronizador Inteligente (Análise de Versões)", expanded=False):
+        st.write("O robô identifica se o site está atualizado com a versão mais recente da planilha.")
         
-        if st.button("🚀 Iniciar Varredura Sequencial", use_container_width=True):
+        if st.button("🚀 Iniciar Varredura de Versões", use_container_width=True):
             try:
-                # 1. CARREGAMENTO DOS DADOS
+                # 1. CARREGAMENTO E FILTRO DE TOTAIS
                 aba_inv = planilha_mestre.worksheet("INVENTÁRIO")
                 dados_inv = aba_inv.get_all_values()
                 df_inv = pd.DataFrame(dados_inv[1:], columns=dados_inv[0])
                 
-                # 2. LOCALIZAR A LINHA DE 'TOTAIS' (LIMITE MÁXIMO)
-                # Buscamos o índice da primeira linha que contém a palavra exata 'TOTAIS'
                 idx_limite = df_inv[df_inv['CÓD. PRÓDUTO'].str.upper().str.contains("TOTAIS", na=False)].index.min()
-                
-                # Se encontrar 'TOTAIS', cortamos o DF ali. Senão, processamos tudo.
-                df_processar = df_inv.iloc[:idx_limite].copy() if not pd.isna(idx_limite) else df_inv.copy()
-                
-                # Remove apenas linhas realmente vazias no meio do caminho
-                df_processar = df_processar[df_processar['CÓD. PRÓDUTO'].str.strip() != ""]
+                df_proc = df_inv.iloc[:idx_limite].copy() if not pd.isna(idx_limite) else df_inv.copy()
+                df_proc = df_proc[df_proc['CÓD. PRÓDUTO'].str.strip() != ""]
 
-                if df_processar.empty:
-                    st.warning("Nenhum produto pendente encontrado antes da linha de 'TOTAIS'.")
+                if df_proc.empty:
+                    st.warning("Nenhum produto para processar.")
                 else:
-                    st.info(f"🔍 Iniciando varredura em {len(df_processar)} linhas (Parada em: TOTAIS).")
+                    # 💡 LÓGICA DE MAPEAMENTO: Descobre qual a MAIOR versão de cada código na planilha
+                    df_proc['BASE'] = df_proc['CÓD. PRÓDUTO'].apply(lambda x: str(x).split('.')[0].strip())
+                    # Criamos um dicionário com a versão mais recente de cada família
+                    mapa_mais_recente = df_proc.groupby('BASE')['CÓD. PRÓDUTO'].last().to_dict()
+
+                    st.info(f"🔍 Analisando {len(df_proc)} linhas. Detectando versões desatualizadas no site...")
                     barra = st.progress(0)
-                    status_frame = st.empty()
+                    status_dinamico = st.empty()
                     dados_relatorio = []
                     aba_doc = planilha_mestre.worksheet("DOCUMENTOS")
-                    
-                    # Cache para evitar múltiplas buscas da mesma família (.1, .2) no site
-                    cache_familias = {} 
 
-                    # 3. LOOP LINHA POR LINHA
-                    for i, (idx, row) in enumerate(df_processar.iterrows()):
+                    for i, (idx, row) in enumerate(df_proc.iterrows()):
                         cod_atual = str(row['CÓD. PRÓDUTO']).strip()
-                        base_code = cod_atual.split('.')[0].strip()
-                        linha_real = idx + 2
+                        base_cod = row['BASE']
+                        versao_topo = mapa_mais_recente[base_cod]
+                        linha_p = idx + 2
                         
-                        status_frame.markdown(f"⏳ **Processando Linha {linha_real}:** `{cod_atual}`")
+                        status_dinamico.markdown(f"⏳ **Linha {linha_p}:** `{cod_atual}` (Mais novo na planilha: `{versao_topo}`)")
 
-                        # Inteligência de Versão: Localiza a versão mais nova da família na lista de processamento
-                        familia = df_processar[df_processar['CÓD. PRÓDUTO'].str.startswith(base_code)]
-                        cod_referencia = str(familia.iloc[-1]['CÓD. PRÓDUTO']).strip()
+                        # O robô checa o código desta linha específica no site
+                        achou_no_site, link_ref = verificar_status_odoo(cod_atual)
+                        time.sleep(1.3) # Prevenção Quota 429
 
-                        # Verifica no site se ainda não pesquisou essa família
-                        if cod_referencia not in cache_familias:
-                            achou, link = verificar_status_odoo(cod_referencia)
-                            cache_familias[cod_referencia] = (achou, link)
-                        
-                        online, link_prod = cache_familias[cod_referencia]
-                        
-                        # Pausa para evitar bloqueio da API do Google (Erro 429)
-                        time.sleep(1.3)
+                        status_final_planilha = ""
+                        res_obs = ""
 
-                        if online:
-                            # Se a referência (caçula) está online, atualizamos o inventário
-                            status_msg = "Publicado" if cod_atual == cod_referencia else "Publicado (Versão Nova)"
-                            aba_inv.update_cell(linha_real, 11, link_prod) # Coluna K
-                            aba_inv.update_cell(linha_real, 12, status_msg) # Coluna L
+                        if achou_no_site:
+                            # Se achou no site, agora comparamos se é a versão mais nova da planilha
+                            if cod_atual == versao_topo:
+                                status_final_planilha = "Publicado"
+                                res_obs = "✅ Publicado (Atualizado)"
+                            else:
+                                # O código atual existe no site, mas existe um .1 ou .2 novo na planilha
+                                status_final_planilha = "Publicado (Site Desatualizado)"
+                                res_obs = "⚠️ Site com Versão Antiga"
                             
-                            # Integração Automática com DOCUMENTOS (Para limpar a Linha de Montagem)
+                            # Atualiza Planilha Inventário
+                            aba_inv.update_cell(linha_p, 11, link_ref) # Coluna K
+                            aba_inv.update_cell(linha_p, 12, status_final_planilha) # Coluna L
+                            
+                            # Integração com Linha de Montagem (Aba DOCUMENTOS)
                             try:
-                                cells_doc = aba_doc.findall(cod_atual)
-                                for c in cells_doc:
-                                    if c.col == 6: # Coluna VINCULO (F)
-                                        aba_doc.update_cell(c.row, 7, "Publicado no Odoo")
+                                cells = aba_doc.findall(cod_atual)
+                                for c in cells:
+                                    if c.col == 6: aba_doc.update_cell(c.row, 7, "Publicado no Odoo")
                             except: pass
-                            
-                            res_final = "✅ Publicado"
                         else:
-                            # Se não está no site, marca como Não Publicado
-                            aba_inv.update_cell(linha_real, 12, "Não Publicado")
-                            res_final = "❌ Não Encontrado"
+                            # Não encontrado no site
+                            aba_inv.update_cell(linha_p, 12, "Não Publicado")
+                            res_obs = "❌ Não Encontrado"
 
                         dados_relatorio.append({
-                            "Linha": linha_real,
-                            "Produto": cod_atual,
-                            "Status Final": res_final
+                            "Linha": linha_p,
+                            "Cód. Planilha": cod_atual,
+                            "Status no Site": res_obs,
+                            "Ação Necessária": "Nenhuma" if res_obs == "✅ Publicado (Atualizado)" else ("Subir nova versão" if res_obs == "⚠️ Site com Versão Antiga" else "Publicar")
                         })
-                        barra.progress((i + 1) / len(df_processar))
+                        barra.progress((i + 1) / len(df_proc))
 
-                    # --- 📊 RELATÓRIO VISUAL COLORIDO ---
-                    status_frame.empty()
+                    # --- 📊 RELATÓRIO VISUAL DE INTERPRETAÇÃO ---
+                    status_dinamico.empty()
                     st.divider()
-                    st.write("### 📋 Resumo da Sincronização")
-                    
-                    df_rel = pd.DataFrame(dados_relatorio)
-                    
-                    # Função para aplicar cores na tabela
-                    def colorir_status(val):
-                        color = '#d4edda' if '✅' in val else '#f8d7da' # Verde claro ou Vermelho claro
-                        return f'background-color: {color}; color: black; font-weight: bold;'
+                    st.write("### 📋 Relatório de Diagnóstico de Versões")
 
+                    def colorir_interpretação(val):
+                        if "✅" in val: return 'background-color: #d4edda; color: #155724' # Verde
+                        if "⚠️" in val: return 'background-color: #fff3cd; color: #856404' # Amarelo
+                        if "❌" in val: return 'background-color: #f8d7da; color: #721c24' # Vermelho
+                        return ''
+
+                    df_rel = pd.DataFrame(dados_relatorio)
                     st.dataframe(
-                        df_rel.style.applymap(colorir_status, subset=['Status Final']),
-                        use_container_width=True,
-                        hide_index=True
+                        df_rel.style.applymap(colorir_interpretação, subset=['Status no Site']),
+                        use_container_width=True, hide_index=True
                     )
+
+                    st.info("💡 **Dica:** Itens em amarelo (⚠️) indicam que o produto está no site, mas com um código de versão anterior ao seu controle atual.")
                     
-                    st.success("Sincronização concluída com sucesso!")
-                    if st.button("🔄 Atualizar Listas do Sistema", use_container_width=True):
+                    if st.button("🔄 Sincronizar Interface", use_container_width=True):
                         st.cache_resource.clear()
                         st.rerun()
-            
+
             except Exception as e:
                 st.error(f"Erro na varredura: {e}")
 
