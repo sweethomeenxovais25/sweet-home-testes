@@ -295,7 +295,8 @@ if menu_selecionado == "🛒 Vendas":
     # Criamos a lista final apenas com os códigos mais recentes
     lista_selecao_limpa = [f"{v['full_cod']} - {v['nome']}" for v in produtos_filtrados_venda.values()]
     # -----------------------------------------------------
-    st.subheader("🛒 Registro de Venda")
+    st.markdown("<h2 style='text-align: center;'>🛒 Registro de Venda</h2>", unsafe_allow_html=True)
+    st.write("") # Um pequeno espaço para não colar na caixa de baixo
     
     # 1. Você insere esta linha aqui (A tampa da caixa):
     with st.container(border=True):
