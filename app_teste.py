@@ -195,29 +195,37 @@ except Exception as e:
 
 # 👇 2. DEPOIS: O GATILHO RODA (Agora que a planilha_mestre já existe!)
 # ====================================================
-# 🤖 GATILHO DE REGISTRO (VERSÃO SILENCIOSA E ELEGANTE)
+# 🤖 GATILHO DE REGISTRO (VERSÃO FINAL: PRECISA E ELEGANTE)
 # ====================================================
 if st.session_state.get('precisa_registrar_acesso'):
     try:
+        # 1. Localiza a aba e os dados
         aba_usuario = planilha_mestre.worksheet("USUARIO") 
         agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
         usuario_logado = st.session_state.get('usuario_logado')
         
+        # 2. Busca o nome (o find é sensível a maiúsculas/minúsculas)
         celula_nome = aba_usuario.find(usuario_logado)
         
         if celula_nome:
             cabecalhos = aba_usuario.row_values(1)
-            col_acesso = cabecalhos.index("ULTIMO_ACESSO") + 1
+            # Tenta encontrar a coluna exata
+            if "ULTIMO_ACESSO" in cabecalhos:
+                col_acesso = cabecalhos.index("ULTIMO_ACESSO") + 1
+                
+                # 3. EFETUA O REGISTRO ANTES DE QUALQUER OUTRA AÇÃO
+                aba_usuario.update_cell(celula_nome.row, col_acesso, agora)
+                
+                # 4. AVISO VISUAL RÁPIDO
+                st.toast(f"Logado como {usuario_logado}. Ponto registrado! 🕒", icon="✅")
             
-            aba_usuario.update_cell(celula_nome.row, col_acesso, agora)
+            # 5. Só desliga o gatilho após o sucesso do update
+            st.session_state['precisa_registrar_acesso'] = False 
             
-            # 👇 A mágica visual: Uma notificação rápida que some sozinha!
-            st.toast(f"Bem-vindo(a), {usuario_logado}! Ponto registrado. 🕒", icon="✅")
-            
-        st.session_state['precisa_registrar_acesso'] = False 
-            
-    except Exception:
-        # Se der qualquer erro (ex: falha rápida de internet), ele falha em silêncio
+    except Exception as e:
+        # Caso falhe, ele imprime um erro discreto no log para você saber o que houve
+        print(f"Erro ao registrar: {e}") 
+        # Mantemos o sinal como False para não entrar em loop de erro
         st.session_state['precisa_registrar_acesso'] = False
 # ====================================================
 
