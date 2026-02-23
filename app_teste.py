@@ -195,41 +195,29 @@ except Exception as e:
 
 # 👇 2. DEPOIS: O GATILHO RODA (Agora que a planilha_mestre já existe!)
 # ====================================================
-# 🤖 GATILHO DE REGISTRO (MODO DETETIVE LIGADO)
+# 🤖 GATILHO DE REGISTRO (VERSÃO SILENCIOSA E ELEGANTE)
 # ====================================================
 if st.session_state.get('precisa_registrar_acesso'):
-    st.warning("🕵️‍♂️ Iniciando tentativa de registro na planilha...") 
     try:
         aba_usuario = planilha_mestre.worksheet("USUARIO") 
-        st.write("✅ 1. Encontrou a aba USUARIO.")
-        
         agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
         usuario_logado = st.session_state.get('usuario_logado')
-        st.write(f"🔍 2. Procurando o nome exato: '{usuario_logado}'")
         
         celula_nome = aba_usuario.find(usuario_logado)
         
         if celula_nome:
-            st.write(f"✅ 3. Achou o usuário na linha {celula_nome.row}.")
             cabecalhos = aba_usuario.row_values(1)
+            col_acesso = cabecalhos.index("ULTIMO_ACESSO") + 1
             
-            try:
-                col_acesso = cabecalhos.index("ULTIMO_ACESSO") + 1
-                st.write(f"✅ 4. Achou a coluna ULTIMO_ACESSO (Número {col_acesso}).")
-                
-                aba_usuario.update_cell(celula_nome.row, col_acesso, agora)
-                st.success("🎉 5. Hora carimbada com sucesso no Google Sheets!")
-                
-            except ValueError:
-                st.error("❌ Erro: Não achou o cabeçalho 'ULTIMO_ACESSO'. Tem espaço sobrando na palavra lá na planilha?")
-                
-            st.session_state['precisa_registrar_acesso'] = False 
-        else:
-            st.error(f"❌ Erro: Não encontrou o nome '{usuario_logado}' na planilha. Verifique se tem letras maiúsculas ou espaços sobrando.")
-            st.session_state['precisa_registrar_acesso'] = False 
+            aba_usuario.update_cell(celula_nome.row, col_acesso, agora)
             
-    except Exception as e:
-        st.error(f"❌ Erro fatal: {e}")
+            # 👇 A mágica visual: Uma notificação rápida que some sozinha!
+            st.toast(f"Bem-vindo(a), {usuario_logado}! Ponto registrado. 🕒", icon="✅")
+            
+        st.session_state['precisa_registrar_acesso'] = False 
+            
+    except Exception:
+        # Se der qualquer erro (ex: falha rápida de internet), ele falha em silêncio
         st.session_state['precisa_registrar_acesso'] = False
 # ====================================================
 
