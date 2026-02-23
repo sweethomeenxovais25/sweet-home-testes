@@ -9,6 +9,8 @@ import unicodedata
 import cloudinary
 import cloudinary.uploader
 import io
+import google.generativeai as genai
+from PIL import Image
 
 # ==========================================
 # 1. CONFIGURAÇÃO ÚNICA DA PÁGINA
@@ -563,6 +565,48 @@ elif menu_selecionado == "📦 Estoque":
                 if not campeoes_df.empty:
                     st.dataframe(campeoes_df[['CÓD. PRÓDUTO', 'NOME DO PRODUTO', 'QTD VENDIDA', 'ESTOQUE ATUAL']], use_container_width=True, hide_index=True)
                 else: st.info("Aguardando volume de vendas.")
+
+# ==========================================
+# 🤖 ENTRADA INTELIGENTE (IA GEMINI)
+# ==========================================
+        st.divider()
+        with st.expander("🤖 Entrada Inteligente (Ler Nota Fiscal com IA)", expanded=False):
+            st.write("Tire uma foto da Nota Fiscal ou Recibo do fornecedor e deixe a IA ler os itens para você!")
+            foto_nf = st.file_uploader("Envie a foto da Nota", type=['png', 'jpg', 'jpeg'])
+            
+            if foto_nf is not None:
+                if st.button("🧠 Ler Documento", use_container_width=True):
+                    with st.spinner("A IA está analisando a imagem. Isso leva alguns segundos... ⏳"):
+                        try:
+                            # Conecta com a sua chave
+                            genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+                            modelo_ia = genai.GenerativeModel('gemini-1.5-flash')
+                            
+                            # Prepara a imagem
+                            img = Image.open(foto_nf)
+                            
+                            # A "ordem" que damos para a IA
+                            prompt = """
+                            Você é o assistente de estoque da 'Sweet Home Enxovais'. 
+                            Sua tarefa é ler esta nota fiscal ou recibo e extrair apenas os produtos.
+                            Para cada produto encontrado, retorne uma linha neste formato exato:
+                            ✅ [Quantidade]x [Nome do Produto] - Custo Unitário: R$ [Valor]
+                            
+                            Seja direto e não invente dados. Se a imagem não for uma nota ou não estiver nítida, avise.
+                            """
+                            
+                            # A mágica acontece aqui
+                            resposta = modelo_ia.generate_content([prompt, img])
+                            
+                            st.success("✅ Leitura Concluída!")
+                            st.markdown("### 📋 Produtos Encontrados pela IA:")
+                            st.info(resposta.text)
+                            
+                            st.warning("💡 Dica: Use a lista acima para copiar os nomes e dar a entrada rápida no 'Radar de Entrada' logo abaixo.")
+                            
+                        except Exception as e:
+                            st.error(f"⚠️ Ocorreu um erro na IA: {e}")
+                            st.caption("Verifique se a chave do Google está correta nos Secrets e se adicionou 'google-generativeai' no requirements.txt.")
 
     st.divider()
     st.write("### 🔍 Radar de Entrada")
