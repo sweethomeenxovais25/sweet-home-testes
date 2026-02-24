@@ -635,63 +635,65 @@ if menu_selecionado == "🛒 Vendas":
     # [O código da Borracha Mágica (Edição de Vendas) continua exatamente como você já tinha abaixo deste ponto]
 
 # ==========================================
-    # ✏️ BORRACHA MÁGICA: EDIÇÃO SEGURA DE VENDAS
+    # ✏️ BORRACHA MÁGICA: EDIÇÃO E EXCLUSÃO
     # ==========================================
-    with st.expander("✏️ Corrigir Venda Recente", expanded=False):
-        st.write("Escolha uma venda recente abaixo para corrigir cliente, produto ou valores.")
+    with st.expander("✏️ Corrigir ou Excluir Venda Recente", expanded=False):
+        st.write("Escolha uma venda recente para ajustar dados ou remover do registro.")
         
         try:
+            # Carregamento dos dados
             aba_vendas = planilha_mestre.worksheet("VENDAS")
             dados_v = aba_vendas.get_all_values()
             
             if len(dados_v) > 1:
                 vendas_recentes = []
+                # Pega as últimas 20 linhas (evitando o cabeçalho)
                 for i in range(len(dados_v)-1, max(0, len(dados_v)-21), -1):
                     linha = dados_v[i]
-                    if "TOTAIS" not in str(linha[3]).upper() and linha[3] != "":
+                    # Verifica se a linha tem colunas suficientes e não é um totalizador
+                    if len(linha) > 5 and "TOTAIS" not in str(linha[3]).upper() and linha[3] != "":
                         vendas_recentes.append(f"Linha {i+1} | Data: {linha[1]} | Cliente: {linha[3]} | Item: {linha[5]}")
                 
-                venda_selecionada = st.selectbox("Selecione a venda com erro:", ["---"] + vendas_recentes, help="Mostra apenas as últimas 20 vendas.")
+                venda_selecionada = st.selectbox("Selecione a venda:", ["---"] + vendas_recentes, help="Mostra as últimas 20 vendas.")
                 
                 if venda_selecionada != "---":
+                    # Extração segura do número da linha
                     linha_real = int(venda_selecionada.split(" | ")[0].replace("Linha ", ""))
                     linha_dados = dados_v[linha_real - 1]
                     
+                    # Mapeamento de colunas (ajuste os índices se sua planilha mudar)
                     cod_cli_atual = linha_dados[2]
                     nome_cli_atual = linha_dados[3]
                     cod_prod_atual = linha_dados[4]
                     nome_prod_atual = linha_dados[5]
-                    
+                    metodo_atual = linha_dados[14]
+
+                    # Função interna de limpeza de valores
                     def limpar_para_editar(val_str, is_perc=False):
                         try:
-                            v = str(val_str).replace("R$", "").strip()
-                            if is_perc and "%" in v:
-                                v = v.replace("%", "").strip()
-                                if "," in v and "." in v: v = v.replace(".", "").replace(",", ".")
-                                elif "," in v: v = v.replace(",", ".")
+                            v = str(val_str).replace("R$", "").replace(" ", "").replace(".", "").replace(",", ".")
+                            # Se for percentual e vier como "10.00%", v vira "10.00"
+                            if is_perc and "%" in str(val_str):
+                                v = v.replace("%", "")
                                 return float(v) / 100.0
-                            
-                            if "," in v and "." in v: v = v.replace(".", "").replace(",", ".")
-                            elif "," in v: v = v.replace(",", ".")
                             return float(v)
                         except:
                             return 0.0
 
                     qtd_atual = limpar_para_editar(linha_dados[7])
                     val_atual = limpar_para_editar(linha_dados[8])
-                    desc_perc_atual = limpar_para_editar(linha_dados[9], is_perc=True)
                     
-                    # ✨ TRAVA DE SEGURANÇA CONTRA BUGS ANTIGOS ✨
-                    # Se o percentual na planilha estiver absurdo (maior que 100%) ou negativo, zera para não confundir.
-                    if desc_perc_atual > 1.0 or desc_perc_atual < 0:
-                        desc_reais_atual = 0.0
+                    # Cálculo do desconto atual (em Reais para o formulário)
+                    desc_perc_raw = limpar_para_editar(linha_dados[9], is_perc=True)
+                    if 0 <= desc_perc_raw <= 1:
+                        desc_reais_atual = round((qtd_atual * val_atual) * desc_perc_raw, 2)
                     else:
-                        desc_reais_atual = round((qtd_atual * val_atual) * desc_perc_atual, 2)
-                        
-                    metodo_atual = linha_dados[14]
+                        desc_reais_atual = 0.0
 
+                    # Preparação das listas de seleção
                     lista_clientes = [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()]
                     cliente_str_atual = f"{cod_cli_atual} - {nome_cli_atual}"
+                    # Busca de índice segura (evita o erro que estava travando seu código)
                     idx_cliente = lista_clientes.index(cliente_str_atual) if cliente_str_atual in lista_clientes else 0
 
                     lista_produtos = [f"{k} - {v['nome']}" for k, v in banco_de_produtos.items()]
@@ -701,21 +703,29 @@ if menu_selecionado == "🛒 Vendas":
                     lista_metodos = ["Pix", "Dinheiro", "Cartão", "Sweet Flex"]
                     idx_metodo = lista_metodos.index(metodo_atual) if metodo_atual in lista_metodos else 0
 
+                    # --- FORMULÁRIO DE EDIÇÃO ---
                     with st.form(f"form_edicao_{linha_real}"):
-                        st.write("#### 🔄 Atualizar Dados", help="📝 COMO USAR:\nAltere apenas os campos que estavam errados na venda original.\n\n🎯 QUANDO USAR:\nPara corrigir erros de digitação rápidos (ex: selecionou a cliente errada, trocou o produto ou errou o valor).\n\n⚠️ AVISO IMPORTANTE:\nUse apenas para arrumar erros do dia a dia. Não use essa ferramenta para bagunçar vendas antigas, pois ela altera a planilha financeira oficial!")
-                        e_c1, e_c2 = st.columns(2)
-                        novo_cliente = e_c1.selectbox("Cliente Oficial", lista_clientes, index=idx_cliente)
-                        novo_produto = e_c2.selectbox("Produto Correto", lista_produtos, index=idx_produto)
+                        st.markdown(f"### 🔄 Editando Linha {linha_real}")
                         
-                        e_c3, e_c4, e_c5 = st.columns(3)
-                        nova_qtd = e_c3.number_input("Quantidade", value=int(qtd_atual) if qtd_atual.is_integer() else qtd_atual, min_value=1)
-                        novo_val = e_c4.number_input("Preço Un. (R$)", value=float(val_atual))
-                        novo_desc = e_c5.number_input("Desconto (R$)", value=float(desc_reais_atual))
+                        col_e1, col_e2 = st.columns(2)
+                        novo_cliente = col_e1.selectbox("Cliente", lista_clientes, index=idx_cliente)
+                        novo_produto = col_e2.selectbox("Produto", lista_produtos, index=idx_produto)
+                        
+                        col_e3, col_e4, col_e5 = st.columns(3)
+                        nova_qtd = col_e3.number_input("Qtd", value=float(qtd_atual), step=1.0)
+                        novo_val = col_e4.number_input("Preço Un. (R$)", value=float(val_atual))
+                        novo_desc = col_e5.number_input("Desconto Total (R$)", value=float(desc_reais_atual))
                         
                         novo_metodo = st.selectbox("Forma de Pagto", lista_metodos, index=idx_metodo)
                         
-                        if st.form_submit_button("💾 Salvar Correção", type="primary"):
+                        # Botões de ação
+                        c_btn1, c_btn2 = st.columns([1, 1])
+                        btn_salvar = c_btn1.form_submit_button("💾 Salvar Alterações", type="primary", use_container_width=True)
+                        btn_excluir = c_btn2.form_submit_button("🗑️ Excluir Venda", type="secondary", use_container_width=True)
+
+                        if btn_salvar:
                             try:
+                                # Lógica de recalculo
                                 n_cod_cli = novo_cliente.split(" - ")[0]
                                 n_nome_cli = " - ".join(novo_cliente.split(" - ")[1:])
                                 n_cod_prod = novo_produto.split(" - ")[0]
@@ -728,14 +738,15 @@ if menu_selecionado == "🛒 Vendas":
                                 
                                 eh_parc = "Sim" if novo_metodo == "Sweet Flex" else "Não"
                                 
-                                try: num_parc = int(linha_dados[16])
+                                # Preserva número de parcelas original se existir
+                                try: num_parc = int(linha_dados[16]) if linha_dados[16] else 1
                                 except: num_parc = 1
-                                if num_parc <= 0: num_parc = 1
                                 
                                 val_parc = n_t_liq / num_parc if eh_parc == "Sim" else 0
                                 val_vista = n_t_liq if eh_parc == "Não" else 0
                                 val_total_flex = n_t_liq if eh_parc == "Sim" else 0
                                 
+                                # Atualização em lote (mais rápido)
                                 atualizacoes = [
                                     {'range': f'C{linha_real}', 'values': [[n_cod_cli]]},
                                     {'range': f'D{linha_real}', 'values': [[n_nome_cli]]},
@@ -751,42 +762,39 @@ if menu_selecionado == "🛒 Vendas":
                                     {'range': f'T{linha_real}', 'values': [[val_vista]]},
                                     {'range': f'U{linha_real}', 'values': [[val_total_flex]]}
                                 ]
-                                aba_vendas.batch_update(atualizacoes, value_input_option='RAW')
+                                aba_vendas.batch_update(atualizacoes, value_input_option='USER_ENTERED')
                                 
-                                st.session_state['recibo_correcao'] = {
-                                    "cliente": n_nome_cli,
-                                    "produto": f"{nova_qtd}x {n_nome_prod}",
-                                    "total": n_t_liq,
-                                    "metodo": novo_metodo
-                                }
-                                
+                                st.session_state['recibo_correcao'] = {"msg": "Venda atualizada!", "cliente": n_nome_cli, "total": n_t_liq}
                                 st.cache_resource.clear()
                                 st.rerun()
-                                
                             except Exception as e:
-                                st.error(f"⚠️ Erro ao salvar: {e}")
+                                st.error(f"Erro ao salvar: {e}")
+
+                        if btn_excluir:
+                            # A exclusão em planilhas compartilhadas é delicada, usamos o delete_rows
+                            try:
+                                aba_vendas.delete_rows(linha_real)
+                                st.success(f"Venda da linha {linha_real} removida com sucesso!")
+                                st.cache_resource.clear()
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro ao excluir: {e}")
+
+            else:
+                st.warning("Nenhuma venda encontrada para editar.")
+                
         except Exception as e:
-            st.info("Aguardando carregamento dos dados para edição.")
+            # Mostra o erro real para você conseguir debugar se algo mudar na planilha
+            st.error(f"Ocorreu um erro no carregamento: {e}")
 
     # ==========================================
-    # 🧾 AVISO DE CORREÇÃO BEM-SUCEDIDA
+    # 🧾 RESUMO DA CORREÇÃO
     # ==========================================
     if 'recibo_correcao' in st.session_state:
-        st.success("✅ Venda atualizada na planilha com sucesso!")
         recibo = st.session_state['recibo_correcao']
-        
-        st.markdown("#### 📋 Resumo do Ajuste")
-        tabela_resumo = f"""
-| Informação | Registro Corrigido |
-| :--- | :--- |
-| 👤 **Cliente** | {recibo['cliente']} |
-| 📦 **Produto** | {recibo['produto']} |
-| 💰 **Valor Total** | R$ {recibo['total']:.2f} |
-| 💳 **Pagamento** | {recibo['metodo']} |
-"""
-        st.markdown(tabela_resumo)
-        
-        if st.button("✖️ Fechar Aviso", key="fechar_aviso_correcao"):
+        st.success(f"✅ {recibo['msg']}")
+        st.info(f"**Cliente:** {recibo['cliente']} | **Novo Total:** R$ {recibo['total']:.2f}")
+        if st.button("Limpar Aviso"):
             del st.session_state['recibo_correcao']
             st.rerun()
             
