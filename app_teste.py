@@ -1147,8 +1147,8 @@ elif menu_selecionado == "💰 Financeiro":
                                     import google.generativeai as genai
                                     
                                     # 🔑 CONFIGURAÇÃO DA API (Cole sua chave aqui)
-                                    CHAVE_API = "SUA_CHAVE_AQUI" 
-                                    genai.configure(api_key=AIzaSyDfnLUjLUZip1KI8PJBEh3iYUDeED9dvlc)
+                                    CHAVE_API = "AIzaSyDfnLUjLUZip1KI8PJBEh3iYUDeED9dvlc" 
+                                    genai.configure(api_key=CHAVE_API)
                                     
                                     # Prompt estratégico para a Sweet Home
                                     prompt_ia = f"""
