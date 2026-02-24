@@ -1095,93 +1095,96 @@ elif menu_selecionado == "💰 Financeiro":
                         dt_compra = dados_cli['DATA_COMPRA']
                         lista_produtos = "\n".join([f"🔸 {p.strip()}" for p in dados_cli['PRODUTOS_COMPRADOS'].split("|")])
                         
+                        # ====================================================
+                        # 📞 RECUPERAÇÃO DO TELEFONE (PONTE COM CARTEIRA)
+                        # ====================================================
+                        # Pegamos o código do cliente desta fatura específica
+                        cod_cliente_fatura = str(dados_cli.get('CÓD. CLIENTE', '')).strip()
+                        
+                        # Buscamos no seu banco_de_clientes (Carregado da aba CARTEIRA DE CLIENTES)
+                        info_cliente = banco_de_clientes.get(cod_cliente_fatura, {})
+                        tel_cru = str(info_cliente.get('fone', '')).strip()
+                        
+                        # Limpeza do número: deixa apenas dígitos e garante o DDI 55
+                        tel_limpo = "".join(filter(str.isdigit, tel_cru))
+                        if tel_limpo and not tel_limpo.startswith("55"):
+                            tel_limpo = "55" + tel_limpo
+                        
                         v_orig = f"R$ {dados_cli['VALOR_ORIGINAL']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                         v_atu = f"R$ {dados_cli['VALOR_ATUALIZADO']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                         v_encargos = f"R$ {(dados_cli['VALOR_ATUALIZADO'] - dados_cli['VALOR_ORIGINAL']):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                         d_venc = dados_cli['VENCIMENTO'].strftime("%d/%m/%Y")
                         cnpj_sweet = "62.862.825/0001-72" 
                         
-                        # --- TEXTO PADRÃO DO SISTEMA (Formato Recibo) ---
-                        if dias <= 0: # LEMBRETE PREVENTIVO
+                        # --- DEFINIÇÃO DOS TEXTOS PADRÃO ---
+                        if dias <= 0:
                             dias_para_vencer = abs(dias)
                             txt_dia = "HOJE" if dias_para_vencer == 0 else f"em {dias_para_vencer} dias"
                             msg_padrao = f"Olá, *{cliente_alvo}*! Tudo bem? 🌸\nPassando para te enviar um lembrete amigável do seu pacote na *Sweet Home Enxovais*.\n\n🧾 *LEMBRETE DE VENCIMENTO*\n🛍️ *Itens:*\n{lista_produtos}\n\n⚠️ O vencimento da sua parcela de *{v_orig}* será *{txt_dia}* ({d_venc}).\n\nCaso já tenha realizado o pagamento ou precise da chave PIX, estou à disposição! Um abraço. 😊"
                             status_msg = "💡 Lembrete Preventivo."
-                        
-                        elif dias <= 7: # ATRASO LEVE
-                            msg_padrao = f"Olá, *{cliente_alvo}*! Tudo bem? 🌸\nPassando rapidinho para te enviar o resumo da sua compra na *Sweet Home Enxovais*.\n\n🧾 *CUPOM DE CONFERÊNCIA*\n🛍️ *Itens:*\n{lista_produtos}\n\n⚠️ *Status:* Parcela vencida em {d_venc} ({dias} dias)\n💰 *Valor Pendente:* {v_orig}\n\nÀs vezes na correria a gente acaba esquecendo do prazo, né? 😊\nSe precisar da chave PIX para regularizar e evitar o acréscimo de encargos, é só me dar um alô!"
+                        elif dias <= 7:
+                            msg_padrao = f"Olá, *{cliente_alvo}*! Tudo bem? 🌸\nPassando rapidinho para te enviar o resumo da sua compra na *Sweet Home Enxovais*.\n\n🧾 *CUPOM DE CONFERÊNCIA*\n🛍️ *Itens:*\n{lista_produtos}\n\n⚠️ *Status:* Parcela vencida em {d_venc} ({dias} dias)\n💰 *Valor Pendente:* {v_orig}\n\nÀs vezes na correria a gente acaba esquecendo do prazo, né? 😊"
                             status_msg = "💡 Fase 1: Atraso recente."
-                            
-                        elif dias <= 30: # URGÊNCIA E DESCONTO
-                            msg_padrao = f"Olá, *{cliente_alvo}*, tudo bem? 🏠\nPassando para atualizar o seu extrato pendente na *Sweet Home Enxovais*.\n\n🧾 *EXTRATO ATUALIZADO*\n🛍️ *Itens:*\n{lista_produtos}\n\n⚠️ *Status:* Atraso de {dias} dias (Vencimento: {d_venc})\n💸 Valor Original: {v_orig}\n📈 Encargos (Multa/Juros): {v_encargos}\n🔴 *Total Atualizado:* {v_atu}\n\n💡 *OPORTUNIDADE:* Para te ajudar, se você conseguir regularizar esse valor *hoje*, o sistema me permite conceder um desconto isentando os encargos. O valor volta para *{v_orig}*!\n\nPodemos fechar assim?"
+                        elif dias <= 30:
+                            msg_padrao = f"Olá, *{cliente_alvo}*, tudo bem? 🏠\nPassando para atualizar o seu extrato na *Sweet Home Enxovais*.\n\n🧾 *EXTRATO ATUALIZADO*\n🛍️ *Itens:*\n{lista_produtos}\n\n⚠️ *Status:* Atraso de {dias} dias ({d_venc})\n💸 Valor Original: {v_orig}\n📈 Encargos: {v_encargos}\n🔴 *Total Atualizado:* {v_atu}\n\n💡 *OPORTUNIDADE:* Se regularizar hoje, consigo isentar os encargos e manter o valor original de *{v_orig}*!"
                             status_msg = "💡 Fase 2: Gatilho de urgência."
-                            
-                        else: # JURÍDICO / FORMAL
-                            msg_padrao = f"Prezado(a) *{cliente_alvo}*,\nEntramos em contato em nome do departamento financeiro da *Sweet Home Enxovais (CNPJ: {cnpj_sweet})*.\n\nConsta em nosso sistema um débito em aberto há {dias} dias. Segue o extrato detalhado:\n\n🧾 *TERMO DE PENDÊNCIA FINANCEIRA*\n🛍️ *Produtos Referentes:*\n{lista_produtos}\n\n💰 *CÁLCULO DO DÉBITO*\nValor Original: {v_orig}\nAtualização (Multa CDC + Juros Mora): {v_encargos}\n🔴 *VALOR TOTAL DEVIDO:* {v_atu}\n\nPara evitarmos o bloqueio do seu cadastro para compras futuras, oferecemos uma condição especial para quitação à vista. Por favor, retorne esta mensagem para tratarmos da regularização."
+                        else:
+                            msg_padrao = f"Prezado(a) *{cliente_alvo}*,\nEntramos em contato em nome do departamento financeiro da *Sweet Home Enxovais (CNPJ: {cnpj_sweet})*.\n\nConsta em nosso sistema um débito em aberto há {dias} dias.\n\n🧾 *TERMO DE PENDÊNCIA*\n🛍️ *Itens:*\n{lista_produtos}\n\n💰 *CÁLCULO*\nValor Original: {v_orig}\nAtualização: {v_encargos}\n🔴 *VALOR TOTAL DEVIDO:* {v_atu}\n\nPor favor, retorne esta mensagem para tratarmos da regularização e evitar bloqueio de cadastro."
                             status_msg = "💡 Fase 3: Notificação formal."
 
                         st.info(status_msg)
-                        
-                        # --- CAIXA DE TEXTO (Permite você editar antes de enviar) ---
-                        texto_final = st.text_area("Texto da Mensagem (Edite se quiser):", value=msg_padrao, height=300)
+                        texto_final = st.text_area("Texto da Mensagem (Edite se quiser):", value=msg_padrao, height=250)
                         
                         # ====================================================
-                        # 🔘 BOTOES DE AÇÃO E MOTOR DE IA
+                        # 🔘 BOTÕES DE ENVIO COM NÚMERO RECUPERADO
                         # ====================================================
                         col_btn1, col_btn2 = st.columns(2)
                         
                         with col_btn1:
-                            link_wpp = f"https://wa.me/?text={urllib.parse.quote(texto_final)}"
-                            st.link_button("📲 Enviar no WhatsApp", link_wpp, type="primary", use_container_width=True)
+                            if tel_limpo:
+                                link_wpp = f"https://wa.me/{tel_limpo}?text={urllib.parse.quote(texto_final)}"
+                                st.link_button("📲 Enviar no WhatsApp", link_wpp, type="primary", use_container_width=True)
+                            else:
+                                st.warning("⚠️ Telefone não encontrado na carteira.")
                             
                         with col_btn2:
-                            # 💡 Quando clica, salvamos o estado para processar abaixo
                             if st.button("✨ Reescrever com IA (Humanizar)", use_container_width=True):
                                 st.session_state['processar_ia_cobranca'] = True
 
-                        # --- PROCESSAMENTO SEGURO DA IA ---
                         if st.session_state.get('processar_ia_cobranca', False):
                             st.markdown("---")
-                            with st.spinner("🤖 Consultando o Gemini para humanizar sua mensagem..."):
+                            with st.spinner("🤖 Gerando abordagem humanizada..."):
                                 try:
                                     import google.generativeai as genai
-                                    
-                                    # 🔑 CONFIGURAÇÃO DA API (Cole sua chave aqui)
                                     CHAVE_API = "AIzaSyDfnLUjLUZip1KI8PJBEh3iYUDeED9dvlc" 
                                     genai.configure(api_key=CHAVE_API)
                                     
-                                    # Prompt estratégico para a Sweet Home
                                     prompt_ia = f"""
-                                    Você é o assistente financeiro da loja Sweet Home Enxovais (CNPJ: {cnpj_sweet}).
-                                    Reescreva esta mensagem de cobrança/lembrete de forma empática, educada e persuasiva.
-                                    Mantenha obrigatoriamente a lista de itens, o valor devido, os encargos (se houver) e a data de vencimento.
-                                    Não invente dados. Seja direto, mas caloroso (estilo varejo de cama/mesa/banho).
-                                    Mensagem original:
+                                    Você é o assistente financeiro da Sweet Home Enxovais (CNPJ: {cnpj_sweet}).
+                                    Reescreva a mensagem abaixo para ser mais empática e vendedora, mas mantendo o formato de recibo/extrato.
+                                    Mantenha obrigatoriamente: Lista de produtos, valor original, data de vencimento e valor total atualizado.
+                                    
+                                    Mensagem base:
                                     {msg_padrao}
                                     """
                                     
-                                    # Busca automática do melhor modelo disponível na sua chave
-                                    modelos = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-                                    modelo_alvo = "models/gemini-1.5-flash" if "models/gemini-1.5-flash" in modelos else modelos[0]
-                                    
-                                    model = genai.GenerativeModel(modelo_alvo)
+                                    model = genai.GenerativeModel("models/gemini-1.5-flash")
                                     response = model.generate_content(prompt_ia)
-                                    
-                                    # Exibição do Resultado
-                                    st.success(f"✨ Sugestão Humanizada (IA: `{modelo_alvo.split('/')[-1]}`)")
                                     texto_ia = response.text
+                                    
+                                    st.success("✨ Sugestão da IA:")
                                     st.write(texto_ia)
                                     
-                                    # Botão de envio específico para o texto da IA
-                                    link_wpp_ia = f"https://wa.me/?text={urllib.parse.quote(texto_ia)}"
-                                    st.link_button("📲 Enviar Texto da IA no WhatsApp", link_wpp_ia, use_container_width=True)
+                                    if tel_limpo:
+                                        link_wpp_ia = f"https://wa.me/{tel_limpo}?text={urllib.parse.quote(texto_ia)}"
+                                        st.link_button("📲 Enviar Texto da IA no WhatsApp", link_wpp_ia, use_container_width=True)
                                     
                                     if st.button("❌ Fechar Sugestão"):
                                         st.session_state['processar_ia_cobranca'] = False
                                         st.rerun()
 
                                 except Exception as e_ia:
-                                    st.error(f"Erro ao chamar a IA: {e_ia}")
+                                    st.error(f"Erro na IA: {e_ia}")
                                     st.session_state['processar_ia_cobranca'] = False
 
             except Exception as e:
