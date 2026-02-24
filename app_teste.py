@@ -1386,15 +1386,17 @@ elif menu_selecionado == "💰 Financeiro":
                             import google.generativeai as genai
                             genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
                             
+                            # 💡 AQUI FOI O AJUSTE: Mudei a regra para PERMITIR emojis no Prompt
                             prompt = f"""
                             Você atua no Setor Financeiro da 'Sweet Home Enxovais'. 
                             Reescreva a mensagem abaixo para deixá-la incrivelmente empática e persuasiva, mas sem perder a educação. 
                             MANTENHA INTACTA a lista de produtos (o histórico com as datas) e o valor final.
                             
-                            ⚠️ REGRA CRÍTICA: Retorne EXATAMENTE APENAS o texto da mensagem final. 
-                            NÃO inclua introduções como "Com certeza!", "Aqui está..." ou tracejados iniciais. 
-                            NÃO explique o que você fez. O texto deve estar pronto para eu copiar e colar diretamente no WhatsApp.
-                            NÃO utilize emojis na sua resposta, apenas texto e negrito.
+                            ⚠️ REGRAS CRÍTICAS: 
+                            1. Retorne EXATAMENTE APENAS o texto da mensagem final, sem aspas e sem explicações. 
+                            2. NÃO inclua introduções como "Com certeza!", "Aqui está..." ou tracejados iniciais. 
+                            3. O texto deve estar pronto para eu copiar e colar diretamente no WhatsApp.
+                            4. USE emojis estratégicos para deixar a mensagem amigável e profissional.
                             
                             Mensagem:
                             {msg_base_ia}
@@ -1414,7 +1416,7 @@ elif menu_selecionado == "💰 Financeiro":
                                 st.success("✨ Mensagem Otimizada com Sucesso!")
                                 texto_final_ia = st.text_area("Revise a mensagem da IA:", value=resultado_ia.text.strip(), height=250)
                                 
-                                # Botão HTML também para a IA
+                                # Botão HTML também para a IA (Agora com suporte aos Emojis)
                                 url_ia = f"https://wa.me/{tel_c}?text={urllib.parse.quote(texto_final_ia)}"
                                 btn_ia_html = f"""<a href="{url_ia}" target="_blank" style="display: block; width: 100%; text-align: center; background-color: #ff4b4b; color: white; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold;">📲 Enviar Mensagem da IA</a>"""
                                 
@@ -1424,8 +1426,6 @@ elif menu_selecionado == "💰 Financeiro":
                                 if st.button("❌ Dispensar IA"):
                                     st.session_state['ia_ficha_ativa'] = False
                                     st.rerun()
-                            else:
-                                st.error("⚠️ Nenhum modelo de IA suportado encontrado na sua API.")
                         except Exception as e_ia:
                             st.error(f"⚠️ Erro de comunicação com o Google: {e_ia}")
 
