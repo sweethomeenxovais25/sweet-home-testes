@@ -1111,7 +1111,7 @@ elif menu_selecionado == "💰 Financeiro":
                     if cliente_alvo != "---":
                         dados_cli = atrasados[atrasados['CLIENTE'] == cliente_alvo].iloc[0]
                         
-                        # 💡 NOVA INJEÇÃO: Preparação para a Negociação (Objeções e Escassez)
+                        # 💡 Preparação para a Negociação (Objeções e Escassez)
                         st.write("##### 🛡️ Preparação Adicional (Opcional)")
                         desculpa_cliente = st.text_input("A cliente deu alguma desculpa para o atraso?", placeholder="Ex: Fiquei doente, achei o juros alto...")
                         usar_escassez = st.checkbox("🔥 Aplicar Gatilho de Escassez (Prioridade em Novidades)")
@@ -1122,34 +1122,39 @@ elif menu_selecionado == "💰 Financeiro":
                                     import google.generativeai as genai
                                     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
                                     
-                                    # Montando regras extras baseadas no que você preencheu
                                     instrucao_escassez = "Inclua um forte gatilho de escassez: se ela fechar hoje, ganha prioridade VIP nas novidades da próxima coleção." if usar_escassez else ""
-                                    instrucao_objecao = f"A cliente deu esta desculpa: '{desculpa_cliente}'. Escreva um parágrafo orientando o vendedor sobre como contornar isso com empatia." if desculpa_cliente else ""
+                                    instrucao_objecao = f"A cliente deu esta desculpa: '{desculpa_cliente}'. Escreva um parágrafo amigável (pronto para copiar e colar no WhatsApp) desarmando essa desculpa com empatia e focando na solução." if desculpa_cliente else ""
                                     
                                     prompt_estrategia = f"""
-                                    Você é o Diretor Financeiro da 'Sweet Home Enxovais'. Analise a dívida abaixo e crie 3 cenários de negociação para a equipe de cobrança apresentar à cliente.
+                                    Você é o Diretor Financeiro da 'Sweet Home Enxovais'. Analise a dívida abaixo e crie opções de negociação.
                                     
                                     Dados do Débito:
                                     - Cliente: {dados_cli['CLIENTE']}
                                     - Score Interno: {dados_cli['SWEET_SCORE']}
-                                    - Status do Crédito (Sweet Flex): {dados_cli['SWEET_FLEX']}
+                                    - Status do Crédito: {dados_cli['SWEET_FLEX']}
                                     - Dias de Atraso: {dados_cli['MAIOR_ATRASO']}
                                     - Valor Original (Sem Juros): R$ {dados_cli['TOTAL_ORIGINAL']:.2f}
                                     - Juros/Multas Legais: R$ {dados_cli['TOTAL_ENCARGOS']:.2f}
                                     - Valor Total Atualizado: R$ {dados_cli['TOTAL_ATUALIZADO']:.2f}
                                     - Possui dívida antiga (Legado)? {'Sim' if 'Legado' in dados_cli['STATUS_PREDOMINANTE'] else 'Não'}
                                     
-                                    Diretrizes para a IA:
-                                    Crie 3 opções claras de acordo:
-                                    1. Quitação à vista (Sugira um desconto atrativo em cima dos juros, se houver).
-                                    2. Parcelamento curto (Ex: 2x ou 3x).
-                                    3. Parcelamento longo (Se o valor for alto, sugira até 6x com parcelas mínimas viáveis).
+                                    ⚠️ REGRAS CRÍTICAS DE FORMATAÇÃO (LEIA COM ATENÇÃO):
+                                    1. NÃO use Markdown de cabeçalhos (como #, ## ou ###). Use apenas texto normal e negrito.
+                                    2. Seja extremamente organizado, use emojis para listar os tópicos.
+                                    3. Entregue a resposta EXATAMENTE nesta estrutura:
                                     
-                                    ⚠️ ESTRATÉGIA DE REABILITAÇÃO: Se o Status do Crédito for '🔒 Suspenso', você DEVE orientar o vendedor a argumentar que a quitação da dívida e uma nova compra à vista destravará o limite no Sweet Flex.
-                                    {instrucao_escassez}
+                                    🎯 **CENÁRIOS DE ACORDO (Para a Loja)**
+                                    (Liste 3 opções: Quitação com desconto / Parcelamento Curto / Parcelamento Longo)
+                                    
+                                    💬 **MENSAGEM PARA A CLIENTE (Copie e Cole)**
+                                    (Escreva um texto empático oferecendo essas opções para a vendedora copiar e mandar)
+                                    
+                                    🔑 **ESTRATÉGIA SWEET FLEX**
+                                    (Se o Status do Crédito for '🔒 Suspenso', escreva um texto amigável ensinando a vendedora a dizer que quitar a dívida destravará o limite)
+                                    
+                                    🛡️ **CONTORNO DE OBJEÇÃO & ESCASSEZ**
                                     {instrucao_objecao}
-                                    
-                                    O formato deve ser direto, como um "Plano de Ação" para o vendedor ler e usar como base na negociação. Não crie texto para enviar ao cliente, crie estratégia para a loja.
+                                    {instrucao_escassez}
                                     """
                                     
                                     modelos = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"]
@@ -1158,7 +1163,7 @@ elif menu_selecionado == "💰 Financeiro":
                                             modelo = genai.GenerativeModel(m)
                                             resposta = modelo.generate_content(prompt_estrategia)
                                             if resposta:
-                                                st.info("💡 **Cenários Estratégicos Recomendados:**")
+                                                st.info("💡 **Relatório Gerencial de Negociação:**")
                                                 st.write(resposta.text)
                                                 break
                                         except: continue
@@ -1171,7 +1176,7 @@ elif menu_selecionado == "💰 Financeiro":
                 
         except Exception as e:
             st.error(f"⚠️ Erro no núcleo de processamento gerencial: {e}")
-
+            
     st.divider() # Divisória para separar da Ficha de Cliente logo abaixo
     
     st.markdown("### 🔍 Ficha de Cliente (Extrato Dinâmico)")
