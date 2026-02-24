@@ -986,7 +986,6 @@ elif menu_selecionado == "💰 Financeiro":
             else:
                 st.info("🕒 O histórico aparecerá após o primeiro recebimento ser registrado.")
 
-
         # ====================================================
         # 1. PROCESSAMENTO GERAL (KPIs DO FINANCEIRO)
         # ====================================================
