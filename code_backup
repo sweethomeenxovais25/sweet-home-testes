@@ -1,5 +1,6 @@
 
 
+
 import streamlit as st
 import pandas as pd
 import gspread
@@ -635,9 +636,9 @@ if menu_selecionado == "🛒 Vendas":
     # [O código da Borracha Mágica (Edição de Vendas) continua exatamente como você já tinha abaixo deste ponto]
 
 # ==========================================
-    # ✏️ BORRACHA MÁGICA: EDIÇÃO SEGURA DE VENDAS
+    # ✏️ BORRACHA MÁGICA: EDIÇÃO E EXCLUSÃO
     # ==========================================
-    with st.expander("✏️ Corrigir Venda Recente", expanded=False):
+    with st.expander("✏️ Corrigir ou Excluir Venda Recente", expanded=False):
         st.write("Escolha uma venda recente abaixo para corrigir cliente, produto ou valores.")
         
         try:
@@ -648,48 +649,36 @@ if menu_selecionado == "🛒 Vendas":
                 vendas_recentes = []
                 for i in range(len(dados_v)-1, max(0, len(dados_v)-21), -1):
                     linha = dados_v[i]
-                    if "TOTAIS" not in str(linha[3]).upper() and linha[3] != "":
+                    if len(linha) > 5 and "TOTAIS" not in str(linha[3]).upper() and linha[3] != "":
                         vendas_recentes.append(f"Linha {i+1} | Data: {linha[1]} | Cliente: {linha[3]} | Item: {linha[5]}")
                 
-                venda_selecionada = st.selectbox("Selecione a venda com erro:", ["---"] + vendas_recentes, help="Mostra apenas as últimas 20 vendas.")
+                venda_selecionada = st.selectbox("Selecione a venda com erro:", ["---"] + vendas_recentes)
                 
                 if venda_selecionada != "---":
                     linha_real = int(venda_selecionada.split(" | ")[0].replace("Linha ", ""))
                     linha_dados = dados_v[linha_real - 1]
                     
+                    # Dados atuais para preenchimento do form
                     cod_cli_atual = linha_dados[2]
                     nome_cli_atual = linha_dados[3]
                     cod_prod_atual = linha_dados[4]
                     nome_prod_atual = linha_dados[5]
-                    
+                    metodo_atual = linha_dados[14]
+
                     def limpar_para_editar(val_str, is_perc=False):
                         try:
-                            v = str(val_str).replace("R$", "").strip()
-                            if is_perc and "%" in v:
-                                v = v.replace("%", "").strip()
-                                if "," in v and "." in v: v = v.replace(".", "").replace(",", ".")
-                                elif "," in v: v = v.replace(",", ".")
-                                return float(v) / 100.0
-                            
-                            if "," in v and "." in v: v = v.replace(".", "").replace(",", ".")
-                            elif "," in v: v = v.replace(",", ".")
+                            v = str(val_str).replace("R$", "").replace(" ", "").replace(".", "").replace(",", ".")
+                            if is_perc and "%" in str(val_str):
+                                return float(v.replace("%", "")) / 100.0
                             return float(v)
-                        except:
-                            return 0.0
+                        except: return 0.0
 
                     qtd_atual = limpar_para_editar(linha_dados[7])
                     val_atual = limpar_para_editar(linha_dados[8])
-                    desc_perc_atual = limpar_para_editar(linha_dados[9], is_perc=True)
-                    
-                    # ✨ TRAVA DE SEGURANÇA CONTRA BUGS ANTIGOS ✨
-                    # Se o percentual na planilha estiver absurdo (maior que 100%) ou negativo, zera para não confundir.
-                    if desc_perc_atual > 1.0 or desc_perc_atual < 0:
-                        desc_reais_atual = 0.0
-                    else:
-                        desc_reais_atual = round((qtd_atual * val_atual) * desc_perc_atual, 2)
-                        
-                    metodo_atual = linha_dados[14]
+                    desc_perc_raw = limpar_para_editar(linha_dados[9], is_perc=True)
+                    desc_reais_atual = round((qtd_atual * val_atual) * desc_perc_raw, 2) if 0 <= desc_perc_raw <= 1 else 0.0
 
+                    # Listas para os Selectboxes
                     lista_clientes = [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()]
                     cliente_str_atual = f"{cod_cli_atual} - {nome_cli_atual}"
                     idx_cliente = lista_clientes.index(cliente_str_atual) if cliente_str_atual in lista_clientes else 0
@@ -702,40 +691,46 @@ if menu_selecionado == "🛒 Vendas":
                     idx_metodo = lista_metodos.index(metodo_atual) if metodo_atual in lista_metodos else 0
 
                     with st.form(f"form_edicao_{linha_real}"):
-                        st.write("#### 🔄 Atualizar Dados", help="📝 COMO USAR:\nAltere apenas os campos que estavam errados na venda original.\n\n🎯 QUANDO USAR:\nPara corrigir erros de digitação rápidos (ex: selecionou a cliente errada, trocou o produto ou errou o valor).\n\n⚠️ AVISO IMPORTANTE:\nUse apenas para arrumar erros do dia a dia. Não use essa ferramenta para bagunçar vendas antigas, pois ela altera a planilha financeira oficial!")
+                        st.markdown(f"#### 🔄 Atualizar Dados (Linha {linha_real})")
                         e_c1, e_c2 = st.columns(2)
                         novo_cliente = e_c1.selectbox("Cliente Oficial", lista_clientes, index=idx_cliente)
                         novo_produto = e_c2.selectbox("Produto Correto", lista_produtos, index=idx_produto)
                         
                         e_c3, e_c4, e_c5 = st.columns(3)
-                        nova_qtd = e_c3.number_input("Quantidade", value=int(qtd_atual) if qtd_atual.is_integer() else qtd_atual, min_value=1)
+                        nova_qtd = e_c3.number_input("Quantidade", value=float(qtd_atual), min_value=0.1)
                         novo_val = e_c4.number_input("Preço Un. (R$)", value=float(val_atual))
                         novo_desc = e_c5.number_input("Desconto (R$)", value=float(desc_reais_atual))
                         
                         novo_metodo = st.selectbox("Forma de Pagto", lista_metodos, index=idx_metodo)
                         
-                        if st.form_submit_button("💾 Salvar Correção", type="primary"):
+                        st.divider()
+                        col_btn1, col_btn2 = st.columns([2, 1])
+                        
+                        salvar = col_btn1.form_submit_button("💾 Salvar Alteração", type="primary", use_container_width=True)
+                        
+                        st.write("---")
+                        confirma_exclusao = st.checkbox("Confirmar que desejo EXCLUIR esta venda permanentemente")
+                        excluir = col_btn2.form_submit_button("🗑️ Excluir", type="secondary", use_container_width=True)
+
+                        if salvar:
                             try:
                                 n_cod_cli = novo_cliente.split(" - ")[0]
                                 n_nome_cli = " - ".join(novo_cliente.split(" - ")[1:])
                                 n_cod_prod = novo_produto.split(" - ")[0]
                                 n_nome_prod = " - ".join(novo_produto.split(" - ")[1:])
                                 n_custo = float(banco_de_produtos.get(n_cod_prod, {}).get('custo', 0.0))
-                                
                                 n_v_bruto = nova_qtd * novo_val
                                 n_desc_perc = novo_desc / n_v_bruto if n_v_bruto > 0 else 0
                                 n_t_liq = n_v_bruto - novo_desc
-                                
                                 eh_parc = "Sim" if novo_metodo == "Sweet Flex" else "Não"
                                 
-                                try: num_parc = int(linha_dados[16])
+                                try: num_parc = int(linha_dados[16]) if linha_dados[16] else 1
                                 except: num_parc = 1
-                                if num_parc <= 0: num_parc = 1
                                 
                                 val_parc = n_t_liq / num_parc if eh_parc == "Sim" else 0
                                 val_vista = n_t_liq if eh_parc == "Não" else 0
                                 val_total_flex = n_t_liq if eh_parc == "Sim" else 0
-                                
+
                                 atualizacoes = [
                                     {'range': f'C{linha_real}', 'values': [[n_cod_cli]]},
                                     {'range': f'D{linha_real}', 'values': [[n_nome_cli]]},
@@ -751,32 +746,45 @@ if menu_selecionado == "🛒 Vendas":
                                     {'range': f'T{linha_real}', 'values': [[val_vista]]},
                                     {'range': f'U{linha_real}', 'values': [[val_total_flex]]}
                                 ]
-                                aba_vendas.batch_update(atualizacoes, value_input_option='RAW')
+                                aba_vendas.batch_update(atualizacoes, value_input_option='USER_ENTERED')
                                 
                                 st.session_state['recibo_correcao'] = {
+                                    "tipo": "editado",
                                     "cliente": n_nome_cli,
                                     "produto": f"{nova_qtd}x {n_nome_prod}",
                                     "total": n_t_liq,
                                     "metodo": novo_metodo
                                 }
-                                
                                 st.cache_resource.clear()
                                 st.rerun()
-                                
                             except Exception as e:
-                                st.error(f"⚠️ Erro ao salvar: {e}")
+                                st.error(f"Erro ao salvar: {e}")
+
+                        if excluir:
+                            if confirma_exclusao:
+                                try:
+                                    aba_vendas.delete_rows(linha_real)
+                                    st.session_state['recibo_correcao'] = {"tipo": "excluido", "linha": linha_real}
+                                    st.cache_resource.clear()
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao excluir: {e}")
+                            else:
+                                st.warning("⚠️ Você precisa marcar a caixa de confirmação para excluir.")
+
         except Exception as e:
-            st.info("Aguardando carregamento dos dados para edição.")
+            st.error(f"Erro ao carregar dados: {e}")
 
     # ==========================================
-    # 🧾 AVISO DE CORREÇÃO BEM-SUCEDIDA
+    # 🧾 RECIBO DE ATUALIZAÇÃO / EXCLUSÃO
     # ==========================================
     if 'recibo_correcao' in st.session_state:
-        st.success("✅ Venda atualizada na planilha com sucesso!")
         recibo = st.session_state['recibo_correcao']
         
-        st.markdown("#### 📋 Resumo do Ajuste")
-        tabela_resumo = f"""
+        if recibo['tipo'] == "editado":
+            st.success("✅ Venda atualizada na planilha com sucesso!")
+            st.markdown("#### 📋 Resumo do Ajuste")
+            tabela_resumo = f"""
 | Informação | Registro Corrigido |
 | :--- | :--- |
 | 👤 **Cliente** | {recibo['cliente']} |
@@ -784,8 +792,12 @@ if menu_selecionado == "🛒 Vendas":
 | 💰 **Valor Total** | R$ {recibo['total']:.2f} |
 | 💳 **Pagamento** | {recibo['metodo']} |
 """
-        st.markdown(tabela_resumo)
+            st.markdown(tabela_resumo)
         
+        elif recibo['tipo'] == "excluido":
+            st.warning(f"🗑️ A venda da Linha {recibo['linha']} foi excluída permanentemente.")
+            st.info("A planilha financeira já foi reajustada automaticamente.")
+
         if st.button("✖️ Fechar Aviso", key="fechar_aviso_correcao"):
             del st.session_state['recibo_correcao']
             st.rerun()
@@ -988,19 +1000,22 @@ elif menu_selecionado == "💰 Financeiro":
             else:
                 st.info("🕒 O histórico aparecerá após o primeiro recebimento ser registrado.")
 
-    st.divider()
-
     # ====================================================
-    # ⚖️ GESTÃO DE INADIMPLÊNCIA E RECUPERAÇÃO DE CRÉDITO (SMART RECOVERY 2.0)
+    # ⚖️ PAINEL GERENCIAL DE INADIMPLÊNCIA E ACORDOS
     # ====================================================
     st.markdown("---")
             
-    with st.expander("⚖️ Painel de Inadimplência e Cobranças (Smart Recovery)", expanded=False):
-        st.write("Recuperação de crédito humanizada, em conformidade com o CDC e LGPD.")
+    with st.expander("⚖️ Painel Estratégico de Inadimplência (Visão Gerencial)", expanded=False):
+        
+        # 💡 Botão para forçar a atualização da planilha em tempo real
+        col_tit, col_ref = st.columns([3, 1])
+        col_tit.write("Análise de carteira, cálculo de juros (CDC) e simulador de acordos com IA.")
+        if col_ref.button("🔄 Recarregar Dados", use_container_width=True):
+            st.cache_data.clear() # Limpa a memória do Streamlit
+            st.rerun() # Força a tela a piscar e buscar os dados novos do Google Sheets
         
         try:
             import pytz
-            import urllib.parse
             from datetime import datetime
             import pandas as pd
             
@@ -1008,66 +1023,140 @@ elif menu_selecionado == "💰 Financeiro":
                 fuso_br = pytz.timezone('America/Sao_Paulo') 
                 hoje_pd = pd.to_datetime(datetime.now(fuso_br).strftime("%Y-%m-%d"))
                 
-                # ====================================================
-                # 1. TRATAMENTO E HIGIENIZAÇÃO DE DADOS (A CESTA)
-                # ====================================================
+                # 📅 REGRA DE NEGÓCIO: Dívidas antes de Fev/2026 são "Legado" (Sem Juros automáticos)
+                DATA_CORTE_LEGADO = pd.to_datetime("2026-02-01")
+                
+                # --- 1. HIGIENIZAÇÃO DE DADOS ---
                 df_cobranca = df_vendas_hist.copy()
                 df_cobranca['SALDO_NUM'] = df_cobranca['SALDO DEVEDOR'].apply(limpar_v)
-                df_dev_real = df_cobranca[df_cobranca['SALDO_NUM'] > 0.01].copy() # Ignora centavos perdidos
                 
-                # Limpeza extrema do CÓD. CLIENTE (Remove '.0' e espaços para não falhar a busca na carteira)
+                # 🛑 Trava de Status para não cobrar quem já pagou
+                if 'STATUS' in df_cobranca.columns:
+                    df_cobranca['STATUS_LIMPO'] = df_cobranca['STATUS'].astype(str).str.strip().str.lower()
+                    df_dev_real = df_cobranca[
+                        (df_cobranca['SALDO_NUM'] > 0.01) & 
+                        (~df_cobranca['STATUS_LIMPO'].isin(['pago', 'quitado', 'ok', 'paga']))
+                    ].copy()
+                else:
+                    df_dev_real = df_cobranca[df_cobranca['SALDO_NUM'] > 0.01].copy()
+                
                 df_dev_real['CÓD. CLIENTE'] = df_dev_real['CÓD. CLIENTE'].astype(str).str.split('.').str[0].str.strip()
-                df_dev_real['CLIENTE'] = df_dev_real['CLIENTE'].astype(str).str.strip()
-                df_dev_real['DATA DA VENDA'] = df_dev_real['DATA DA VENDA'].astype(str).str.strip()
                 df_dev_real['VENCIMENTO'] = pd.to_datetime(df_dev_real['PRÓXIMA PARCELA'], format="%d/%m/%Y", errors='coerce')
                 df_dev_real = df_dev_real.dropna(subset=['VENCIMENTO'])
                 df_dev_real['DIAS_ATRASO'] = (hoje_pd - df_dev_real['VENCIMENTO']).dt.days
-                
-                # Agrupamento inteligente por Cliente, Data da Venda e Vencimento
-                df_agrupado = df_dev_real.groupby(['CÓD. CLIENTE', 'CLIENTE', 'VENCIMENTO', 'DATA DA VENDA', 'DIAS_ATRASO']).agg(
-                    VALOR_ORIGINAL=pd.NamedAgg(column='SALDO_NUM', aggfunc='sum'),
-                    PRODUTOS=pd.NamedAgg(column='PRODUTO', aggfunc=lambda x: ' | '.join(x))
+
+                # --- 2. MOTOR FINANCEIRO (POR FATURA) ---
+                def calc_compliance(row):
+                    multa = 0
+                    juros = 0
+                    is_legado = row['VENCIMENTO'] < DATA_CORTE_LEGADO
+                    
+                    if row['DIAS_ATRASO'] > 0:
+                        if not is_legado:
+                            multa = row['SALDO_NUM'] * 0.02 # 2% de multa (CDC)
+                            juros = row['SALDO_NUM'] * (0.01 / 30) * row['DIAS_ATRASO'] # 1% ao mês pro rata
+                        status = "🕰️ Legado" if is_legado else ("🔴 Crítico" if row['DIAS_ATRASO'] > 30 else "🟡 Recente")
+                    elif row['DIAS_ATRASO'] == 0:
+                        status = "🟢 Vence Hoje"
+                    else:
+                        status = f"📅 Vence em {abs(row['DIAS_ATRASO'])}d"
+                    
+                    valor_total = row['SALDO_NUM'] + multa + juros
+                    return pd.Series([multa, juros, valor_total, status, is_legado])
+
+                df_dev_real[['MULTA', 'JUROS', 'VALOR_ATUALIZADO', 'FASE', 'IS_LEGADO']] = df_dev_real.apply(calc_compliance, axis=1)
+
+                # --- 3. CONSOLIDAÇÃO POR CLIENTE ---
+                df_agrupado = df_dev_real.groupby(['CÓD. CLIENTE', 'CLIENTE']).agg(
+                    TOTAL_ORIGINAL=pd.NamedAgg(column='SALDO_NUM', aggfunc='sum'),
+                    TOTAL_ATUALIZADO=pd.NamedAgg(column='VALOR_ATUALIZADO', aggfunc='sum'),
+                    TOTAL_ENCARGOS=pd.NamedAgg(column='MULTA', aggfunc=lambda x: x.sum() + df_dev_real.loc[x.index, 'JUROS'].sum()),
+                    MAIOR_ATRASO=pd.NamedAgg(column='DIAS_ATRASO', aggfunc='max'),
+                    STATUS_PREDOMINANTE=pd.NamedAgg(column='FASE', aggfunc=lambda x: x.iloc[0])
                 ).reset_index()
 
-                # ====================================================
-                # 2. MOTOR FINANCEIRO (JUROS E MULTAS LEGAIS)
-                # ====================================================
-                def calc_compliance(row):
-                    if row['DIAS_ATRASO'] > 0:
-                        multa = row['VALOR_ORIGINAL'] * 0.02
-                        juros = row['VALOR_ORIGINAL'] * (0.01 / 30) * row['DIAS_ATRASO']
-                        status = "🔴 Fase 3 (+30d)" if row['DIAS_ATRASO'] > 30 else ("🟡 Fase 2 (8-30d)" if row['DIAS_ATRASO'] > 7 else "🟠 Fase 1 (1-7d)")
-                    elif row['DIAS_ATRASO'] == 0:
-                        multa, juros, status = 0, 0, "🟢 Vence Hoje"
-                    else:
-                        multa, juros, status = 0, 0, f"📅 Vence em {abs(row['DIAS_ATRASO'])}d"
-                    
-                    valor_total = row['VALOR_ORIGINAL'] + multa + juros
-                    return pd.Series([multa, juros, valor_total, status])
-
-                df_agrupado[['MULTA', 'JUROS', 'VALOR_ATUALIZADO', 'FASE']] = df_agrupado.apply(calc_compliance, axis=1)
+                # 💡 Regras de Score e Sweet Flex
+                LIMITE_DIAS_FLEX = 15
+                df_agrupado['SWEET_FLEX'] = df_agrupado['MAIOR_ATRASO'].apply(
+                    lambda dias: "🔒 Suspenso" if dias > LIMITE_DIAS_FLEX else "🔑 Liberado"
+                )
                 
-                atrasados = df_agrupado[df_agrupado['DIAS_ATRASO'] > 0].sort_values('DIAS_ATRASO', ascending=False)
-                prevencao = df_agrupado[(df_agrupado['DIAS_ATRASO'] <= 0) & (df_agrupado['DIAS_ATRASO'] >= -5)].sort_values('DIAS_ATRASO', ascending=False)
+                def calcular_score(dias):
+                    if dias <= 0: return "⭐ 10/10 (Excelente)"
+                    elif dias <= 7: return "🟢 8/10 (Bom)"
+                    elif dias <= 20: return "🟡 5/10 (Atenção)"
+                    else: return "🔴 3/10 (Risco)"
+                df_agrupado['SWEET_SCORE'] = df_agrupado['MAIOR_ATRASO'].apply(calcular_score)
 
-                # ====================================================
-                # 3. INTERFACE DE GESTÃO E EXIBIÇÃO
-                # ====================================================
-                t1, t2 = st.tabs(["🚨 Recuperação (Vencidos)", "📅 Prevenção (Próximos 5 dias)"])
+                # 💡 NOVA INJEÇÃO: Leitor Raiz baseado na lógica do seu CRM (Puxa do df_clientes_full)
+                try:
+                    # Mapeia a Tabela Mãe na hora
+                    df_carteira_temp = df_clientes_full.copy()
+                    
+                    # Coluna 0 é o COD. CLIENTE
+                    df_carteira_temp['COD_LIMPO'] = df_carteira_temp[df_carteira_temp.columns[0]].astype(str).str.split('.').str[0].str.strip()
+                    
+                    # Coluna 5 é a F (VALE DESCONTO). Se a planilha tiver a Coluna F, ele puxa ela.
+                    if len(df_carteira_temp.columns) > 5:
+                        coluna_vale_real = df_carteira_temp.columns[5] 
+                    else:
+                        # Fallback: Se por acaso a ordem mudar, procura a palavra "vale"
+                        coluna_vale_real = None
+                        for c in df_carteira_temp.columns:
+                            if 'vale' in str(c).lower() or 'desconto' in str(c).lower():
+                                coluna_vale_real = c
+                                break
+                    
+                    if coluna_vale_real:
+                        dicionario_vales_vivos = dict(zip(df_carteira_temp['COD_LIMPO'], df_carteira_temp[coluna_vale_real]))
+                    else:
+                        dicionario_vales_vivos = {}
+                except:
+                    dicionario_vales_vivos = {}
+
+                def resgatar_vale_vivo(cod_cliente):
+                    cod_str = str(cod_cliente).strip()
+                    vale = str(dicionario_vales_vivos.get(cod_str, '')).strip()
+                    
+                    if not vale or vale.lower() in ['nan', 'none', '0', '0.0', '0,00', 'r$ 0,00', 'r$ 0', 'null']:
+                        return "R$ 0,00"
+                    
+                    if vale.upper().startswith('R$'):
+                        return vale
+                        
+                    try:
+                        v_float = float(vale.replace('.', '').replace(',', '.'))
+                        if v_float > 0.01:
+                            return f"R$ {v_float:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                    except:
+                        pass
+                    return f"R$ {vale}"
+                
+                df_agrupado['VALE_DESCONTO'] = df_agrupado['CÓD. CLIENTE'].apply(resgatar_vale_vivo)
+
+                atrasados = df_agrupado[df_agrupado['MAIOR_ATRASO'] > 0].sort_values('MAIOR_ATRASO', ascending=False)
+                prevencao = df_agrupado[(df_agrupado['MAIOR_ATRASO'] <= 0) & (df_agrupado['MAIOR_ATRASO'] >= -5)].sort_values('MAIOR_ATRASO', ascending=False)
+
+                # --- 4. INTERFACE DE GESTÃO ---
+                t1, t2 = st.tabs(["🚨 Mapa de Risco (Atrasados)", "📅 Fluxo de Caixa (Próximos 5 dias)"])
                 
                 with t1:
                     if not atrasados.empty:
                         c_m1, c_m2, c_m3 = st.columns(3)
-                        c_m1.metric("💰 Principal Retido", f"R$ {atrasados['VALOR_ORIGINAL'].sum():,.2f}")
-                        c_m2.metric("📈 Atualizado (c/ Juros)", f"R$ {atrasados['VALOR_ATUALIZADO'].sum():,.2f}")
-                        c_m3.metric("👥 Faturas Pendentes", f"{len(atrasados)}")
+                        c_m1.metric("💰 Capital Retido (Original)", f"R$ {atrasados['TOTAL_ORIGINAL'].sum():,.2f}")
+                        c_m2.metric("📈 Expectativa c/ Encargos", f"R$ {atrasados['TOTAL_ATUALIZADO'].sum():,.2f}")
+                        c_m3.metric("👥 Clientes Inadimplentes", f"{len(atrasados)}")
                         
-                        df_ex_at = atrasados.copy()
-                        df_ex_at['VENCIMENTO'] = df_ex_at['VENCIMENTO'].dt.strftime("%d/%m/%Y")
-                        # Formatação visual das colunas
+                        # A Coluna VALE_DESCONTO agora aparece aqui na tela principal!
                         st.dataframe(
-                            df_ex_at[['CLIENTE', 'DATA DA VENDA', 'PRODUTOS', 'DIAS_ATRASO', 'VALOR_ATUALIZADO', 'FASE']], 
-                            column_config={"VALOR_ATUALIZADO": st.column_config.NumberColumn("TOTAL (R$)", format="R$ %.2f")},
+                            atrasados[['CLIENTE', 'SWEET_SCORE', 'SWEET_FLEX', 'VALE_DESCONTO', 'MAIOR_ATRASO', 'TOTAL_ORIGINAL', 'TOTAL_ENCARGOS', 'TOTAL_ATUALIZADO', 'STATUS_PREDOMINANTE']], 
+                            column_config={
+                                "TOTAL_ORIGINAL": st.column_config.NumberColumn("Original (R$)", format="R$ %.2f"),
+                                "TOTAL_ENCARGOS": st.column_config.NumberColumn("Juros/Multa (R$)", format="R$ %.2f"),
+                                "TOTAL_ATUALIZADO": st.column_config.NumberColumn("Atualizado (R$)", format="R$ %.2f"),
+                                "MAIOR_ATRASO": "Dias Atraso",
+                                "VALE_DESCONTO": "Vale (R$)"
+                            },
                             use_container_width=True, hide_index=True
                         )
                     else:
@@ -1075,137 +1164,114 @@ elif menu_selecionado == "💰 Financeiro":
 
                 with t2:
                     if not prevencao.empty:
-                        st.info("💡 **Dica de Caixa:** Lembretes amigáveis preventivos reduzem a inadimplência em até 40%.")
-                        df_ex_prev = prevencao.copy()
-                        df_ex_prev['VENCIMENTO'] = df_ex_prev['VENCIMENTO'].dt.strftime("%d/%m/%Y")
                         st.dataframe(
-                            df_ex_prev[['CLIENTE', 'PRODUTOS', 'VENCIMENTO', 'VALOR_ORIGINAL', 'FASE']], 
-                            column_config={"VALOR_ORIGINAL": st.column_config.NumberColumn("VALOR (R$)", format="R$ %.2f")},
+                            prevencao[['CLIENTE', 'SWEET_SCORE', 'VALE_DESCONTO', 'MAIOR_ATRASO', 'TOTAL_ORIGINAL', 'STATUS_PREDOMINANTE']], 
+                            column_config={
+                                "TOTAL_ORIGINAL": st.column_config.NumberColumn("Valor (R$)", format="R$ %.2f"),
+                                "VALE_DESCONTO": "Vale (R$)"
+                            },
                             use_container_width=True, hide_index=True
                         )
                     else:
                         st.write("Nenhum vencimento previsto para os próximos 5 dias.")
 
-                # ====================================================
-                # 4. CENTRAL DE COMUNICAÇÃO (INTEGRAÇÃO WPP + CARTEIRA)
-                # ====================================================
-                st.markdown("---")
-                st.markdown("#### 💬 Central de Acordos e Lembretes")
-                
-                todos_clientes = pd.concat([atrasados, prevencao])
-                
-                if not todos_clientes.empty:
-                    todos_clientes['LABEL'] = todos_clientes['CLIENTE'] + " | Venc: " + todos_clientes['VENCIMENTO'].dt.strftime('%d/%m') + " | " + todos_clientes['FASE']
-                    selecao = st.selectbox("Selecione a fatura para atuar:", ["---"] + list(todos_clientes['LABEL']))
+                # --- 5. SIMULADOR DE ACORDOS COM IA ---
+                if not atrasados.empty:
+                    st.markdown("---")
+                    st.markdown("#### 🤖 Simulador de Cenários de Negociação")
+                    st.write("Escolha uma cliente para a IA gerar opções de parcelamento e descontos matematicamente viáveis.")
                     
-                    if selecao != "---":
-                        dados = todos_clientes[todos_clientes['LABEL'] == selecao].iloc[0]
+                    opcoes_acordo = atrasados['CLIENTE'].tolist()
+                    cliente_alvo = st.selectbox("Selecionar Cliente:", ["---"] + opcoes_acordo)
+                    
+                    if cliente_alvo != "---":
+                        dados_cli = atrasados[atrasados['CLIENTE'] == cliente_alvo].iloc[0]
                         
-                        # 📞 BUSCA INTELIGENTE NA CARTEIRA DE CLIENTES
-                        cod_cliente_busca = str(dados['CÓD. CLIENTE']).strip()
-                        dados_cadastrais = banco_de_clientes.get(cod_cliente_busca, {})
-                        # Tenta pegar a coluna certa indepedente de como esteja nomeada no dicionário
-                        telefone_cru = str(dados_cadastrais.get('TELEFONE', dados_cadastrais.get('telefone', dados_cadastrais.get('fone', '')))).strip()
+                        # 💡 A IA agora puxa a informação oficial da nova coluna
+                        vale_atual = dados_cli['VALE_DESCONTO']
+                        tem_vale_valido = vale_atual != "R$ 0,00"
                         
-                        tel_limpo = "".join(filter(str.isdigit, telefone_cru))
-                        if tel_limpo and not tel_limpo.startswith("55"): tel_limpo = "55" + tel_limpo
-
-                        # Variáveis para a Mensagem
-                        dias = dados['DIAS_ATRASO']
-                        cnpj_sweet = "62.862.825/0001-72" 
-                        lista_produtos = "\n".join([f"🔸 {p.strip()}" for p in dados['PRODUTOS'].split("|")])
+                        st.write("##### 🛡️ Preparação Adicional (Opcional)")
+                        desculpa_cliente = st.text_input("A cliente deu alguma desculpa para o atraso?", placeholder="Ex: Fiquei doente, achei o juros alto...")
                         
-                        v_orig = f"R$ {dados['VALOR_ORIGINAL']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                        v_atu = f"R$ {dados['VALOR_ATUALIZADO']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                        v_enc = f"R$ {(dados['MULTA'] + dados['JUROS']):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                        d_venc_br = dados['VENCIMENTO'].strftime("%d/%m/%Y")
+                        # O Checkbox se adapta se a cliente tiver dinheiro na casa
+                        texto_check = f"🎁 Usar Saldo de {vale_atual} (Carteira) na negociação" if tem_vale_valido else "🎁 Ativar 'Sweet Rewards' (Oferecer NOVO Vale-Desconto como negociação)"
+                        usar_rewards = st.checkbox(texto_check)
                         
-                        # Réguas de Comunicação (Orientadas ao CDC)
-                        if dias <= 0:
-                            assunto = "Lembrete Preventivo"
-                            msg_base = f"Olá, *{dados['CLIENTE']}*! Tudo bem? 🌸\n\nAqui é da Equipe Sweet Home Enxovais.\nPassando apenas para te enviar um lembrete amigável referente à sua compra.\n\n🧾 *RESUMO DO PEDIDO*\n📅 Data da Compra: {dados['DATA DA VENDA']}\n🛍️ *Itens:*\n{lista_produtos}\n\n⚠️ O vencimento da sua parcela de *{v_orig}* está programado para o dia *{d_venc_br}*.\n\nCaso precise da nossa chave PIX para agendamento, estamos à disposição! Tenha um ótimo dia. 😊"
-                        elif dias <= 7:
-                            assunto = "Atraso Recente (Conciliação Leve)"
-                            msg_base = f"Olá, *{dados['CLIENTE']}*! Tudo bem? 🌸\n\nAqui é da Equipe Financeira Sweet Home.\nAtualizando nossos registros, identificamos que a sua parcela de vencimento em *{d_venc_br}* consta em aberto.\n\n🧾 *EXTRATO DE CONFERÊNCIA*\n📅 Data da Compra: {dados['DATA DA VENDA']}\n🛍️ *Itens:*\n{lista_produtos}\n\n💰 *Valor Pendente:* {v_orig}\n\nSabemos que essas datas podem passar batido. Para evitar a geração de encargos, você conseguiria regularizar esse valor hoje? Se precisar do PIX, só avisar! 😊"
-                        else:
-                            assunto = "Notificação Formal (Cobrança Ativa)"
-                            msg_base = f"Prezado(a) *{dados['CLIENTE']}*,\n\nEntramos em contato em nome do Departamento Financeiro da *Sweet Home Enxovais* (CNPJ: {cnpj_sweet}).\n\nConsta em nosso sistema a ausência de pagamento referente à sua compra. Segue o extrato detalhado:\n\n🧾 *EXTRATO FINANCEIRO*\n📅 Data da Compra: {dados['DATA DA VENDA']}\n🛍️ *Itens Relacionados:*\n{lista_produtos}\n\n💸 Valor Original: {v_orig}\n📈 Encargos Legais (Multa 2% + Juros 1% a.m): {v_enc}\n🔴 *VALOR TOTAL ATUALIZADO: {v_atu}*\n\nValorizamos você como cliente. Para evitarmos restrições financeiras, conseguimos uma isenção total dos encargos caso a regularização seja feita hoje (o valor retorna para {v_orig}).\n\nPor favor, retorne esta mensagem para alinharmos a quitação."
-
-                        st.info(f"📍 **Estratégia Atual:** {assunto}")
-                        texto_final = st.text_area("Edite a mensagem antes de enviar:", value=msg_base, height=250)
-                        
-                        c_b1, c_b2 = st.columns(2)
-                        
-                        with c_b1:
-                            if tel_limpo:
-                                st.link_button("📲 Enviar via WhatsApp (Padrão)", f"https://wa.me/{tel_limpo}?text={urllib.parse.quote(texto_final)}", type="primary", use_container_width=True)
-                            else:
-                                st.error("⚠️ Telefone ausente na Carteira de Clientes.")
-                        
-                        with c_b2:
-                            if st.button("✨ Otimizar Acordo com IA", use_container_width=True):
-                                st.session_state['v2_ia_cob'] = True
-
-                        # ====================================================
-                        # 5. MÓDULO IA BLINDADO (Com Gemini 2.5)
-                        # ====================================================
-                        if st.session_state.get('v2_ia_cob', False):
-                            st.markdown("---")
-                            with st.spinner("🤖 Conectando ao motor de IA..."):
+                        if st.button("✨ Gerar Propostas de Acordo", type="primary"):
+                            with st.spinner("Analisando perfil da dívida e calculando cenários..."):
                                 try:
                                     import google.generativeai as genai
-                                    chave_segura = st.secrets["GOOGLE_API_KEY"]
-                                    genai.configure(api_key=chave_segura)
+                                    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
                                     
-                                    prompt_ia = f"""
-                                    Você é o especialista de Recuperação de Crédito da 'Sweet Home Enxovais' (CNPJ: {cnpj_sweet}).
-                                    Reescreva a mensagem abaixo para ser mais persuasiva e empática, aplicando técnicas de conciliação comercial.
+                                    # Lógica Dinâmica do Vale
+                                    if usar_rewards:
+                                        if tem_vale_valido:
+                                            instrucao_rewards = f"ESTRATÉGIA SWEET REWARDS ATIVADA: A cliente JÁ POSSUI um saldo de 'Vale-Desconto' de {vale_atual} cadastrado no nosso sistema. Use esse argumento OBRIGATORIAMENTE na proposta: proponha que ela use esse saldo acumulado agora mesmo para abater a dívida/encargos, desde que faça o pagamento à vista hoje."
+                                        else:
+                                            instrucao_rewards = "ESTRATÉGIA SWEET REWARDS ATIVADA: Oriente a vendedora a gerar um NOVO 'Vale-Fidelidade' (entre R$ 20 e R$ 50) ou um 'Cupom de 10%' para a PRÓXIMA compra, condicionando isso à quitação da dívida hoje."
+                                    else:
+                                        instrucao_rewards = ""
+                                        
+                                    instrucao_objecao = f"A cliente deu esta desculpa: '{desculpa_cliente}'. Escreva um parágrafo amigável (pronto para copiar e colar no WhatsApp) desarmando essa desculpa com empatia e focando na solução." if desculpa_cliente else ""
                                     
-                                    REGRAS ESTRITAS (Código de Defesa do Consumidor):
-                                    1. Nunca altere os valores ou a lista de produtos.
-                                    2. Não use tom de ameaça.
-                                    3. Mantenha os emojis (🧾, 🛍️, 💰) e o formato de extrato escaneável.
+                                    # 💡 O PROMPT DE AÇO: A IA agora enxerga a matemática completa
+                                    prompt_estrategia = f"""
+                                    Você é o Diretor Financeiro da 'Sweet Home Enxovais'. Analise a dívida abaixo e crie opções de negociação matemática e persuasiva.
                                     
-                                    Mensagem Original:
-                                    {texto_final}
+                                    DADOS DO DÉBITO (BASE PARA ANÁLISE):
+                                    - Cliente: {dados_cli['CLIENTE']}
+                                    - Score Interno: {dados_cli['SWEET_SCORE']}
+                                    - Status do Crédito: {dados_cli['SWEET_FLEX']}
+                                    - Saldo de Vale-Desconto Disponível na Ficha: {vale_atual}
+                                    - Dias de Atraso: {dados_cli['MAIOR_ATRASO']}
+                                    - Valor Original (Sem Juros): R$ {dados_cli['TOTAL_ORIGINAL']:.2f}
+                                    - Juros/Multas Legais: R$ {dados_cli['TOTAL_ENCARGOS']:.2f}
+                                    - Valor Total Atualizado: R$ {dados_cli['TOTAL_ATUALIZADO']:.2f}
+                                    - Possui dívida antiga (Legado)? {'Sim' if 'Legado' in dados_cli['STATUS_PREDOMINANTE'] else 'Não'}
+                                    
+                                    ⚠️ REGRAS CRÍTICAS DE FORMATAÇÃO E ANÁLISE:
+                                    1. NÃO use Markdown de cabeçalhos (como #, ## ou ###). Use apenas texto normal e negrito.
+                                    2. Seja extremamente organizado, use emojis para listar os tópicos.
+                                    3. Analise o "Saldo de Vale-Desconto Disponível". Se for maior que zero e a estratégia Sweet Rewards estiver ativada, faça a conta abatendo esse valor da dívida atualizada na opção à vista.
+                                    4. Entregue a resposta EXATAMENTE nesta estrutura:
+                                    
+                                    🎯 **CENÁRIOS DE ACORDO (Para a Loja)**
+                                    (Liste 3 opções: Quitação com desconto / Parcelamento Curto / Parcelamento Longo)
+                                    
+                                    💬 **MENSAGEM PARA A CLIENTE (Copie e Cole)**
+                                    (Escreva um texto empático oferecendo essas opções para a vendedora copiar e mandar)
+                                    
+                                    🔑 **ESTRATÉGIA SWEET FLEX**
+                                    (Se o Status do Crédito for '🔒 Suspenso', escreva um texto amigável ensinando a vendedora a dizer que quitar a dívida destravará o limite)
+                                    
+                                    🛡️ **CONTORNO DE OBJEÇÃO & SWEET REWARDS**
+                                    {instrucao_objecao}
+                                    {instrucao_rewards}
                                     """
                                     
-                                    # Cascata de Modelos: Tenta o 2.5 primeiro. Se der 404, cai para os outros automaticamente.
-                                    modelos_teste = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"]
-                                    res = None
-                                    motor = ""
-                                    
-                                    for nome_modelo in modelos_teste:
+                                    modelos = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"]
+                                    for m in modelos:
                                         try:
-                                            model = genai.GenerativeModel(nome_modelo)
-                                            res = model.generate_content(prompt_ia)
-                                            motor = nome_modelo
-                                            break # Sucesso! Sai do loop
-                                        except:
-                                            continue # Deu erro 404, tenta o próximo da fila
-                                    
-                                    if res:
-                                        st.success(f"✨ Texto Gerado com Sucesso | Motor utilizado: `{motor}`")
-                                        st.write(res.text)
+                                            modelo = genai.GenerativeModel(m)
+                                            resposta = modelo.generate_content(prompt_estrategia)
+                                            if resposta:
+                                                st.info("💡 **Relatório Gerencial de Negociação:**")
+                                                st.write(resposta.text)
+                                                break
+                                        except: continue
                                         
-                                        if tel_limpo:
-                                            st.link_button("📲 Enviar Texto da IA", f"https://wa.me/{tel_limpo}?text={urllib.parse.quote(res.text)}", type="secondary", use_container_width=True)
-                                        
-                                        if st.button("❌ Dispensar"):
-                                            st.session_state['v2_ia_cob'] = False
-                                            st.rerun()
-                                    else:
-                                        st.error("⚠️ Nenhum modelo foi suportado. A chave da API pode estar sem permissão para as versões mais recentes.")
-                                        
-                                except Exception as e_ia:
-                                    st.error(f"⚠️ Falha geral na API da IA: {e_ia}")
+                                except Exception as e:
+                                    st.error(f"Erro ao gerar estratégia: {e}")
 
             else:
-                st.info("Aguardando dados de vendas na planilha para iniciar as análises de cobrança.")
+                st.info("Aguardando dados de vendas na planilha para iniciar as análises.")
                 
         except Exception as e:
-            st.error(f"⚠️ Erro no núcleo de processamento financeiro: {e}")
-
+            st.error(f"⚠️ Erro no núcleo de processamento gerencial: {e}")
+            
+    st.divider() # Divisória para separar da Ficha de Cliente logo abaixo
+    
     st.markdown("### 🔍 Ficha de Cliente (Extrato Dinâmico)")
     opcoes_ficha = sorted([f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
     sel_ficha = st.selectbox("Selecione para ver o que ela deve:", ["---"] + opcoes_ficha, key="ficha_sel_cliente")
@@ -1214,19 +1280,167 @@ elif menu_selecionado == "💰 Financeiro":
         id_c = sel_ficha.split(" - ")[0]
         nome_c_ficha = " - ".join(sel_ficha.split(" - ")[1:])
         v_hist = df_vendas_hist[df_vendas_hist['CÓD. CLIENTE'].astype(str) == id_c]
-        saldo_devedor_real = v_hist['SALDO DEVEDOR'].apply(limpar_v).sum()
+        
+        # Cria uma coluna numérica temporária para facilitar a soma e o filtro
+        v_hist['SALDO_NUM'] = v_hist['SALDO DEVEDOR'].apply(limpar_v)
+        saldo_devedor_real = v_hist['SALDO_NUM'].sum()
+        
         c_f1, c_f2 = st.columns(2)
         c_f1.metric("Saldo Devedor Atual", f"R$ {saldo_devedor_real:,.2f}")
+        
         if saldo_devedor_real > 0.01:
-            tel_c = banco_de_clientes.get(id_c, {}).get('fone', "")
-            msg_zap = f"Olá {nome_c_ficha}! 🏠 Segue seu extrato na *Sweet Home Enxovais*. Atualmente consta um saldo pendente de *R$ {saldo_devedor_real:.2f}*. Qualquer dúvida estou à disposição! 😊"
-            st.link_button("📲 Cobrar no WhatsApp", f"https://wa.me/55{tel_c}?text={urllib.parse.quote(msg_zap)}", use_container_width=True)
-        else: st.success("✅ Esta cliente não possui débitos pendentes.")
+            # ---------------------------------------------------------
+            # 1. BUSCA INTELIGENTE DO NÚMERO NA CARTEIRA DE CLIENTES
+            # ---------------------------------------------------------
+            dados_cliente = banco_de_clientes.get(id_c, {})
+            telefone_cru = str(dados_cliente.get('TELEFONE', dados_cliente.get('telefone', dados_cliente.get('fone', ''))))
+            
+            # Limpa tudo que não for número e garante o 55 do Brasil
+            tel_c = "".join(filter(str.isdigit, telefone_cru))
+            if tel_c and not tel_c.startswith("55"): 
+                tel_c = "55" + tel_c
+
+            # ---------------------------------------------------------
+            # 2. CONSTRUÇÃO DO RECIBO FINANCEIRO (TEXTO PURO PARA O WPP)
+            # ---------------------------------------------------------
+            lista_extrato = ""
+            
+            # Varre TODO o histórico com visual de Ticket (Sem Emojis para o WPP)
+            for _, row in v_hist.iterrows():
+                status_atual = str(row['STATUS']).strip()
+                
+                # Farol em Texto Puro
+                if status_atual.lower() in ['pago', 'quitado', 'ok']:
+                    icone = "[ PAGO ]"
+                else:
+                    icone = "[ PENDENTE ]"
+                
+                # Estrutura visual textual para o WhatsApp
+                lista_extrato += f"*{row['PRODUTO']}*\n ├ Data: {row['DATA DA VENDA']}\n └ Status: {icone}\n\n"
+            
+            saldo_formatado = f"R$ {saldo_devedor_real:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            
+            # MENSAGEM 1: COBRANÇA (Texto Puro, Sem Emojis)
+            msg_cobranca = (
+                f"Olá, *{nome_c_ficha}*! Tudo bem?\n\n"
+                f"Aqui é do *Setor Financeiro da Sweet Home Enxovais*.\n"
+                f"Criamos esse departamento recentemente para melhorar a nossa organização e estarmos ainda mais próximos de você!\n\n"
+                f"Passando para deixar o resumo atualizado da sua ficha conosco:\n\n"
+                f"*HISTÓRICO DE COMPRAS:*\n"
+                f"-----------------------------------\n"
+                f"{lista_extrato}"
+                f"-----------------------------------\n"
+                f"*Total Pendente Atual: {saldo_formatado}*\n\n"
+                f"Qualquer dúvida sobre os itens ou se precisar da nossa chave PIX para regularizar, estou à disposição!"
+            )
+
+            # MENSAGEM 2: LEMBRETE PREVENTIVO (Texto Puro, Sem Emojis)
+            msg_lembrete = (
+                f"Olá, *{nome_c_ficha}*! Tudo bem?\n\n"
+                f"Aqui é do *Setor Financeiro da Sweet Home Enxovais*.\n\n"
+                f"Passando apenas para te enviar um lembrete super amigável de que você tem itens com vencimento se aproximando.\n\n"
+                f"*RESUMO DA SUA FICHA:*\n"
+                f"-----------------------------------\n"
+                f"{lista_extrato}"
+                f"-----------------------------------\n"
+                f"*Valor programado para acerto: {saldo_formatado}*\n\n"
+                f"Se precisar da nossa chave PIX para já deixar agendado, é só me avisar. Tenha um excelente dia!"
+            )
+            
+            # ---------------------------------------------------------
+            # 3. EXIBIÇÃO DOS BOTÕES LADO A LADO (Bypass com HTML Puro)
+            # ---------------------------------------------------------
+            if tel_c:
+                st.write("#### 🎯 Escolha a abordagem:")
+                col_btn1, col_btn2 = st.columns(2)
+                
+                # Voltamos para o quote normal, o HTML vai cuidar do resto
+                url_cob = f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_cobranca)}"
+                url_prev = f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_lembrete)}"
+                
+                # Criando botões com HTML/CSS para driblar o bloqueio do Streamlit
+                btn_cob_html = f"""<a href="{url_cob}" target="_blank" style="display: block; width: 100%; text-align: center; background-color: #ff4b4b; color: white; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold;">🚨 Enviar Cobrança (Atrasados)</a>"""
+                
+                btn_prev_html = f"""<a href="{url_prev}" target="_blank" style="display: block; width: 100%; text-align: center; background-color: #262730; color: white; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold;">📅 Enviar Lembrete (Preventivo)</a>"""
+                
+                with col_btn1:
+                    st.markdown(btn_cob_html, unsafe_allow_html=True)
+                
+                with col_btn2:
+                    st.markdown(btn_prev_html, unsafe_allow_html=True)
+                
+                # ---------------------------------------------------------
+                # 4. MÓDULO DE IA SOB DEMANDA
+                # ---------------------------------------------------------
+                st.markdown("---")
+                st.write("✨ **Precisa de uma abordagem diferente?**")
+                
+                if st.button("🤖 Personalizar mensagem com IA", use_container_width=True):
+                    st.session_state['ia_ficha_ativa'] = True
+                    
+                if st.session_state.get('ia_ficha_ativa', False):
+                    tipo_ia = st.radio("Qual mensagem você quer que a IA reescreva?", ["Cobrança", "Lembrete Preventivo"])
+                    msg_base_ia = msg_cobranca if tipo_ia == "Cobrança" else msg_lembrete
+                    
+                    with st.spinner("🤖 Consultando a IA (Modo Seguro)..."):
+                        try:
+                            import google.generativeai as genai
+                            genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+                            
+                            prompt = f"""
+                            Você atua no Setor Financeiro da 'Sweet Home Enxovais'. 
+                            Reescreva a mensagem abaixo para deixá-la incrivelmente empática e persuasiva, mas sem perder a educação. 
+                            MANTENHA INTACTA a lista de produtos (o histórico com as datas) e o valor final.
+                            
+                            ⚠️ REGRA CRÍTICA: Retorne EXATAMENTE APENAS o texto da mensagem final. 
+                            NÃO inclua introduções como "Com certeza!", "Aqui está..." ou tracejados iniciais. 
+                            NÃO explique o que você fez. O texto deve estar pronto para eu copiar e colar diretamente no WhatsApp.
+                            NÃO utilize emojis na sua resposta, apenas texto e negrito.
+                            
+                            Mensagem:
+                            {msg_base_ia}
+                            """
+                            
+                            modelos = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"]
+                            resultado_ia = None
+                            
+                            for m in modelos:
+                                try:
+                                    modelo_gen = genai.GenerativeModel(m)
+                                    resultado_ia = modelo_gen.generate_content(prompt)
+                                    break
+                                except: continue
+                                
+                            if resultado_ia:
+                                st.success("✨ Mensagem Otimizada com Sucesso!")
+                                texto_final_ia = st.text_area("Revise a mensagem da IA:", value=resultado_ia.text.strip(), height=250)
+                                
+                                # Botão HTML também para a IA
+                                url_ia = f"https://wa.me/{tel_c}?text={urllib.parse.quote(texto_final_ia)}"
+                                btn_ia_html = f"""<a href="{url_ia}" target="_blank" style="display: block; width: 100%; text-align: center; background-color: #ff4b4b; color: white; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold;">📲 Enviar Mensagem da IA</a>"""
+                                
+                                st.markdown(btn_ia_html, unsafe_allow_html=True)
+                                
+                                st.write("") # Espaçinho visual
+                                if st.button("❌ Dispensar IA"):
+                                    st.session_state['ia_ficha_ativa'] = False
+                                    st.rerun()
+                            else:
+                                st.error("⚠️ Nenhum modelo de IA suportado encontrado na sua API.")
+                        except Exception as e_ia:
+                            st.error(f"⚠️ Erro de comunicação com o Google: {e_ia}")
+
+            else:
+                st.error("⚠️ Telefone não localizado na base desta cliente.")
+                
+        else: 
+            st.success("✅ Esta cliente não possui débitos pendentes.")
 
         st.write("#### ⏳ Histórico de Vendas Localizado")
         if not v_hist.empty:
             st.dataframe(v_hist[['DATA DA VENDA', 'PRODUTO', 'TOTAL R$', 'SALDO DEVEDOR', 'STATUS']], use_container_width=True, hide_index=True)
-        else: st.info("Nenhuma compra registrada para esta cliente ainda.")
+        else: 
+            st.info("Nenhuma compra registrada para esta cliente ainda.")
 
 # ==========================================
 # --- SEÇÃO 3: ESTOQUE (MEMÓRIA ETERNA + IA) ---
