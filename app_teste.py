@@ -1125,7 +1125,9 @@ elif menu_selecionado == "💰 Financeiro":
                         # --- CAIXA DE TEXTO (Permite você editar antes de enviar) ---
                         texto_final = st.text_area("Texto da Mensagem (Edite se quiser):", value=msg_padrao, height=300)
                         
-                        # BOTOES DE AÇÃO
+                        # ====================================================
+                        # 🔘 BOTOES DE AÇÃO E MOTOR DE IA
+                        # ====================================================
                         col_btn1, col_btn2 = st.columns(2)
                         
                         with col_btn1:
@@ -1133,11 +1135,22 @@ elif menu_selecionado == "💰 Financeiro":
                             st.link_button("📲 Enviar no WhatsApp", link_wpp, type="primary", use_container_width=True)
                             
                         with col_btn2:
-                            # BOTÃO MÁGICO DA IA (Gemini)
+                            # 💡 Quando clica, salvamos o estado para processar abaixo
                             if st.button("✨ Reescrever com IA (Humanizar)", use_container_width=True):
+                                st.session_state['processar_ia_cobranca'] = True
+
+                        # --- PROCESSAMENTO SEGURO DA IA ---
+                        if st.session_state.get('processar_ia_cobranca', False):
+                            st.markdown("---")
+                            with st.spinner("🤖 Consultando o Gemini para humanizar sua mensagem..."):
                                 try:
                                     import google.generativeai as genai
-                                    # Prompt oculto passando a regra pra IA
+                                    
+                                    # 🔑 CONFIGURAÇÃO DA API (Cole sua chave aqui)
+                                    CHAVE_API = "SUA_CHAVE_AQUI" 
+                                    genai.configure(api_key=AIzaSyDfnLUjLUZip1KI8PJBEh3iYUDeED9dvlc)
+                                    
+                                    # Prompt estratégico para a Sweet Home
                                     prompt_ia = f"""
                                     Você é o assistente financeiro da loja Sweet Home Enxovais (CNPJ: {cnpj_sweet}).
                                     Reescreva esta mensagem de cobrança/lembrete de forma empática, educada e persuasiva.
@@ -1147,31 +1160,29 @@ elif menu_selecionado == "💰 Financeiro":
                                     {msg_padrao}
                                     """
                                     
-                                    # 💡 NOVO MOTOR: Busca automaticamente o modelo mais avançado liberado na sua chave!
-                                    modelos_disponiveis = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+                                    # Busca automática do melhor modelo disponível na sua chave
+                                    modelos = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+                                    modelo_alvo = "models/gemini-1.5-flash" if "models/gemini-1.5-flash" in modelos else modelos[0]
                                     
-                                    if not modelos_disponiveis:
-                                        st.error("Nenhum modelo de IA habilitado nesta chave API.")
-                                    else:
-                                        # Tenta achar o Gemini 2.0 ou os modelos mais rápidos. Se não achar, usa o primeiro que funcionar.
-                                        modelo_escolhido = modelos_disponiveis[0]
-                                        for nome_modelo in modelos_disponiveis:
-                                            if "2.0" in nome_modelo or "flash" in nome_modelo or "thinking" in nome_modelo:
-                                                modelo_escolhido = nome_modelo
-                                                break # Achou um modelo moderno, para de procurar!
-                                                
-                                        modelo_ia = genai.GenerativeModel(modelo_escolhido)
-                                        resposta_ia = modelo_ia.generate_content(prompt_ia)
-                                        
-                                        # Mostramos até qual modelo a IA escolheu pra você saber que tá usando o de ponta!
-                                        st.success(f"✨ Texto gerado pela IA (Motor: `{modelo_escolhido.replace('models/', '')}`):")
-                                        st.code(resposta_ia.text, language="markdown")
-                                        
-                                        link_wpp_ia = f"https://wa.me/?text={urllib.parse.quote(resposta_ia.text)}"
-                                        st.link_button("📲 Enviar Texto da IA no WhatsApp", link_wpp_ia, type="secondary", use_container_width=True)
-                                        
+                                    model = genai.GenerativeModel(modelo_alvo)
+                                    response = model.generate_content(prompt_ia)
+                                    
+                                    # Exibição do Resultado
+                                    st.success(f"✨ Sugestão Humanizada (IA: `{modelo_alvo.split('/')[-1]}`)")
+                                    texto_ia = response.text
+                                    st.write(texto_ia)
+                                    
+                                    # Botão de envio específico para o texto da IA
+                                    link_wpp_ia = f"https://wa.me/?text={urllib.parse.quote(texto_ia)}"
+                                    st.link_button("📲 Enviar Texto da IA no WhatsApp", link_wpp_ia, use_container_width=True)
+                                    
+                                    if st.button("❌ Fechar Sugestão"):
+                                        st.session_state['processar_ia_cobranca'] = False
+                                        st.rerun()
+
                                 except Exception as e_ia:
-                                    st.error("Erro ao chamar a IA. Detalhe do erro: " + str(e_ia))
+                                    st.error(f"Erro ao chamar a IA: {e_ia}")
+                                    st.session_state['processar_ia_cobranca'] = False
 
             except Exception as e:
                 st.error(f"Erro ao processar as cobranças reais: {e}")
