@@ -794,9 +794,6 @@ if menu_selecionado == "🛒 Vendas":
 elif menu_selecionado == "💰 Financeiro":
     st.markdown("### 📈 Resumo Geral Sweet Home")
     if not df_vendas_hist.empty:
-        # ====================================================
-        # 1. PROCESSAMENTO GERAL (KPIs DO FINANCEIRO)
-        # ====================================================
         try:
             # 1. PROCESSAMENTO SEGURO POR POSIÇÃO (ILOC)
             df_fin = df_vendas_hist.copy()
@@ -904,43 +901,43 @@ elif menu_selecionado == "💰 Financeiro":
         except Exception as e:
             st.error(f"⚠️ Erro ao processar o painel: {e}")
 
-        st.divider()
+    st.divider()
 
-        with st.expander("➕ Lançar Novo Abatimento (Sistema FIFO)", expanded=False):
-            with st.form("f_fifo_novo", clear_on_submit=True):
-                lista_todas_clientes = sorted([f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
-                c_pg = st.selectbox("Quem está pagando?", ["Selecione..."] + lista_todas_clientes, key="fifo_cliente")
-                f1, f2, f3 = st.columns(3)
-                v_pg = f1.number_input("Valor Pago (R$)", min_value=0.0, key="fifo_valor", help="Digite o valor exato que a cliente pagou agora.")
-                meio = f2.selectbox("Meio", ["Pix", "Dinheiro", "Cartão", "Sweet Flex"], key="fifo_meio")
-                obs = f3.text_input("Obs", "Abatimento", key="fifo_obs")
-                
-                if st.form_submit_button("Confirmar Pagamento ✅"):
-                    if v_pg > 0 and c_pg != "Selecione...":
-                        try:
-                            aba_v = planilha_mestre.worksheet("VENDAS")
-                            df_v_viva = pd.DataFrame(aba_v.get_all_records())
-                            df_v_viva['S_NUM'] = df_v_viva['SALDO DEVEDOR'].apply(limpar_v)
-                            nome_c_alvo = " - ".join(c_pg.split(" - ")[1:])
-                            pendentes = df_v_viva[(df_v_viva['CLIENTE'] == nome_c_alvo) & (df_v_viva['S_NUM'] > 0)].copy()
-                            sobra = v_pg
-                            for idx, row in pendentes.iterrows():
-                                if sobra <= 0: break
-                                lin_planilha = idx + 2
-                                div_linha = row['S_NUM']
-                                if sobra >= div_linha:
-                                    aba_v.update_acell(f"U{lin_planilha}", 0) 
-                                    aba_v.update_acell(f"W{lin_planilha}", "Pago") 
-                                    sobra -= div_linha
-                                else:
-                                    aba_v.update_acell(f"U{lin_planilha}", div_linha - sobra) 
-                                    sobra = 0
-                            
-                            aba_f = planilha_mestre.worksheet("FINANCEIRO")
-                            aba_f.append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), c_pg.split(" - ")[0], nome_c_alvo, 0, v_pg, "PAGO", f"{meio}: {obs}"], value_input_option='RAW')
-                            st.success(f"✅ Recebido de {nome_c_alvo} processado!")
-                            st.cache_resource.clear(); st.rerun()
-                        except Exception as e: st.error(f"Erro no FIFO: {e}")
+    with st.expander("➕ Lançar Novo Abatimento (Sistema FIFO)", expanded=False):
+        with st.form("f_fifo_novo", clear_on_submit=True):
+            lista_todas_clientes = sorted([f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
+            c_pg = st.selectbox("Quem está pagando?", ["Selecione..."] + lista_todas_clientes, key="fifo_cliente")
+            f1, f2, f3 = st.columns(3)
+            v_pg = f1.number_input("Valor Pago (R$)", min_value=0.0, key="fifo_valor", help="Digite o valor exato que a cliente pagou agora.")
+            meio = f2.selectbox("Meio", ["Pix", "Dinheiro", "Cartão", "Sweet Flex"], key="fifo_meio")
+            obs = f3.text_input("Obs", "Abatimento", key="fifo_obs")
+            
+            if st.form_submit_button("Confirmar Pagamento ✅"):
+                if v_pg > 0 and c_pg != "Selecione...":
+                    try:
+                        aba_v = planilha_mestre.worksheet("VENDAS")
+                        df_v_viva = pd.DataFrame(aba_v.get_all_records())
+                        df_v_viva['S_NUM'] = df_v_viva['SALDO DEVEDOR'].apply(limpar_v)
+                        nome_c_alvo = " - ".join(c_pg.split(" - ")[1:])
+                        pendentes = df_v_viva[(df_v_viva['CLIENTE'] == nome_c_alvo) & (df_v_viva['S_NUM'] > 0)].copy()
+                        sobra = v_pg
+                        for idx, row in pendentes.iterrows():
+                            if sobra <= 0: break
+                            lin_planilha = idx + 2
+                            div_linha = row['S_NUM']
+                            if sobra >= div_linha:
+                                aba_v.update_acell(f"U{lin_planilha}", 0) 
+                                aba_v.update_acell(f"W{lin_planilha}", "Pago") 
+                                sobra -= div_linha
+                            else:
+                                aba_v.update_acell(f"U{lin_planilha}", div_linha - sobra) 
+                                sobra = 0
+                        
+                        aba_f = planilha_mestre.worksheet("FINANCEIRO")
+                        aba_f.append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), c_pg.split(" - ")[0], nome_c_alvo, 0, v_pg, "PAGO", f"{meio}: {obs}"], value_input_option='RAW')
+                        st.success(f"✅ Recebido de {nome_c_alvo} processado!")
+                        st.cache_resource.clear(); st.rerun()
+                    except Exception as e: st.error(f"Erro no FIFO: {e}")
 
         # --- 🕒 HISTÓRICO DE ABATIMENTOS (LÊ A ABA FINANCEIRO) ---
         st.markdown("---")
@@ -951,16 +948,22 @@ elif menu_selecionado == "💰 Financeiro":
             dados_f = aba_f_hist.get_all_values()
 
             if len(dados_f) > 1:
+                # Cria o DataFrame com as colunas reais da sua planilha
                 df_f_hist = pd.DataFrame(dados_f[1:], columns=dados_f[0])
+
+                # Limpeza de segurança nos nomes das colunas
                 df_f_hist.columns = [c.strip() for c in df_f_hist.columns]
                 
+                # Filtro pelo STATUS que você definiu na Coluna G
                 if 'STATUS' in df_f_hist.columns:
                     df_f_hist['STATUS'] = df_f_hist['STATUS'].str.strip().str.upper()
+                    # Filtra apenas o que está PAGO e pega os últimos 5
                     abatimentos = df_f_hist[df_f_hist['STATUS'] == "PAGO"].tail(5).iloc[::-1]
                 else:
                     abatimentos = pd.DataFrame()
 
                 if not abatimentos.empty:
+                    # Exibição organizada com os nomes de colunas que você passou
                     st.dataframe(
                         abatimentos[['DATA', 'NOME', 'VALOR_PAGO', 'OBS']],
                         column_config={
@@ -983,506 +986,29 @@ elif menu_selecionado == "💰 Financeiro":
             else:
                 st.info("🕒 O histórico aparecerá após o primeiro recebimento ser registrado.")
 
-        # ====================================================
-# ⚖️ GESTÃO DE INADIMPLÊNCIA E RECUPERAÇÃO DE CRÉDITO
-# ====================================================
-import pytz
-import urllib.parse
-import pandas as pd
-from datetime import datetime
-import streamlit as st
-import google.generativeai as genai
+    st.divider()
 
-# ====================================================
-# 🏗️ CONFIGURAÇÕES E CONSTANTES
-# ====================================================
-class Config:
-    FUSO_BR = pytz.timezone('America/Sao_Paulo')
-    CNPJ_SWEET = "62.862.825/0001-72"
-    CHAVE_API_GEMINI = "AIzaSyDfnLUjLUZip1KI8PJBEh3iYUDeED9dvlc"  # Considere mover para secrets
-    MODELO_GEMINI_PRINCIPAL = "gemini-2.0-flash"
-    MODELO_GEMINI_RESERVA = "gemini-1.5-flash"
+    st.markdown("### 🔍 Ficha de Cliente (Extrato Dinâmico)")
+    opcoes_ficha = sorted([f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
+    sel_ficha = st.selectbox("Selecione para ver o que ela deve:", ["---"] + opcoes_ficha, key="ficha_sel_cliente")
     
-    # Mapeamento de colunas (facilita manutenção)
-    COLUNAS = {
-        'cod_cliente': 'CÓD. CLIENTE',
-        'cliente': 'CLIENTE',
-        'saldo': 'SALDO_NUM',
-        'vencimento': 'PRÓXIMA PARCELA',
-        'produto': 'PRODUTO',
-        'data_venda': 'DATA DA VENDA'
-    }
+    if sel_ficha != "---":
+        id_c = sel_ficha.split(" - ")[0]
+        nome_c_ficha = " - ".join(sel_ficha.split(" - ")[1:])
+        v_hist = df_vendas_hist[df_vendas_hist['CÓD. CLIENTE'].astype(str) == id_c]
+        saldo_devedor_real = v_hist['SALDO DEVEDOR'].apply(limpar_v).sum()
+        c_f1, c_f2 = st.columns(2)
+        c_f1.metric("Saldo Devedor Atual", f"R$ {saldo_devedor_real:,.2f}")
+        if saldo_devedor_real > 0.01:
+            tel_c = banco_de_clientes.get(id_c, {}).get('fone', "")
+            msg_zap = f"Olá {nome_c_ficha}! 🏠 Segue seu extrato na *Sweet Home Enxovais*. Atualmente consta um saldo pendente de *R$ {saldo_devedor_real:.2f}*. Qualquer dúvida estou à disposição! 😊"
+            st.link_button("📲 Cobrar no WhatsApp", f"https://wa.me/55{tel_c}?text={urllib.parse.quote(msg_zap)}", use_container_width=True)
+        else: st.success("✅ Esta cliente não possui débitos pendentes.")
 
-# ====================================================
-# 📊 FUNÇÕES DE PROCESSAMENTO DE DADOS
-# ====================================================
-
-def processar_dados_inadimplencia(df_fin):
-    """
-    Processa os dados de inadimplência a partir do DataFrame de vendas
-    """
-    try:
-        hoje_pd = pd.to_datetime(datetime.now(Config.FUSO_BR).strftime("%Y-%m-%d"))
-        
-        # Filtrar apenas devedores
-        df_devedores = df_fin[df_fin[Config.COLUNAS['saldo']] > 0].copy()
-        
-        # Padronizar código do cliente
-        df_devedores[Config.COLUNAS['cod_cliente']] = df_devedores[Config.COLUNAS['cod_cliente']].astype(str).str.strip()
-        
-        # Processar datas de vencimento
-        df_devedores['VENCIMENTO'] = pd.to_datetime(
-            df_devedores[Config.COLUNAS['vencimento']], 
-            format="%d/%m/%Y", 
-            errors='coerce'
-        )
-        df_devedores = df_devedores.dropna(subset=['VENCIMENTO'])
-        
-        # Padronizar nomes e valores
-        df_devedores['VALOR_ORIGINAL'] = df_devedores[Config.COLUNAS['saldo']]
-        df_devedores['NOME'] = df_devedores[Config.COLUNAS['cliente']].astype(str).str.strip()
-        df_devedores['PRODUTO_COMPRADO'] = df_devedores[Config.COLUNAS['produto']].astype(str)
-        df_devedores['DATA_COMPRA'] = df_devedores[Config.COLUNAS['data_venda']].astype(str)
-        df_devedores['DIAS_ATRASO'] = (hoje_pd - df_devedores['VENCIMENTO']).dt.days
-        
-        return df_devedores
-    except Exception as e:
-        st.error(f"Erro ao processar dados de inadimplência: {e}")
-        return pd.DataFrame()
-
-def agrupar_cestas_cliente(df_devedores):
-    """
-    Agrupa dívidas do mesmo cliente em cestas
-    """
-    try:
-        df_agrupado = df_devedores.groupby([
-            Config.COLUNAS['cod_cliente'], 
-            'NOME', 
-            'VENCIMENTO', 
-            'DATA_COMPRA', 
-            'DIAS_ATRASO'
-        ]).agg(
-            VALOR_ORIGINAL=pd.NamedAgg(column='VALOR_ORIGINAL', aggfunc='sum'),
-            PRODUTOS_COMPRADOS=pd.NamedAgg(column='PRODUTO_COMPRADO', aggfunc=lambda x: ' | '.join(x))
-        ).reset_index()
-        
-        return df_agrupado
-    except Exception as e:
-        st.error(f"Erro ao agrupar cestas: {e}")
-        return pd.DataFrame()
-
-def calcular_encargos(row):
-    """
-    Calcula multas, juros e status baseado nos dias de atraso
-    """
-    if row['DIAS_ATRASO'] > 0:
-        multa = row['VALOR_ORIGINAL'] * 0.02
-        juros = row['VALOR_ORIGINAL'] * 0.01 * (row['DIAS_ATRASO'] / 30)
-        
-        if row['DIAS_ATRASO'] > 30:
-            status = "🔴 Crítico (+30 dias)"
-        elif row['DIAS_ATRASO'] > 7:
-            status = "🟡 Atenção (8-30 dias)"
-        else:
-            status = "🔵 Amigável (1-7 dias)"
-    elif row['DIAS_ATRASO'] == 0:
-        multa, juros, status = 0, 0, "🟢 Vence Hoje"
-    else:
-        multa, juros, status = 0, 0, f"⏳ Vence em {abs(row['DIAS_ATRASO'])} dias"
-    
-    return pd.Series([
-        multa, 
-        juros, 
-        row['VALOR_ORIGINAL'] + multa + juros, 
-        status
-    ])
-
-def preparar_dados_exibicao(df_agrupado):
-    """
-    Prepara os dados para exibição nas abas
-    """
-    # Aplicar encargos
-    df_agrupado[['MULTA', 'JUROS', 'VALOR_ATUALIZADO', 'FASE_COBRANCA']] = df_agrupado.apply(calcular_encargos, axis=1)
-    
-    # Classificar e criar labels
-    df_agrupado['TIPO'] = df_agrupado['DIAS_ATRASO'].apply(lambda x: "⚠️ Atrasado" if x > 0 else "📅 A Vencer")
-    df_agrupado['LABEL_DROPDOWN'] = (
-        df_agrupado['NOME'] + 
-        " | Venc: " + df_agrupado['VENCIMENTO'].dt.strftime("%d/%m") + 
-        " - " + df_agrupado['TIPO']
-    )
-    
-    # Separar atrasados e a vencer
-    df_atrasados = df_agrupado[df_agrupado['DIAS_ATRASO'] > 0].sort_values(by='DIAS_ATRASO', ascending=False)
-    df_a_vencer = df_agrupado[
-        (df_agrupado['DIAS_ATRASO'] <= 0) & 
-        (df_agrupado['DIAS_ATRASO'] >= -5)
-    ].sort_values(by='DIAS_ATRASO', ascending=False)
-    
-    return df_atrasados, df_a_vencer, df_agrupado
-
-# ====================================================
-# 📞 FUNÇÕES DE COMUNICAÇÃO E WHATSAPP
-# ====================================================
-
-def buscar_telefone_cliente(cod_cliente, df_carteira):
-    """
-    Busca o telefone do cliente na carteira de clientes
-    """
-    try:
-        if df_carteira is None or df_carteira.empty:
-            return None
-            
-        # Converter código para string e limpar
-        cod_cliente = str(cod_cliente).strip()
-        
-        # Buscar na carteira (assumindo colunas: CÓD. CLIENTE, NOME, TELEFONE)
-        cliente_data = df_carteira[df_carteira[Config.COLUNAS['cod_cliente']].astype(str).str.strip() == cod_cliente]
-        
-        if cliente_data.empty:
-            return None
-            
-        # Extrair telefone (assumindo que TELEFONE é a 3ª coluna ou tem nome específico)
-        telefone = cliente_data.iloc[0]['TELEFONE'] if 'TELEFONE' in cliente_data.columns else cliente_data.iloc[0, 2]
-        
-        # Higienizar número
-        return higienizar_telefone(str(telefone))
-        
-    except Exception as e:
-        st.warning(f"Erro ao buscar telefone do cliente {cod_cliente}: {e}")
-        return None
-
-def higienizar_telefone(telefone):
-    """
-    Limpa e formata o número de telefone para o padrão brasileiro
-    """
-    if not telefone:
-        return None
-        
-    # Remover tudo que não é dígito
-    tel_limpo = "".join(filter(str.isdigit, telefone))
-    
-    # Adicionar código do Brasil se necessário
-    if tel_limpo and not tel_limpo.startswith("55"):
-        tel_limpo = "55" + tel_limpo
-        
-    return tel_limpo if len(tel_limpo) >= 12 else None  # Mínimo: 55 + DDD + número
-
-def gerar_mensagem_padrao(dados_cliente):
-    """
-    Gera mensagem padrão baseada na situação do cliente
-    """
-    dias = dados_cliente['DIAS_ATRASO']
-    cliente_alvo = dados_cliente['NOME']
-    dt_compra = dados_cliente['DATA_COMPRA']
-    d_venc = dados_cliente['VENCIMENTO'].strftime("%d/%m/%Y")
-    
-    # Lista de produtos formatada
-    lista_produtos = "\n".join([
-        f"🔸 {p.strip()}" for p in dados_cliente['PRODUTOS_COMPRADOS'].split("|")
-    ])
-    
-    # Formatar valores
-    v_orig = f"R$ {dados_cliente['VALOR_ORIGINAL']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    v_atu = f"R$ {dados_cliente['VALOR_ATUALIZADO']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    v_encargos = f"R$ {(dados_cliente['VALOR_ATUALIZADO'] - dados_cliente['VALOR_ORIGINAL']):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    
-    # Lógica de mensagem por situação
-    if dias <= 0:
-        return f"""Olá, *{cliente_alvo}*! Tudo bem? 🌸
-
-🧾 *LEMBRETE DE VENCIMENTO*
-
-🛍️ *Itens adquiridos:*
-{lista_produtos}
-
-⚠️ Sua parcela de *{v_orig}* vence em {d_venc}.
-
-Qualquer dúvida, estou à disposição! 😊"""
-    
-    elif dias <= 7:
-        return f"""Olá, *{cliente_alvo}*! 🌸
-
-🧾 *CUPOM DE CONFERÊNCIA*
-
-🛍️ *Itens adquiridos:*
-{lista_produtos}
-
-⚠️ Sua parcela de *{v_orig}* venceu há {dias} dias.
-
-Se precisar da chave PIX para evitar juros, é só me avisar! 😊"""
-    
-    else:
-        return f"""Prezado(a) *{cliente_alvo}*,
-
-Departamento Financeiro - Sweet Home Enxovais (CNPJ: {Config.CNPJ_SWEET})
-
-🧾 *EXTRATO EM ATRASO*
-
-📅 Data da compra: {dt_compra}
-
-🛍️ *Itens adquiridos:*
-{lista_produtos}
-
-💰 Valor Original: {v_orig}
-📈 Atualização (juros/multa): {v_encargos}
-🔴 *TOTAL DEVIDO: {v_atu}*
-
-Por favor, entre em contato para regularizarmos sua situação."""
-
-def gerar_mensagem_ia(mensagem_original):
-    """
-    Gera versão humanizada da mensagem usando Gemini AI
-    """
-    try:
-        genai.configure(api_key=Config.CHAVE_API_GEMINI)
-        
-        # Tentar modelo principal
-        try:
-            model = genai.GenerativeModel(Config.MODELO_GEMINI_PRINCIPAL)
-            motor_usado = "Gemini 2.0 Flash"
-        except:
-            # Fallback para modelo reserva
-            model = genai.GenerativeModel(Config.MODELO_GEMINI_RESERVA)
-            motor_usado = "Gemini 1.5 Flash (Reserva)"
-        
-        prompt = f"""Reescreva a seguinte mensagem de cobrança da Sweet Home Enxovais 
-        (CNPJ {Config.CNPJ_SWEET}) de forma mais gentil e humanizada, 
-        mantendo as informações essenciais mas com tom mais acolhedor:
-
-        {mensagem_original}"""
-        
-        response = model.generate_content(prompt)
-        return response.text, motor_usado
-        
-    except Exception as e:
-        st.error(f"Erro ao gerar mensagem com IA: {e}")
-        return None, None
-
-# ====================================================
-# 🖥️ FUNÇÕES DE INTERFACE
-# ====================================================
-
-def exibir_metricas_inadimplencia(df_atrasados):
-    """
-    Exibe métricas de inadimplência
-    """
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.metric(
-            "💰 Capital Retido", 
-            f"R$ {df_atrasados['VALOR_ORIGINAL'].sum():,.2f}"
-        )
-    
-    with col2:
-        st.metric(
-            "📈 Valor Atualizado", 
-            f"R$ {df_atrasados['VALOR_ATUALIZADO'].sum():,.2f}"
-        )
-    
-    with col3:
-        st.metric(
-            "👥 Faturas Atrasadas", 
-            f"{len(df_atrasados)}"
-        )
-
-def exibir_tabela_inadimplentes(df, tipo='atrasados'):
-    """
-    Exibe tabela formatada de inadimplentes
-    """
-    df_exibicao = df.copy()
-    df_exibicao['VENCIMENTO'] = df_exibicao['VENCIMENTO'].dt.strftime("%d/%m/%Y")
-    
-    if tipo == 'atrasados':
-        colunas = ['NOME', 'PRODUTOS_COMPRADOS', 'VENCIMENTO', 
-                   'DIAS_ATRASO', 'VALOR_ATUALIZADO', 'FASE_COBRANCA']
-    else:
-        colunas = ['NOME', 'PRODUTOS_COMPRADOS', 'VENCIMENTO', 
-                   'VALOR_ORIGINAL', 'FASE_COBRANCA']
-    
-    st.dataframe(
-        df_exibicao[colunas], 
-        use_container_width=True, 
-        hide_index=True
-    )
-
-def exibir_interface_comunicacao(clientes_comunicacao, df_carteira):
-    """
-    Exibe interface de comunicação via WhatsApp
-    """
-    if clientes_comunicacao.empty:
-        st.info("Nenhum cliente disponível para comunicação.")
-        return
-    
-    st.markdown("---")
-    st.markdown("#### 💬 Central de Comunicação (WhatsApp)")
-    
-    # Selecionar cliente
-    opcoes = ["---"] + list(clientes_comunicacao['LABEL_DROPDOWN'])
-    selecao = st.selectbox("Selecione a fatura para gerar a mensagem:", opcoes)
-    
-    if selecao == "---":
-        return
-    
-    # Obter dados do cliente selecionado
-    dados_cliente = clientes_comunicacao[
-        clientes_comunicacao['LABEL_DROPDOWN'] == selecao
-    ].iloc[0]
-    
-    # Buscar telefone
-    telefone = buscar_telefone_cliente(dados_cliente[Config.COLUNAS['cod_cliente']], df_carteira)
-    
-    # Gerar mensagem padrão
-    msg_padrao = gerar_mensagem_padrao(dados_cliente)
-    
-    # Interface de edição
-    texto_final = st.text_area(
-        "Texto da Mensagem (edite se quiser):", 
-        value=msg_padrao, 
-        height=250
-    )
-    
-    # Botões de ação
-    col_btn1, col_btn2 = st.columns(2)
-    
-    with col_btn1:
-        if telefone:
-            link_whatsapp = f"https://wa.me/{telefone}?text={urllib.parse.quote(texto_final)}"
-            st.link_button(
-                "📲 Enviar no WhatsApp", 
-                link_whatsapp, 
-                type="primary", 
-                use_container_width=True
-            )
-        else:
-            st.warning("⚠️ Telefone não encontrado na carteira de clientes.")
-            if st.button("📋 Copiar texto", use_container_width=True):
-                st.write("Texto copiado!")
-                st.session_state['texto_copiado'] = texto_final
-    
-    with col_btn2:
-        if st.button("✨ Humanizar com IA", use_container_width=True):
-            st.session_state['processar_ia'] = True
-            st.session_state['dados_cliente_ia'] = dados_cliente.to_dict()
-            st.session_state['telefone_ia'] = telefone
-    
-    # Processar IA se solicitado
-    if st.session_state.get('processar_ia', False):
-        with st.spinner("🤖 Gerando abordagem humanizada..."):
-            msg_ia, motor = gerar_mensagem_ia(texto_final)
-            
-            if msg_ia:
-                st.info(f"💡 Sugestão da IA (Motor: `{motor}`):")
-                st.write(msg_ia)
-                
-                if telefone:
-                    link_ia = f"https://wa.me/{telefone}?text={urllib.parse.quote(msg_ia)}"
-                    st.link_button(
-                        "📲 Enviar Texto da IA", 
-                        link_ia, 
-                        use_container_width=True, 
-                        type="secondary"
-                    )
-                
-                if st.button("❌ Fechar IA"):
-                    st.session_state['processar_ia'] = False
-                    st.rerun()
-
-# ====================================================
-# 🚀 FUNÇÃO PRINCIPAL
-# ====================================================
-
-def render_painel_inadimplencia(df_fin, df_carteira):
-    """
-    Função principal que renderiza todo o painel de inadimplência
-    """
-    st.markdown("---")
-    
-    with st.expander("⚖️ Painel de Inadimplência e Cobranças", expanded=False):
-        st.write("Monitoramento inteligente de atrasos e scripts de recuperação.")
-        
-        try:
-            # Processar dados
-            df_devedores = processar_dados_inadimplencia(df_fin)
-            
-            if df_devedores.empty:
-                st.warning("Não há dados de inadimplência para processar.")
-                return
-            
-            # Agrupar por cliente
-            df_agrupado = agrupar_cestas_cliente(df_devedores)
-            
-            if df_agrupado.empty:
-                st.warning("Erro ao agrupar dados de clientes.")
-                return
-            
-            # Preparar dados para exibição
-            df_atrasados, df_a_vencer, df_comunicacao = preparar_dados_exibicao(df_agrupado)
-            
-            # Interface com abas
-            tab_vencidos, tab_prevencao = st.tabs([
-                "🚨 Inadimplência (Vencidos)", 
-                "📅 Lembretes (Vence em breve)"
-            ])
-            
-            # Aba de vencidos
-            with tab_vencidos:
-                if not df_atrasados.empty:
-                    exibir_metricas_inadimplencia(df_atrasados)
-                    exibir_tabela_inadimplentes(df_atrasados, tipo='atrasados')
-                else:
-                    st.success("🎉 Não há clientes com atraso!")
-            
-            # Aba de prevenção
-            with tab_prevencao:
-                if not df_a_vencer.empty:
-                    exibir_tabela_inadimplentes(df_a_vencer, tipo='a_vencer')
-                else:
-                    st.success("✅ Nenhum vencimento próximo.")
-            
-            # Interface de comunicação
-            exibir_interface_comunicacao(df_comunicacao, df_carteira)
-            
-        except Exception as e:
-            st.error(f"Erro no processamento do painel de inadimplência: {e}")
-            st.exception(e)
-
-# ====================================================
-# 📌 EXEMPLO DE USO (comente se já estiver integrado)
-# ====================================================
-# render_painel_inadimplencia(df_fin, df_carteira)
-
-        # ====================================================
-        # FICHA DE CLIENTE (EXTRATO DINÂMICO)
-        # ====================================================
-        st.divider()
-
-        st.markdown("### 🔍 Ficha de Cliente (Extrato Dinâmico)")
-        opcoes_ficha = sorted([f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
-        sel_ficha = st.selectbox("Selecione para ver o que ela deve:", ["---"] + opcoes_ficha, key="ficha_sel_cliente")
-        
-        if sel_ficha != "---":
-            id_c = sel_ficha.split(" - ")[0]
-            nome_c_ficha = " - ".join(sel_ficha.split(" - ")[1:])
-            v_hist = df_vendas_hist[df_vendas_hist['CÓD. CLIENTE'].astype(str) == id_c]
-            saldo_devedor_real = v_hist['SALDO DEVEDOR'].apply(limpar_v).sum()
-            c_f1, c_f2 = st.columns(2)
-            c_f1.metric("Saldo Devedor Atual", f"R$ {saldo_devedor_real:,.2f}")
-            
-            if saldo_devedor_real > 0.01:
-                tel_c = banco_de_clientes.get(id_c, {}).get('fone', "")
-                msg_zap = f"Olá {nome_c_ficha}! 🏠 Segue seu extrato na *Sweet Home Enxovais*. Atualmente consta um saldo pendente de *R$ {saldo_devedor_real:.2f}*. Qualquer dúvida estou à disposição! 😊"
-                st.link_button("📲 Cobrar no WhatsApp", f"https://wa.me/55{tel_c}?text={urllib.parse.quote(msg_zap)}", use_container_width=True)
-            else: 
-                st.success("✅ Esta cliente não possui débitos pendentes.")
-
-            st.write("#### ⏳ Histórico de Vendas Localizado")
-            if not v_hist.empty:
-                st.dataframe(v_hist[['DATA DA VENDA', 'PRODUTO', 'TOTAL R$', 'SALDO DEVEDOR', 'STATUS']], use_container_width=True, hide_index=True)
-            else: 
-                st.info("Nenhuma compra registrada para esta cliente ainda.")
-                
+        st.write("#### ⏳ Histórico de Vendas Localizado")
+        if not v_hist.empty:
+            st.dataframe(v_hist[['DATA DA VENDA', 'PRODUTO', 'TOTAL R$', 'SALDO DEVEDOR', 'STATUS']], use_container_width=True, hide_index=True)
+        else: st.info("Nenhuma compra registrada para esta cliente ainda.")
 
 # ==========================================
 # --- SEÇÃO 3: ESTOQUE (MEMÓRIA ETERNA + IA) ---
@@ -1534,7 +1060,7 @@ elif menu_selecionado == "📦 Estoque":
                 with st.spinner("A IA está analisando a imagem. Isso leva alguns segundos... ⏳"):
                     try:
                         # Conecta com a sua chave
-                        genai.configure(api_key=st.secrets["AIzaSyDfnLUjLUZip1KI8PJBEh3iYUDeED9dvlc"])
+                        genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
                         modelo_ia = genai.GenerativeModel('gemini-2.5-flash')
                         
                         # Prepara a imagem
