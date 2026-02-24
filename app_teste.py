@@ -1002,9 +1002,9 @@ elif menu_selecionado == "💰 Financeiro":
             import urllib.parse
             from datetime import datetime
             import pandas as pd
-                
-                fuso_br = pytz.timezone('America/Sao_Paulo') 
-                hoje_pd = pd.to_datetime(datetime.now(fuso_br).strftime("%Y-%m-%d"))
+            
+            fuso_br = pytz.timezone('America/Sao_Paulo') 
+            hoje_pd = pd.to_datetime(datetime.now(fuso_br).strftime("%Y-%m-%d"))
                 
                 # ====================================================
                 # 1. TRATAMENTO DE DADOS E CRUZAMENTO (A CESTA)
