@@ -1298,50 +1298,50 @@ elif menu_selecionado == "💰 Financeiro":
                 tel_c = "55" + tel_c
 
             # ---------------------------------------------------------
-            # 2. CONSTRUÇÃO DO RECIBO FINANCEIRO (VISUAL PREMIUM)
+            # 2. CONSTRUÇÃO DO RECIBO FINANCEIRO (TEXTO PURO PARA O WPP)
             # ---------------------------------------------------------
             lista_extrato = ""
             
-            # Varre TODO o histórico com visual de Ticket Digital
+            # Varre TODO o histórico com visual de Ticket (Sem Emojis para o WPP)
             for _, row in v_hist.iterrows():
                 status_atual = str(row['STATUS']).strip()
                 
-                # Farol de Cores com Emojis
+                # Farol em Texto Puro
                 if status_atual.lower() in ['pago', 'quitado', 'ok']:
-                    icone = "🟢 Pago"
+                    icone = "[ PAGO ]"
                 else:
-                    icone = "🔴 Pendente"
+                    icone = "[ PENDENTE ]"
                 
-                # Estrutura visual de "Card" para o WhatsApp
-                lista_extrato += f"🛍️ *{row['PRODUTO']}*\n ├ 📅 Data: {row['DATA DA VENDA']}\n └ 📊 Status: {icone}\n\n"
+                # Estrutura visual textual para o WhatsApp
+                lista_extrato += f"*{row['PRODUTO']}*\n ├ Data: {row['DATA DA VENDA']}\n └ Status: {icone}\n\n"
             
             saldo_formatado = f"R$ {saldo_devedor_real:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             
-            # MENSAGEM 1: COBRANÇA (Setor Financeiro)
+            # MENSAGEM 1: COBRANÇA (Texto Puro, Sem Emojis)
             msg_cobranca = (
-                f"Olá, *{nome_c_ficha}*! Tudo bem? 🌸\n\n"
-                f"Aqui é do *Setor Financeiro da Sweet Home Enxovais* 🏡✨\n"
+                f"Olá, *{nome_c_ficha}*! Tudo bem?\n\n"
+                f"Aqui é do *Setor Financeiro da Sweet Home Enxovais*.\n"
                 f"Criamos esse departamento recentemente para melhorar a nossa organização e estarmos ainda mais próximos de você!\n\n"
                 f"Passando para deixar o resumo atualizado da sua ficha conosco:\n\n"
-                f"🧾 *HISTÓRICO DE COMPRAS:*\n"
+                f"*HISTÓRICO DE COMPRAS:*\n"
                 f"-----------------------------------\n"
                 f"{lista_extrato}"
                 f"-----------------------------------\n"
-                f"💰 *Total Pendente Atual: {saldo_formatado}*\n\n"
-                f"Qualquer dúvida sobre os itens ou se precisar da nossa chave PIX para regularizar, estou à disposição! 😊"
+                f"*Total Pendente Atual: {saldo_formatado}*\n\n"
+                f"Qualquer dúvida sobre os itens ou se precisar da nossa chave PIX para regularizar, estou à disposição!"
             )
 
-            # MENSAGEM 2: LEMBRETE PREVENTIVO (Vencimento Próximo)
+            # MENSAGEM 2: LEMBRETE PREVENTIVO (Texto Puro, Sem Emojis)
             msg_lembrete = (
-                f"Olá, *{nome_c_ficha}*! Tudo bem? 🌸\n\n"
-                f"Aqui é do *Setor Financeiro da Sweet Home Enxovais* 🏡✨\n\n"
-                f"Passando apenas para te enviar um lembrete super amigável de que você tem itens com vencimento se aproximando! 📅\n\n"
-                f"🧾 *RESUMO DA SUA FICHA:*\n"
+                f"Olá, *{nome_c_ficha}*! Tudo bem?\n\n"
+                f"Aqui é do *Setor Financeiro da Sweet Home Enxovais*.\n\n"
+                f"Passando apenas para te enviar um lembrete super amigável de que você tem itens com vencimento se aproximando.\n\n"
+                f"*RESUMO DA SUA FICHA:*\n"
                 f"-----------------------------------\n"
                 f"{lista_extrato}"
                 f"-----------------------------------\n"
-                f"💰 *Valor programado para acerto: {saldo_formatado}*\n\n"
-                f"Se precisar da nossa chave PIX para já deixar agendado, é só me avisar. Tenha um excelente dia! ✨"
+                f"*Valor programado para acerto: {saldo_formatado}*\n\n"
+                f"Se precisar da nossa chave PIX para já deixar agendado, é só me avisar. Tenha um excelente dia!"
             )
             
             # ---------------------------------------------------------
@@ -1387,25 +1387,31 @@ elif menu_selecionado == "💰 Financeiro":
                             prompt = f"""
                             Você atua no Setor Financeiro da 'Sweet Home Enxovais'. 
                             Reescreva a mensagem abaixo para deixá-la incrivelmente empática e persuasiva, mas sem perder a educação. 
-                            MANTENHA INTACTA a lista de produtos (o histórico com as datas e emojis) e o valor final.
+                            MANTENHA INTACTA a lista de produtos (o histórico com as datas) e o valor final.
                             
                             ⚠️ REGRA CRÍTICA: Retorne EXATAMENTE APENAS o texto da mensagem final. 
                             NÃO inclua introduções como "Com certeza!", "Aqui está..." ou tracejados iniciais. 
                             NÃO explique o que você fez. O texto deve estar pronto para eu copiar e colar diretamente no WhatsApp.
+                            ✅ INSTRUÇÃO: Você PODE e DEVE utilizar emojis para deixar o tom mais agradável!
                             
                             Mensagem:
                             {msg_base_ia}
                             """
                             
-                            modelos = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"]
+                            # 💡 AJUSTE: Modelos reordenados para maior estabilidade
+                            modelos = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-pro"]
                             resultado_ia = None
+                            erro_google = ""
                             
                             for m in modelos:
                                 try:
                                     modelo_gen = genai.GenerativeModel(m)
                                     resultado_ia = modelo_gen.generate_content(prompt)
-                                    break
-                                except: continue
+                                    if resultado_ia:
+                                        break
+                                except Exception as e:
+                                    erro_google = str(e)
+                                    continue
                                 
                             if resultado_ia:
                                 st.success("✨ Mensagem Otimizada com Sucesso!")
@@ -1422,7 +1428,8 @@ elif menu_selecionado == "💰 Financeiro":
                                     st.session_state['ia_ficha_ativa'] = False
                                     st.rerun()
                             else:
-                                st.error("⚠️ Nenhum modelo de IA suportado encontrado na sua API.")
+                                # 💡 AJUSTE: Agora ele imprime O QUE o Google reclamou
+                                st.error(f"⚠️ A IA falhou ao gerar. Motivo do bloqueio: {erro_google}")
                         except Exception as e_ia:
                             st.error(f"⚠️ Erro de comunicação com o Google: {e_ia}")
 
