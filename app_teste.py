@@ -1066,15 +1066,15 @@ elif menu_selecionado == "💰 Financeiro":
             )
             
             # ---------------------------------------------------------
-            # 3. EXIBIÇÃO DOS BOTÕES LADO A LADO (Blindado contra erro de Emoji)
+            # 3. EXIBIÇÃO DOS BOTÕES LADO A LADO (Bala de Prata UTF-8)
             # ---------------------------------------------------------
             if tel_c:
                 st.write("#### 🎯 Escolha a abordagem:")
                 col_btn1, col_btn2 = st.columns(2)
                 
-                # Empacotando as URLs de forma isolada e forçando conversão segura
-                url_cob = f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_cobranca)}"
-                url_prev = f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_lembrete)}"
+                # A MÁGICA AQUI: O .encode('utf-8') blinda os emojis antes de virar link
+                url_cob = f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_cobranca.encode('utf-8'))}"
+                url_prev = f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_lembrete.encode('utf-8'))}"
                 
                 with col_btn1:
                     st.link_button("🚨 Enviar Cobrança (Atrasados)", url_cob, type="primary", use_container_width=True)
@@ -1127,7 +1127,8 @@ elif menu_selecionado == "💰 Financeiro":
                                 st.success("✨ Mensagem Otimizada com Sucesso!")
                                 texto_final_ia = st.text_area("Revise a mensagem da IA:", value=resultado_ia.text.strip(), height=250)
                                 
-                                url_ia = f"https://wa.me/{tel_c}?text={urllib.parse.quote(texto_final_ia)}"
+                                # A MÁGICA AQUI TAMBÉM: Blindando a resposta da IA
+                                url_ia = f"https://wa.me/{tel_c}?text={urllib.parse.quote(texto_final_ia.encode('utf-8'))}"
                                 st.link_button("📲 Enviar Mensagem da IA", url_ia, type="primary", use_container_width=True)
                                 
                                 if st.button("❌ Dispensar IA"):
