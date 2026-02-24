@@ -1260,12 +1260,12 @@ Chave PIX: SUA_CHAVE_PIX
         st.write("#### ⏳ Histórico de Vendas Localizado")
         if not v_hist.empty:
             st.dataframe(v_hist[['DATA DA VENDA', 'PRODUTO', 'TOTAL R$', 'SALDO DEVEDOR', 'STATUS']], use_container_width=True, hide_index=True)
-        else: 
+        else:
             st.info("Nenhuma compra registrada para esta cliente ainda.")
 
 # --- ENCERRAMENTO DA SEÇÃO FINANCEIRO ---
 except Exception as e:
-    st.error(f"⚠️ Erro no processamento financeiro: {e}")
+        st.error(f"⚠️ Erro no processamento: {e}")
 
 # ==========================================
 # --- SEÇÃO 3: ESTOQUE (MEMÓRIA ETERNA + IA) ---
