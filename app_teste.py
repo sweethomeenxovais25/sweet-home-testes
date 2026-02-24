@@ -986,16 +986,7 @@ elif menu_selecionado == "💰 Financeiro":
             else:
                 st.info("🕒 O histórico aparecerá após o primeiro recebimento ser registrado.")
 
-# ====================================================
-    # ⚖️ GESTÃO DE INADIMPLÊNCIA E RECUPERAÇÃO DE CRÉDITO
-    # ====================================================
-    st.markdown("---")
-
-    # 👇 Aqui entra o Expander elegante fechado por padrão!
-    with st.expander("⚖️ Painel de Inadimplência e Cobranças", expanded=False):
-        st.write("Monitoramento inteligente de atrasos, cálculo de juros e scripts de recuperação.")
-
-        try:
+try:
         # ====================================================
         # 1. PROCESSAMENTO GERAL (KPIs DO FINANCEIRO)
         # ====================================================
@@ -1012,7 +1003,7 @@ elif menu_selecionado == "💰 Financeiro":
         saldo_devedor = df_fin['SALDO_NUM'].sum()
         total_recebido = vendas_brutas - saldo_devedor
 
-        # (AQUI FICAM OS SEUS CARDS DE MÉTRICAS ORIGINAIS DO FINANCEIRO)
+        # (AQUI FICAM OS SEUS CARDS DE MÉTRICAS ORIGINAIS DO FINANCEIRO LIVRES NA TELA)
         # st.metric(...), st.progress(...), etc.
 
 
@@ -1021,7 +1012,7 @@ elif menu_selecionado == "💰 Financeiro":
         # ====================================================
         st.markdown("---")
 
-        # 👇 Apenas UM Expander elegante fechado por padrão!
+        # 👇 ÚNICO EXPANDER (Apenas para a parte de cobranças)
         with st.expander("⚖️ Painel de Inadimplência e Cobranças", expanded=False):
             st.write("Monitoramento inteligente de atrasos e scripts de recuperação.")
             
@@ -1040,7 +1031,7 @@ elif menu_selecionado == "💰 Financeiro":
             ]
             df_devedores = pd.DataFrame(dados_simulados)
             
-            # 💡 CORREÇÃO DAS DATAS
+            # CORREÇÃO DAS DATAS
             df_devedores['VENCIMENTO'] = pd.to_datetime(df_devedores['VENCIMENTO'], format="%d/%m/%Y")
             df_devedores['DIAS_ATRASO'] = (hoje_pd - df_devedores['VENCIMENTO']).dt.days
             
