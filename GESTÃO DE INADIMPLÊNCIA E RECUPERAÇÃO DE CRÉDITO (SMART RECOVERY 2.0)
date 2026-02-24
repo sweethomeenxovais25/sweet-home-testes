@@ -21,7 +21,16 @@
                 # --- 1. HIGIENIZAÇÃO DE DADOS ---
                 df_cobranca = df_vendas_hist.copy()
                 df_cobranca['SALDO_NUM'] = df_cobranca['SALDO DEVEDOR'].apply(limpar_v)
-                df_dev_real = df_cobranca[df_cobranca['SALDO_NUM'] > 0.01].copy()
+                
+                # 🛑 Trava de Status para não cobrar quem já pagou
+                if 'STATUS' in df_cobranca.columns:
+                    df_cobranca['STATUS_LIMPO'] = df_cobranca['STATUS'].astype(str).str.strip().str.lower()
+                    df_dev_real = df_cobranca[
+                        (df_cobranca['SALDO_NUM'] > 0.01) & 
+                        (~df_cobranca['STATUS_LIMPO'].isin(['pago', 'quitado', 'ok', 'paga']))
+                    ].copy()
+                else:
+                    df_dev_real = df_cobranca[df_cobranca['SALDO_NUM'] > 0.01].copy()
                 
                 df_dev_real['CÓD. CLIENTE'] = df_dev_real['CÓD. CLIENTE'].astype(str).str.split('.').str[0].str.strip()
                 df_dev_real['VENCIMENTO'] = pd.to_datetime(df_dev_real['PRÓXIMA PARCELA'], format="%d/%m/%Y", errors='coerce')
@@ -58,7 +67,7 @@
                     STATUS_PREDOMINANTE=pd.NamedAgg(column='FASE', aggfunc=lambda x: x.iloc[0])
                 ).reset_index()
 
-                # 💡 NOVA INJEÇÃO: Regras de Score e Sweet Flex
+                # 💡 Regras de Score e Sweet Flex
                 LIMITE_DIAS_FLEX = 15
                 df_agrupado['SWEET_FLEX'] = df_agrupado['MAIOR_ATRASO'].apply(
                     lambda dias: "🔒 Suspenso" if dias > LIMITE_DIAS_FLEX else "🔑 Liberado"
@@ -119,10 +128,10 @@
                     if cliente_alvo != "---":
                         dados_cli = atrasados[atrasados['CLIENTE'] == cliente_alvo].iloc[0]
                         
-                        # 💡 Preparação para a Negociação (Objeções e Escassez)
+                        # 💡 Preparação para a Negociação (Objeções e SWEET REWARDS)
                         st.write("##### 🛡️ Preparação Adicional (Opcional)")
                         desculpa_cliente = st.text_input("A cliente deu alguma desculpa para o atraso?", placeholder="Ex: Fiquei doente, achei o juros alto...")
-                        usar_escassez = st.checkbox("🔥 Aplicar Gatilho de Escassez (Prioridade em Novidades)")
+                        usar_rewards = st.checkbox("🎁 Ativar 'Sweet Rewards' (Usar Vale-Desconto como negociação)")
                         
                         if st.button("✨ Gerar Propostas de Acordo", type="primary"):
                             with st.spinner("Analisando perfil da dívida e calculando cenários..."):
@@ -130,7 +139,8 @@
                                     import google.generativeai as genai
                                     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
                                     
-                                    instrucao_escassez = "Inclua um forte gatilho de escassez: se ela fechar hoje, ganha prioridade VIP nas novidades da próxima coleção." if usar_escassez else ""
+                                    # Montando regras focadas em Vale-Desconto e Retenção
+                                    instrucao_rewards = "ESTRATÉGIA SWEET REWARDS ATIVADA: Oriente a vendedora a usar um 'Vale-Fidelidade' (entre R$ 20 e R$ 50) ou um 'Cupom de 10%' na PRÓXIMA compra como moeda de troca, condicionado à quitação desta dívida hoje. Use isso para quebrar resistências." if usar_rewards else ""
                                     instrucao_objecao = f"A cliente deu esta desculpa: '{desculpa_cliente}'. Escreva um parágrafo amigável (pronto para copiar e colar no WhatsApp) desarmando essa desculpa com empatia e focando na solução." if desculpa_cliente else ""
                                     
                                     prompt_estrategia = f"""
@@ -160,9 +170,9 @@
                                     🔑 **ESTRATÉGIA SWEET FLEX**
                                     (Se o Status do Crédito for '🔒 Suspenso', escreva um texto amigável ensinando a vendedora a dizer que quitar a dívida destravará o limite)
                                     
-                                    🛡️ **CONTORNO DE OBJEÇÃO & ESCASSEZ**
+                                    🛡️ **CONTORNO DE OBJEÇÃO & SWEET REWARDS**
                                     {instrucao_objecao}
-                                    {instrucao_escassez}
+                                    {instrucao_rewards}
                                     """
                                     
                                     modelos = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"]
