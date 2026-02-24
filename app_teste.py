@@ -1392,43 +1392,36 @@ elif menu_selecionado == "💰 Financeiro":
                             ⚠️ REGRA CRÍTICA: Retorne EXATAMENTE APENAS o texto da mensagem final. 
                             NÃO inclua introduções como "Com certeza!", "Aqui está..." ou tracejados iniciais. 
                             NÃO explique o que você fez. O texto deve estar pronto para eu copiar e colar diretamente no WhatsApp.
-                            ✅ INSTRUÇÃO: Você PODE e DEVE utilizar emojis para deixar o tom mais agradável!
+                            Você PODE e DEVE utilizar emojis estratégicos para deixar a mensagem amigável e simpática.
                             
                             Mensagem:
                             {msg_base_ia}
                             """
                             
-                            # 💡 AJUSTE: Apenas os modelos mais modernos e ativos do Google
-                            modelos = ["gemini-1.5-flash", "gemini-1.5-pro"]
+                            modelos = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"]
                             resultado_ia = None
-                            erro_google = ""
                             
                             for m in modelos:
                                 try:
                                     modelo_gen = genai.GenerativeModel(m)
                                     resultado_ia = modelo_gen.generate_content(prompt)
-                                    if resultado_ia:
-                                        break
-                                except Exception as e:
-                                    erro_google = str(e)
-                                    continue
+                                    break
+                                except: continue
                                 
                             if resultado_ia:
                                 st.success("✨ Mensagem Otimizada com Sucesso!")
                                 texto_final_ia = st.text_area("Revise a mensagem da IA:", value=resultado_ia.text.strip(), height=250)
                                 
-                                # Botão HTML também para a IA
+                                # Botão Nativo (st.link_button) para garantir que os Emojis gerados pela IA não quebrem
                                 url_ia = f"https://wa.me/{tel_c}?text={urllib.parse.quote(texto_final_ia)}"
-                                btn_ia_html = f"""<a href="{url_ia}" target="_blank" style="display: block; width: 100%; text-align: center; background-color: #ff4b4b; color: white; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold;">📲 Enviar Mensagem da IA</a>"""
-                                
-                                st.markdown(btn_ia_html, unsafe_allow_html=True)
+                                st.link_button("📲 Enviar Mensagem da IA", url_ia, use_container_width=True, type="primary")
                                 
                                 st.write("") # Espaçinho visual
                                 if st.button("❌ Dispensar IA"):
                                     st.session_state['ia_ficha_ativa'] = False
                                     st.rerun()
                             else:
-                                st.error(f"⚠️ A IA falhou ao gerar. Motivo do bloqueio: {erro_google}")
+                                st.error("⚠️ Nenhum modelo de IA suportado encontrado na sua API.")
                         except Exception as e_ia:
                             st.error(f"⚠️ Erro de comunicação com o Google: {e_ia}")
 
