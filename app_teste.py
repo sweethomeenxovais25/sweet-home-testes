@@ -988,7 +988,9 @@ elif menu_selecionado == "💰 Financeiro":
 
     st.divider()
 
-    # ====================================================
+    st.divider()
+
+        # ====================================================
         # ⚖️ GESTÃO DE INADIMPLÊNCIA E RECUPERAÇÃO DE CRÉDITO (SMART RECOVERY 2.0)
         # ====================================================
         st.markdown("---")
@@ -1006,27 +1008,20 @@ elif menu_selecionado == "💰 Financeiro":
                 # ====================================================
                 # 1. TRATAMENTO DE DADOS E CRUZAMENTO (A CESTA)
                 # ====================================================
-                # Puxamos do df_vendas_hist original para garantir integridade
                 df_cobranca = df_vendas_hist.copy()
                 
-                # Limpeza de Saldo (Aproveitando sua função limpar_v)
                 df_cobranca['SALDO_NUM'] = df_cobranca['SALDO DEVEDOR'].apply(limpar_v)
                 df_dev_real = df_cobranca[df_cobranca['SALDO_NUM'] > 0].copy()
                 
-                # Padronização do CÓD. CLIENTE para não falhar a busca do telefone
-                # Remove ".0" caso o pandas tenha lido como float e tira espaços
                 df_dev_real['CÓD. CLIENTE'] = df_dev_real['CÓD. CLIENTE'].astype(str).str.replace(".0", "", regex=False).str.strip()
                 df_dev_real['CLIENTE'] = df_dev_real['CLIENTE'].astype(str).str.strip()
                 df_dev_real['PRODUTO'] = df_dev_real['PRODUTO'].astype(str).str.strip()
                 df_dev_real['DATA DA VENDA'] = df_dev_real['DATA DA VENDA'].astype(str).str.strip()
                 
-                # Tratamento de Datas
                 df_dev_real['VENCIMENTO'] = pd.to_datetime(df_dev_real['PRÓXIMA PARCELA'], format="%d/%m/%Y", errors='coerce')
                 df_dev_real = df_dev_real.dropna(subset=['VENCIMENTO'])
                 df_dev_real['DIAS_ATRASO'] = (hoje_pd - df_dev_real['VENCIMENTO']).dt.days
                 
-                # 🛒 AGRUPAMENTO INTELIGENTE (A Cesta de Compras)
-                # Agrupa tudo que é do mesmo cliente, comprado no mesmo dia, vencendo no mesmo dia
                 df_agrupado = df_dev_real.groupby(['CÓD. CLIENTE', 'CLIENTE', 'VENCIMENTO', 'DATA DA VENDA', 'DIAS_ATRASO']).agg(
                     VALOR_ORIGINAL=pd.NamedAgg(column='SALDO_NUM', aggfunc='sum'),
                     PRODUTOS=pd.NamedAgg(column='PRODUTO', aggfunc=lambda x: ' | '.join(x))
@@ -1035,8 +1030,6 @@ elif menu_selecionado == "💰 Financeiro":
                 # ====================================================
                 # 2. MOTOR FINANCEIRO (COMPLIANCE CDC)
                 # ====================================================
-                # CDC Art. 52, § 1°: Multa máxima de 2%
-                # Juros de Mora legais: 1% ao mês pro-rata die (divido pelos dias)
                 def calc_compliance(row):
                     if row['DIAS_ATRASO'] > 0:
                         multa = row['VALOR_ORIGINAL'] * 0.02
@@ -1052,7 +1045,6 @@ elif menu_selecionado == "💰 Financeiro":
 
                 df_agrupado[['MULTA', 'JUROS', 'VALOR_ATUALIZADO', 'FASE']] = df_agrupado.apply(calc_compliance, axis=1)
                 
-                # Divisão das carteiras (Recuperação vs Prevenção)
                 atrasados = df_agrupado[df_agrupado['DIAS_ATRASO'] > 0].sort_values('DIAS_ATRASO', ascending=False)
                 prevenção = df_agrupado[(df_agrupado['DIAS_ATRASO'] <= 0) & (df_agrupado['DIAS_ATRASO'] >= -5)].sort_values('DIAS_ATRASO', ascending=False)
 
@@ -1098,7 +1090,6 @@ elif menu_selecionado == "💰 Financeiro":
                     if selecao != "---":
                         dados = todos_clientes[todos_clientes['LABEL'] == selecao].iloc[0]
                         
-                        # 📞 BUSCA TELEFONE NA CARTEIRA DE CLIENTES
                         cod_cliente_busca = str(dados['CÓD. CLIENTE'])
                         dados_cadastrais = banco_de_clientes.get(cod_cliente_busca, {})
                         telefone_cru = str(dados_cadastrais.get('fone', '')).strip()
@@ -1106,7 +1097,6 @@ elif menu_selecionado == "💰 Financeiro":
                         tel_limpo = "".join(filter(str.isdigit, telefone_cru))
                         if tel_limpo and not tel_limpo.startswith("55"): tel_limpo = "55" + tel_limpo
 
-                        # Formatação de Variáveis Financeiras
                         dias = dados['DIAS_ATRASO']
                         cnpj_sweet = "62.862.825/0001-72" 
                         lista_produtos = "\n".join([f"🔸 {p.strip()}" for p in dados['PRODUTOS'].split("|")])
@@ -1116,7 +1106,6 @@ elif menu_selecionado == "💰 Financeiro":
                         v_enc = f"R$ {(dados['MULTA'] + dados['JUROS']):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                         d_venc_br = dados['VENCIMENTO'].strftime("%d/%m/%Y")
                         
-                        # 📜 RÉGUA DE COBRANÇA (COMPLIANCE)
                         if dias <= 0:
                             assunto = "Lembrete Preventivo"
                             msg_base = f"Olá, *{dados['CLIENTE']}*! Tudo bem? 🌸\n\nAqui é da Equipe Sweet Home Enxovais.\nPassando apenas para te enviar um lembrete amigável referente à sua última compra.\n\n🧾 *RESUMO DO PEDIDO*\n📅 Compra de Origem: {dados['DATA DA VENDA']}\n🛍️ *Itens Inclusos:*\n{lista_produtos}\n\n⚠️ O vencimento da sua parcela de *{v_orig}* está programado para o dia *{d_venc_br}*.\n\nCaso precise da nossa chave PIX para já deixar agendado, estamos à disposição! Tenha um ótimo dia. 😊"
@@ -1132,9 +1121,6 @@ elif menu_selecionado == "💰 Financeiro":
                         st.info(f"📍 **Diretriz de Comunicação:** {assunto}")
                         texto_final = st.text_area("Revisão da Mensagem:", value=msg_base, height=250)
                         
-                        # ====================================================
-                        # 🤖 AÇÃO E IA (COFRE SECRETO)
-                        # ====================================================
                         c_b1, c_b2 = st.columns(2)
                         
                         with c_b1:
@@ -1170,7 +1156,7 @@ elif menu_selecionado == "💰 Financeiro":
                                     {texto_final}
                                     """
                                     
-                                    # Lógica de Estepe (Fallback Automático) para evitar falhas de cota
+                                    # Lógica de Estepe (Fallback Automático)
                                     try:
                                         model = genai.GenerativeModel("gemini-2.0-flash")
                                         res = model.generate_content(prompt_ia)
