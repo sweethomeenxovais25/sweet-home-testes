@@ -992,23 +992,34 @@ elif menu_selecionado == "💰 Financeiro":
             st.write("Monitoramento inteligente de atrasos e scripts de recuperação.")
             
             try:
+                # --- CONFIGURAÇÃO DE DATAS ---
                 import pytz
                 import urllib.parse
                 fuso_br = pytz.timezone('America/Sao_Paulo') 
                 hoje_pd = pd.to_datetime(datetime.now(fuso_br).strftime("%Y-%m-%d"))
                 
-                # Dados Simulados para teste visual
-                dados_simulados = [
-                    {"NOME": "Maria Silva", "VENCIMENTO": "20/02/2026", "VALOR_ORIGINAL": 350.00},
-                    {"NOME": "João Souza", "VENCIMENTO": "10/01/2026", "VALOR_ORIGINAL": 1200.00},
-                    {"NOME": "Ana Costa", "VENCIMENTO": "22/02/2026", "VALOR_ORIGINAL": 150.00},
-                    {"NOME": "Cliente X", "VENCIMENTO": "25/02/2026", "VALOR_ORIGINAL": 500.00} 
-                ]
-                df_devedores = pd.DataFrame(dados_simulados)
+                # ====================================================
+                # 🔌 CONEXÃO COM DADOS REAIS DA PLANILHA VENDAS
+                # ====================================================
+                # 1. Filtra apenas as vendas onde ainda há Saldo Devedor (Coluna U > 0)
+                df_devedores_real = df_fin[df_fin['SALDO_NUM'] > 0].copy()
                 
-                df_devedores['VENCIMENTO'] = pd.to_datetime(df_devedores['VENCIMENTO'], format="%d/%m/%Y")
-                df_devedores['DIAS_ATRASO'] = (hoje_pd - df_devedores['VENCIMENTO']).dt.days
+                # 2. Captura a data exata que o cliente deveria ter pago (Coluna V)
+                df_devedores_real['VENCIMENTO'] = pd.to_datetime(df_devedores_real['PRÓXIMA PARCELA'], format="%d/%m/%Y", errors='coerce')
                 
+                # 3. Limpeza de segurança: remove linhas que não têm data de vencimento preenchida
+                df_devedores_real = df_devedores_real.dropna(subset=['VENCIMENTO'])
+                
+                # 4. Organiza os dados para o Cérebro de Cobrança ler (COM OS NOVOS DADOS)
+                df_devedores_real['VALOR_ORIGINAL'] = df_devedores_real['SALDO_NUM'] 
+                df_devedores_real['NOME'] = df_devedores_real['CLIENTE'] 
+                df_devedores_real['PRODUTO_COMPRADO'] = df_devedores_real['PRODUTO'] # <-- Novo!
+                df_devedores_real['DATA_COMPRA'] = df_devedores_real['DATA DA VENDA'] # <-- Novo!
+                
+                # 💡 CÁLCULO INTELIGENTE (Substitui a fórmula da Coluna X da sua planilha)
+                df_devedores_real['DIAS_ATRASO'] = (hoje_pd - df_devedores_real['VENCIMENTO']).dt.days
+                
+                # --- APLICANDO AS REGRAS DA SWEET HOME ---
                 def calcular_encargos(row):
                     if row['DIAS_ATRASO'] > 0:
                         multa = row['VALOR_ORIGINAL'] * 0.02
@@ -1020,10 +1031,12 @@ elif menu_selecionado == "💰 Financeiro":
                     else:
                         return pd.Series([0, 0, row['VALOR_ORIGINAL'], "⚪ No Prazo"])
 
-                df_devedores[['MULTA', 'JUROS', 'VALOR_ATUALIZADO', 'FASE_COBRANCA']] = df_devedores.apply(calcular_encargos, axis=1)
+                df_devedores_real[['MULTA', 'JUROS', 'VALOR_ATUALIZADO', 'FASE_COBRANCA']] = df_devedores_real.apply(calcular_encargos, axis=1)
                 
-                df_atrasados = df_devedores[df_devedores['DIAS_ATRASO'] > 0].sort_values(by='DIAS_ATRASO', ascending=False)
+                # Filtra apenas os que estão com Dias de Atraso POSITIVOS (Vencidos)
+                df_atrasados = df_devedores_real[df_devedores_real['DIAS_ATRASO'] > 0].sort_values(by='DIAS_ATRASO', ascending=False)
                 
+                # --- EXIBIÇÃO DO PAINEL ---
                 if not df_atrasados.empty:
                     col_m1, col_m2, col_m3 = st.columns(3)
                     valor_perdido = df_atrasados['VALOR_ORIGINAL'].sum()
@@ -1033,40 +1046,56 @@ elif menu_selecionado == "💰 Financeiro":
                     col_m2.metric("📈 Valor Atualizado", f"R$ {valor_recuperavel:,.2f}", f"+ R$ {valor_recuperavel - valor_perdido:,.2f}")
                     col_m3.metric("👥 Inadimplentes", f"{len(df_atrasados)}")
                     
+                    # Cria uma cópia formatada para exibição
                     df_exibicao = df_atrasados.copy()
                     df_exibicao['VENCIMENTO'] = df_exibicao['VENCIMENTO'].dt.strftime("%d/%m/%Y")
                     
                     st.dataframe(
-                        df_exibicao[['NOME', 'VENCIMENTO', 'DIAS_ATRASO', 'VALOR_ORIGINAL', 'VALOR_ATUALIZADO', 'FASE_COBRANCA']],
+                        df_exibicao[['NOME', 'PRODUTO_COMPRADO', 'VENCIMENTO', 'DIAS_ATRASO', 'VALOR_ORIGINAL', 'VALOR_ATUALIZADO', 'FASE_COBRANCA']],
                         column_config={
-                            "NOME": "👤 Cliente", "VENCIMENTO": "📅 Vencimento", "DIAS_ATRASO": "⏳ Atraso (Dias)",
+                            "NOME": "👤 Cliente", 
+                            "PRODUTO_COMPRADO": "🛍️ Produto",
+                            "VENCIMENTO": "📅 Vencimento", 
+                            "DIAS_ATRASO": "⏳ Atraso",
                             "VALOR_ORIGINAL": st.column_config.NumberColumn("💵 Original", format="R$ %.2f"),
                             "VALOR_ATUALIZADO": st.column_config.NumberColumn("📈 Atualizado", format="R$ %.2f"),
                             "FASE_COBRANCA": "🎯 Status"
                         }, use_container_width=True, hide_index=True
                     )
                     
+                    # ====================================================
+                    # 🤖 MÓDULO DE SCRIPTS INTELIGENTES WPP
+                    # ====================================================
                     st.markdown("#### 💬 Gerador de Cobrança (WhatsApp)")
-                    lista_nomes = ["---"] + list(df_atrasados['NOME'])
-                    cliente_alvo = st.selectbox("Selecione o cliente para gerar a mensagem:", lista_nomes)
                     
-                    if cliente_alvo != "---":
+                    # Exibe Nome + Produto no seletor para você saber exatamente o que está cobrando
+                    lista_nomes = ["---"] + list(df_atrasados['NOME'] + " (" + df_atrasados['PRODUTO_COMPRADO'] + ")")
+                    selecao = st.selectbox("Selecione a cobrança para gerar a mensagem:", lista_nomes)
+                    
+                    if selecao != "---":
+                        # Extrai o nome real da seleção para buscar no dataframe
+                        cliente_alvo = selecao.split(" (")[0]
                         dados_cli = df_atrasados[df_atrasados['NOME'] == cliente_alvo].iloc[0]
-                        dias = dados_cli['DIAS_ATRASO']
                         
+                        dias = dados_cli['DIAS_ATRASO']
+                        produto = dados_cli['PRODUTO_COMPRADO']
+                        dt_compra = dados_cli['DATA_COMPRA']
+                        
+                        # Formatando valores para o padrão brasileiro
                         v_orig = f"R$ {dados_cli['VALOR_ORIGINAL']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                         v_atu = f"R$ {dados_cli['VALOR_ATUALIZADO']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                         d_venc = dados_cli['VENCIMENTO'].strftime("%d/%m/%Y")
-                        cnpj_sweet = "00.000.000/0000-00"
+                        cnpj_sweet = "00.000.000/0000-00" # <-- COLOQUE SEU CNPJ AQUI DEPOIS
                         
+                        # Motor de Decisão (Mensagens Atualizadas com Produto e Data)
                         if dias <= 7:
-                            msg = f"Olá, *{cliente_alvo}*! Tudo bem? 🌸\n\nPassando rapidinho para avisar que a sua parcela de *{v_orig}* na Sweet Home Enxovais venceu no dia {d_venc}. Às vezes na correria a gente acaba esquecendo, né? 😊\n\nSe precisar da chave PIX novamente, é só me dar um alô!"
+                            msg = f"Olá, *{cliente_alvo}*! Tudo bem? 🌸\n\nPassando rapidinho para avisar que a sua parcela de *{v_orig}*, referente à compra do(a) *{produto}*, venceu no dia {d_venc}. Às vezes na correria a gente acaba esquecendo, né? 😊\n\nSe precisar da chave PIX novamente, é só me dar um alô!"
                             st.info("💡 Fase 1: Abordagem amigável para lembrete.")
                         elif dias <= 30:
-                            msg = f"Olá, *{cliente_alvo}*, tudo bem? 🏠\n\nConsta em nosso sistema uma pendência de {dias} dias referente à sua compra.\n\nCom a atualização padrão de multas e juros, o valor atual está em *{v_atu}*. Porém, para te ajudar, se você conseguir regularizar esse valor *hoje*, o sistema me permite isentar os encargos e manter o valor original de *{v_orig}*.\n\nPodemos fechar assim?"
+                            msg = f"Olá, *{cliente_alvo}*, tudo bem? 🏠\n\nConsta em nosso sistema uma pendência de {dias} dias referente à sua compra do(a) *{produto}* realizada em {dt_compra}.\n\nCom a atualização padrão de multas e juros, o valor atual está em *{v_atu}*. Porém, para te ajudar, se você conseguir regularizar esse valor *hoje*, o sistema me permite isentar os encargos e manter o valor original de *{v_orig}*.\n\nPodemos fechar assim?"
                             st.warning("💡 Fase 2: Gatilho de urgência e desconto simulado.")
                         else:
-                            msg = f"Prezado(a) *{cliente_alvo}*,\n\nEntramos em contato em nome do departamento financeiro da *Sweet Home Enxovais (CNPJ: {cnpj_sweet})*.\n\nConsta em nosso sistema um débito em aberto há {dias} dias. O valor atualizado com os encargos previstos é de *{v_atu}*.\n\nPara evitarmos o bloqueio do seu cadastro para compras futuras, oferecemos uma condição especial para quitação à vista. Por favor, retorne esta mensagem para negociarmos."
+                            msg = f"Prezado(a) *{cliente_alvo}*,\n\nEntramos em contato em nome do departamento financeiro da *Sweet Home Enxovais (CNPJ: {cnpj_sweet})*.\n\nConsta em nosso sistema um débito em aberto há {dias} dias, referente à compra do item: *{produto}*. O valor atualizado com os encargos previstos é de *{v_atu}*.\n\nPara evitarmos o bloqueio do seu cadastro para compras futuras, oferecemos uma condição especial para quitação à vista. Por favor, retorne esta mensagem para negociarmos."
                             st.error("💡 Fase 3: Notificação formal com CNPJ e consequência.")
 
                         st.code(msg, language="markdown")
@@ -1074,10 +1103,10 @@ elif menu_selecionado == "💰 Financeiro":
                         st.link_button("📲 Enviar Cobrança no WhatsApp", link_wpp, type="primary", use_container_width=True)
 
                 else:
-                    st.success("🎉 Que maravilha! Não há clientes em atraso no momento.")
+                    st.success("🎉 Que maravilha! Todos os clientes com pendências estão dentro do prazo de pagamento.")
 
             except Exception as e:
-                st.error(f"Erro ao processar as cobranças: {e}")
+                st.error(f"Erro ao processar as cobranças reais: {e}")
 
         # ====================================================
         # FICHA DE CLIENTE (EXTRATO DINÂMICO)
