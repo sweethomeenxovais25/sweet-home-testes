@@ -1146,7 +1146,7 @@ elif menu_selecionado == "💰 Financeiro":
                                     Mensagem original:
                                     {msg_padrao}
                                     """
-                                    modelo_ia = genai.GenerativeModel("gemini-1.5-flash")
+                                    modelo_ia = genai.GenerativeModel("gemini-pro")
                                     resposta_ia = modelo_ia.generate_content(prompt_ia)
                                     
                                     st.success("✨ Texto gerado pela IA:")
