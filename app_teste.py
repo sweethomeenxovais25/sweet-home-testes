@@ -1019,62 +1019,68 @@ elif menu_selecionado == "💰 Financeiro":
                 tel_c = "55" + tel_c
 
             # ---------------------------------------------------------
-            # 2. CONSTRUÇÃO DO RECIBO FINANCEIRO (HISTÓRICO COMPLETO)
+            # 2. CONSTRUÇÃO DO RECIBO FINANCEIRO (VISUAL PREMIUM)
             # ---------------------------------------------------------
             lista_extrato = ""
             
-            # Varre TODO o histórico da cliente para mostrar transparência
+            # Varre TODO o histórico com visual de Ticket Digital
             for _, row in v_hist.iterrows():
                 status_atual = str(row['STATUS']).strip()
                 
-                # Coloca um ícone visual dependendo do status na planilha
+                # Farol de Cores com Emojis
                 if status_atual.lower() in ['pago', 'quitado', 'ok']:
-                    icone = "✅"
+                    icone = "🟢 Pago"
                 else:
-                    icone = "⏳"
+                    icone = "🔴 Pendente"
                 
-                lista_extrato += f"🔸 {row['DATA DA VENDA']} | {row['PRODUTO']} | Status: {status_atual} {icone}\n"
+                # Estrutura visual de "Card" para o WhatsApp
+                lista_extrato += f"🛍️ *{row['PRODUTO']}*\n ├ 📅 Data: {row['DATA DA VENDA']}\n └ 📊 Status: {icone}\n\n"
             
             saldo_formatado = f"R$ {saldo_devedor_real:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             
             # MENSAGEM 1: COBRANÇA (Setor Financeiro)
             msg_cobranca = (
                 f"Olá, *{nome_c_ficha}*! Tudo bem? 🌸\n\n"
-                f"Aqui é do *Setor Financeiro da Sweet Home Enxovais*. "
+                f"Aqui é do *Setor Financeiro da Sweet Home Enxovais* 🏡✨\n"
                 f"Criamos esse departamento recentemente para melhorar a nossa organização e estarmos ainda mais próximos de você!\n\n"
                 f"Passando para deixar o resumo atualizado da sua ficha conosco:\n\n"
                 f"🧾 *HISTÓRICO DE COMPRAS:*\n"
-                f"{lista_extrato}\n"
-                f"💰 *Total Pendente Atual:* {saldo_formatado}\n\n"
+                f"-----------------------------------\n"
+                f"{lista_extrato}"
+                f"-----------------------------------\n"
+                f"💰 *Total Pendente Atual: {saldo_formatado}*\n\n"
                 f"Qualquer dúvida sobre os itens ou se precisar da nossa chave PIX para regularizar, estou à disposição! 😊"
             )
 
             # MENSAGEM 2: LEMBRETE PREVENTIVO (Vencimento Próximo)
             msg_lembrete = (
                 f"Olá, *{nome_c_ficha}*! Tudo bem? 🌸\n\n"
-                f"Aqui é do *Setor Financeiro da Sweet Home Enxovais*.\n\n"
+                f"Aqui é do *Setor Financeiro da Sweet Home Enxovais* 🏡✨\n\n"
                 f"Passando apenas para te enviar um lembrete super amigável de que você tem itens com vencimento se aproximando! 📅\n\n"
                 f"🧾 *RESUMO DA SUA FICHA:*\n"
-                f"{lista_extrato}\n"
-                f"💰 *Valor programado para acerto:* {saldo_formatado}\n\n"
+                f"-----------------------------------\n"
+                f"{lista_extrato}"
+                f"-----------------------------------\n"
+                f"💰 *Valor programado para acerto: {saldo_formatado}*\n\n"
                 f"Se precisar da nossa chave PIX para já deixar agendado, é só me avisar. Tenha um excelente dia! ✨"
             )
             
             # ---------------------------------------------------------
-            # 3. EXIBIÇÃO DOS BOTÕES LADO A LADO
+            # 3. EXIBIÇÃO DOS BOTÕES LADO A LADO (Com encoding seguro)
             # ---------------------------------------------------------
             if tel_c:
                 st.write("#### 🎯 Escolha a abordagem:")
                 col_btn1, col_btn2 = st.columns(2)
                 
+                # O parâmetro safe='' garante que os emojis sejam codificados 100% corretos
                 with col_btn1:
-                    st.link_button("🚨 Enviar Cobrança (Atrasados)", f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_cobranca)}", type="primary", use_container_width=True)
+                    st.link_button("🚨 Enviar Cobrança (Atrasados)", f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_cobranca, safe='')}", type="primary", use_container_width=True)
                 
                 with col_btn2:
-                    st.link_button("📅 Enviar Lembrete (Preventivo)", f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_lembrete)}", type="secondary", use_container_width=True)
+                    st.link_button("📅 Enviar Lembrete (Preventivo)", f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_lembrete, safe='')}", type="secondary", use_container_width=True)
                 
                 # ---------------------------------------------------------
-                # 4. MÓDULO DE IA SOB DEMANDA (Opcional)
+                # 4. MÓDULO DE IA SOB DEMANDA
                 # ---------------------------------------------------------
                 st.markdown("---")
                 st.write("✨ **Precisa de uma abordagem diferente?**")
@@ -1113,7 +1119,7 @@ elif menu_selecionado == "💰 Financeiro":
                             if resultado_ia:
                                 st.success("✨ Mensagem Otimizada com Sucesso!")
                                 texto_final_ia = st.text_area("Revise a mensagem da IA:", value=resultado_ia.text, height=250)
-                                st.link_button("📲 Enviar Mensagem da IA", f"https://wa.me/{tel_c}?text={urllib.parse.quote(texto_final_ia)}", type="primary", use_container_width=True)
+                                st.link_button("📲 Enviar Mensagem da IA", f"https://wa.me/{tel_c}?text={urllib.parse.quote(texto_final_ia, safe='')}", type="primary", use_container_width=True)
                                 
                                 if st.button("❌ Dispensar IA"):
                                     st.session_state['ia_ficha_ativa'] = False
