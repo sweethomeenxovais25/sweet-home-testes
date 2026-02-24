@@ -996,67 +996,128 @@ elif menu_selecionado == "💰 Financeiro":
         st.write("Monitoramento inteligente de atrasos, cálculo de juros e scripts de recuperação.")
 
         try:
-            # --- LÓGICA DE CÁLCULO ---
-            import pytz 
-            fuso_br = pytz.timezone('America/Sao_Paulo') 
-            hoje = datetime.now(fuso_br).date()
+            # ====================================================
+            # 1. PROCESSAMENTO GERAL (KPIs DO FINANCEIRO)
+            # ====================================================
+            df_fin = df_vendas_hist.copy()
             
-            # Exemplo simulado para testar visual
-            dados_simulados = [
-                {"NOME": "Maria Silva", "VENCIMENTO": "20/02/2026", "VALOR_ORIGINAL": 350.00},
-                {"NOME": "João Souza", "VENCIMENTO": "10/01/2026", "VALOR_ORIGINAL": 1200.00},
-                {"NOME": "Ana Costa", "VENCIMENTO": "22/02/2026", "VALOR_ORIGINAL": 150.00},
-                {"NOME": "Cliente X", "VENCIMENTO": "25/02/2026", "VALOR_ORIGINAL": 500.00} 
-            ]
-            df_devedores = pd.DataFrame(dados_simulados)
-            df_devedores['VENCIMENTO'] = pd.to_datetime(df_devedores['VENCIMENTO'], format="%d/%m/%Y").dt.date
+            # Mapeamento: Coluna L (11)=Total | M (12)=Lucro | O (14)=Pagto | U (20)=Saldo
+            df_fin['VALOR_NUM'] = df_fin.iloc[:, 11].apply(limpar_v)
+            df_fin['LUCRO_NUM'] = df_fin.iloc[:, 12].apply(limpar_v)
+            df_fin['FORMA_PG'] = df_fin.iloc[:, 14]
+            df_fin['SALDO_NUM'] = df_fin.iloc[:, 20].apply(limpar_v)
             
-            # 1. Calculando os Dias de Atraso
-            df_devedores['DIAS_ATRASO'] = (hoje - df_devedores['VENCIMENTO']).dt.days
-            
-            # 2. Aplicando as Regras de Negócio (Multa 2% e Juros 1% a.m.)
-            def calcular_encargos(row):
-                if row['DIAS_ATRASO'] > 0:
-                    multa = row['VALOR_ORIGINAL'] * 0.02
-                    juros = row['VALOR_ORIGINAL'] * 0.01 * (row['DIAS_ATRASO'] / 30)
-                    status = "🔴 Crítico (+30 dias)" if row['DIAS_ATRASO'] > 30 else ("🟡 Atenção (8-30 dias)" if row['DIAS_ATRASO'] > 7 else "🔵 Amigável (1-7 dias)")
-                    return pd.Series([multa, juros, row['VALOR_ORIGINAL'] + multa + juros, status])
-                elif row['DIAS_ATRASO'] == 0:
-                     return pd.Series([0, 0, row['VALOR_ORIGINAL'], "🟢 Vence Hoje"])
-                else:
-                    return pd.Series([0, 0, row['VALOR_ORIGINAL'], "⚪ No Prazo"])
+            vendas_brutas = df_fin['VALOR_NUM'].sum()
+            lucro_bruto = df_fin['LUCRO_NUM'].sum()
+            saldo_devedor = df_fin['SALDO_NUM'].sum()
+            total_recebido = vendas_brutas - saldo_devedor
 
-            df_devedores[['MULTA', 'JUROS', 'VALOR_ATUALIZADO', 'FASE_COBRANCA']] = df_devedores.apply(calcular_encargos, axis=1)
-            
-            # --- VISUALIZAÇÃO DO PAINEL ---
-            df_atrasados = df_devedores[df_devedores['DIAS_ATRASO'] > 0].sort_values(by='DIAS_ATRASO', ascending=False)
-            
-            if not df_atrasados.empty:
-                col_m1, col_m2, col_m3 = st.columns(3)
-                valor_perdido = df_atrasados['VALOR_ORIGINAL'].sum()
-                valor_recuperavel = df_atrasados['VALOR_ATUALIZADO'].sum()
-                lucro_encargos = valor_recuperavel - valor_perdido
+            # (AQUI FICAM OS SEUS CARDS DE MÉTRICAS ORIGINAIS DO FINANCEIRO)
+            # st.metric(...), st.progress(...), etc.
+
+
+            # ====================================================
+            # ⚖️ 2. GESTÃO DE INADIMPLÊNCIA E RECUPERAÇÃO DE CRÉDITO
+            # ====================================================
+            st.markdown("---")
+
+            with st.expander("⚖️ Painel de Inadimplência e Cobranças", expanded=False):
+                st.write("Monitoramento inteligente de atrasos e scripts de recuperação.")
                 
-                col_m1.metric("💰 Capital Retido (Original)", f"R$ {valor_perdido:,.2f}")
-                col_m2.metric("📈 Valor Atualizado (A Receber)", f"R$ {valor_recuperavel:,.2f}", f"+ R$ {lucro_encargos:,.2f} (Juros/Multa)")
-                col_m3.metric("👥 Clientes Inadimplentes", f"{len(df_atrasados)}")
+                # --- CONFIGURAÇÃO DE DATAS ---
+                import pytz
+                import urllib.parse
+                fuso_br = pytz.timezone('America/Sao_Paulo') 
+                # Converte o 'hoje' para o formato exato que o Pandas entende
+                hoje_pd = pd.to_datetime(datetime.now(fuso_br).strftime("%Y-%m-%d"))
                 
-                st.write("#### 📋 Relatório de Inadimplência Atualizado")
-                st.dataframe(
-                    df_atrasados[['NOME', 'VENCIMENTO', 'DIAS_ATRASO', 'VALOR_ORIGINAL', 'VALOR_ATUALIZADO', 'FASE_COBRANCA']],
-                    column_config={
-                        "NOME": st.column_config.TextColumn("👤 Cliente"),
-                        "VENCIMENTO": st.column_config.DateColumn("📅 Vencimento", format="DD/MM/YYYY"),
-                        "DIAS_ATRASO": st.column_config.NumberColumn("⏳ Dias Atraso"),
-                        "VALOR_ORIGINAL": st.column_config.NumberColumn("💵 Original (R$)", format="%.2f"),
-                        "VALOR_ATUALIZADO": st.column_config.NumberColumn("📈 Atualizado (R$)", format="%.2f"),
-                        "FASE_COBRANCA": st.column_config.TextColumn("🎯 Régua de Cobrança")
-                    },
-                    use_container_width=True,
-                    hide_index=True
-                )
-            else:
-                st.success("🎉 Que maravilha! Não há clientes em atraso no momento.")
+                # DADOS SIMULADOS (No futuro, puxaremos do df_fin onde SALDO_NUM > 0)
+                dados_simulados = [
+                    {"NOME": "Maria Silva", "VENCIMENTO": "20/02/2026", "VALOR_ORIGINAL": 350.00},
+                    {"NOME": "João Souza", "VENCIMENTO": "10/01/2026", "VALOR_ORIGINAL": 1200.00},
+                    {"NOME": "Ana Costa", "VENCIMENTO": "22/02/2026", "VALOR_ORIGINAL": 150.00},
+                    {"NOME": "Cliente X", "VENCIMENTO": "25/02/2026", "VALOR_ORIGINAL": 500.00} 
+                ]
+                df_devedores = pd.DataFrame(dados_simulados)
+                
+                # 💡 CORREÇÃO DAS DATAS: Agora tudo fala a mesma língua!
+                df_devedores['VENCIMENTO'] = pd.to_datetime(df_devedores['VENCIMENTO'], format="%d/%m/%Y")
+                df_devedores['DIAS_ATRASO'] = (hoje_pd - df_devedores['VENCIMENTO']).dt.days
+                
+                # --- APLICANDO REGRAS DE NEGÓCIO ---
+                def calcular_encargos(row):
+                    if row['DIAS_ATRASO'] > 0:
+                        multa = row['VALOR_ORIGINAL'] * 0.02
+                        juros = row['VALOR_ORIGINAL'] * 0.01 * (row['DIAS_ATRASO'] / 30)
+                        status = "🔴 Crítico (+30 dias)" if row['DIAS_ATRASO'] > 30 else ("🟡 Atenção (8-30 dias)" if row['DIAS_ATRASO'] > 7 else "🔵 Amigável (1-7 dias)")
+                        return pd.Series([multa, juros, row['VALOR_ORIGINAL'] + multa + juros, status])
+                    elif row['DIAS_ATRASO'] == 0:
+                         return pd.Series([0, 0, row['VALOR_ORIGINAL'], "🟢 Vence Hoje"])
+                    else:
+                        return pd.Series([0, 0, row['VALOR_ORIGINAL'], "⚪ No Prazo"])
+
+                df_devedores[['MULTA', 'JUROS', 'VALOR_ATUALIZADO', 'FASE_COBRANCA']] = df_devedores.apply(calcular_encargos, axis=1)
+                
+                df_atrasados = df_devedores[df_devedores['DIAS_ATRASO'] > 0].sort_values(by='DIAS_ATRASO', ascending=False)
+                
+                # --- EXIBIÇÃO DO PAINEL ---
+                if not df_atrasados.empty:
+                    col_m1, col_m2, col_m3 = st.columns(3)
+                    valor_perdido = df_atrasados['VALOR_ORIGINAL'].sum()
+                    valor_recuperavel = df_atrasados['VALOR_ATUALIZADO'].sum()
+                    
+                    col_m1.metric("💰 Capital Retido", f"R$ {valor_perdido:,.2f}")
+                    col_m2.metric("📈 Valor Atualizado", f"R$ {valor_recuperavel:,.2f}", f"+ R$ {valor_recuperavel - valor_perdido:,.2f}")
+                    col_m3.metric("👥 Inadimplentes", f"{len(df_atrasados)}")
+                    
+                    # Cria uma cópia formatada para exibição (para a data ficar DD/MM/AAAA na tabela)
+                    df_exibicao = df_atrasados.copy()
+                    df_exibicao['VENCIMENTO'] = df_exibicao['VENCIMENTO'].dt.strftime("%d/%m/%Y")
+                    
+                    st.dataframe(
+                        df_exibicao[['NOME', 'VENCIMENTO', 'DIAS_ATRASO', 'VALOR_ORIGINAL', 'VALOR_ATUALIZADO', 'FASE_COBRANCA']],
+                        column_config={
+                            "NOME": "👤 Cliente", "VENCIMENTO": "📅 Vencimento", "DIAS_ATRASO": "⏳ Atraso (Dias)",
+                            "VALOR_ORIGINAL": st.column_config.NumberColumn("💵 Original", format="R$ %.2f"),
+                            "VALOR_ATUALIZADO": st.column_config.NumberColumn("📈 Atualizado", format="R$ %.2f"),
+                            "FASE_COBRANCA": "🎯 Status"
+                        }, use_container_width=True, hide_index=True
+                    )
+                    
+                    # ====================================================
+                    # 🤖 MÓDULO DE SCRIPTS INTELIGENTES WPP
+                    # ====================================================
+                    st.markdown("#### 💬 Gerador de Cobrança (WhatsApp)")
+                    lista_nomes = ["---"] + list(df_atrasados['NOME'])
+                    cliente_alvo = st.selectbox("Selecione o cliente para gerar a mensagem:", lista_nomes)
+                    
+                    if cliente_alvo != "---":
+                        dados_cli = df_atrasados[df_atrasados['NOME'] == cliente_alvo].iloc[0]
+                        dias = dados_cli['DIAS_ATRASO']
+                        
+                        # Formatando valores para o padrão brasileiro (R$ X.XXX,XX)
+                        v_orig = f"R$ {dados_cli['VALOR_ORIGINAL']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                        v_atu = f"R$ {dados_cli['VALOR_ATUALIZADO']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                        d_venc = dados_cli['VENCIMENTO'].strftime("%d/%m/%Y")
+                        cnpj_sweet = "00.000.000/0000-00" # <-- COLOQUE SEU CNPJ AQUI DEPOIS
+                        
+                        # Motor de Decisão (Qual mensagem usar?)
+                        if dias <= 7:
+                            msg = f"Olá, *{cliente_alvo}*! Tudo bem? 🌸\n\nPassando rapidinho para avisar que a sua parcela de *{v_orig}* na Sweet Home Enxovais venceu no dia {d_venc}. Às vezes na correria a gente acaba esquecendo, né? 😊\n\nSe precisar da chave PIX novamente, é só me dar um alô!"
+                            st.info("💡 Fase 1: Abordagem amigável para lembrete.")
+                        elif dias <= 30:
+                            msg = f"Olá, *{cliente_alvo}*, tudo bem? 🏠\n\nConsta em nosso sistema uma pendência de {dias} dias referente à sua compra.\n\nCom a atualização padrão de multas e juros, o valor atual está em *{v_atu}*. Porém, para te ajudar, se você conseguir regularizar esse valor *hoje*, o sistema me permite isentar os encargos e manter o valor original de *{v_orig}*.\n\nPodemos fechar assim?"
+                            st.warning("💡 Fase 2: Gatilho de urgência e desconto simulado.")
+                        else:
+                            msg = f"Prezado(a) *{cliente_alvo}*,\n\nEntramos em contato em nome do departamento financeiro da *Sweet Home Enxovais (CNPJ: {cnpj_sweet})*.\n\nConsta em nosso sistema um débito em aberto há {dias} dias. O valor atualizado com os encargos previstos é de *{v_atu}*.\n\nPara evitarmos o bloqueio do seu cadastro para compras futuras, oferecemos uma condição especial para quitação à vista. Por favor, retorne esta mensagem para negociarmos."
+                            st.error("💡 Fase 3: Notificação formal com CNPJ e consequência.")
+
+                        st.code(msg, language="markdown")
+                        link_wpp = f"https://wa.me/?text={urllib.parse.quote(msg)}"
+                        st.link_button("📲 Enviar Cobrança no WhatsApp", link_wpp, type="primary", use_container_width=True)
+
+                else:
+                    st.success("🎉 Que maravilha! Não há clientes em atraso no momento.")
 
         except Exception as e:
             st.error(f"Erro ao carregar o módulo de cobranças: {e}")
