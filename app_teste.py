@@ -1153,6 +1153,7 @@ elif menu_selecionado == "💰 Financeiro":
                                         
                                     instrucao_objecao = f"A cliente deu esta desculpa: '{desculpa_cliente}'. Escreva um parágrafo amigável (pronto para copiar e colar no WhatsApp) desarmando essa desculpa com empatia e focando na solução." if desculpa_cliente else ""
                                     
+                                    # ⚠️ MUDANÇA AQUI: Injeção do Saldo de Vale-Desconto nos Dados da IA
                                     prompt_estrategia = f"""
                                     Você é o Diretor Financeiro da 'Sweet Home Enxovais'. Analise a dívida abaixo e crie opções de negociação.
                                     
@@ -1160,6 +1161,7 @@ elif menu_selecionado == "💰 Financeiro":
                                     - Cliente: {dados_cli['CLIENTE']}
                                     - Score Interno: {dados_cli['SWEET_SCORE']}
                                     - Status do Crédito: {dados_cli['SWEET_FLEX']}
+                                    - Saldo de Vale-Desconto Disponível: {vale_atual if tem_vale_valido else 'Nenhum (R$ 0,00)'}
                                     - Dias de Atraso: {dados_cli['MAIOR_ATRASO']}
                                     - Valor Original (Sem Juros): R$ {dados_cli['TOTAL_ORIGINAL']:.2f}
                                     - Juros/Multas Legais: R$ {dados_cli['TOTAL_ENCARGOS']:.2f}
