@@ -1237,28 +1237,50 @@ elif menu_selecionado == "💰 Financeiro":
             # ---------------------------------------------------------
             # 2. CONSTRUÇÃO DO RECIBO FINANCEIRO (TOM AMIGÁVEL)
             # ---------------------------------------------------------
-            # Filtra apenas os itens que realmente estão devendo
             itens_pendentes = v_hist[v_hist['SALDO_NUM'] > 0.01]
             lista_extrato = ""
             
-            # Monta a listinha de produtos dinamicamente
             for _, row in itens_pendentes.iterrows():
                 valor_formatado = f"R$ {row['SALDO_NUM']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                 lista_extrato += f"🔸 {row['DATA DA VENDA']} | {row['PRODUTO']} | {valor_formatado}\n"
             
             saldo_formatado = f"R$ {saldo_devedor_real:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             
-            msg_zap = (
-                f"Olá, *{nome_c_ficha}*! Tudo bem? 🌸\n"
-                f"Aqui é da equipe Sweet Home Enxovais. Passando para te enviar o seu extrato atualizado conosco.\n\n"
-                f"🧾 *RESUMO DE PENDÊNCIAS:*\n"
+            # MENSAGEM 1: COBRANÇA (Setor Financeiro)
+            msg_cobranca = (
+                f"Olá, *{nome_c_ficha}*! Tudo bem? 🌸\n\n"
+                f"Aqui é do *Setor Financeiro da Sweet Home Enxovais*. "
+                f"Criamos esse departamento recentemente para melhorar a nossa organização e estarmos ainda mais próximos de você!\n\n"
+                f"Passando para deixar o resumo atualizado da sua ficha conosco:\n\n"
+                f"🧾 *EXTRATO DE COMPRAS:*\n"
                 f"{lista_extrato}\n"
                 f"💰 *Total em aberto:* {saldo_formatado}\n\n"
-                f"Qualquer dúvida sobre os itens ou se precisar da nossa chave PIX, estou à disposição! 😊"
+                f"Qualquer dúvida sobre os itens ou se precisar da nossa chave PIX para regularizar, estou à disposição! 😊"
+            )
+
+            # MENSAGEM 2: LEMBRETE PREVENTIVO (Vencimento Próximo)
+            msg_lembrete = (
+                f"Olá, *{nome_c_ficha}*! Tudo bem? 🌸\n\n"
+                f"Aqui é do *Setor Financeiro da Sweet Home Enxovais*.\n\n"
+                f"Passando apenas para te enviar um lembrete super amigável de que você tem itens com vencimento se aproximando! 📅\n\n"
+                f"🧾 *RESUMO DOS ITENS:*\n"
+                f"{lista_extrato}\n"
+                f"💰 *Valor programado:* {saldo_formatado}\n\n"
+                f"Se precisar da nossa chave PIX para já deixar agendado, é só me avisar. Tenha um excelente dia! ✨"
             )
             
+            # ---------------------------------------------------------
+            # 3. EXIBIÇÃO DOS BOTÕES LADO A LADO
+            # ---------------------------------------------------------
             if tel_c:
-                st.link_button("📲 Cobrar no WhatsApp (Extrato Completo)", f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_zap)}", use_container_width=True)
+                st.write("Escolha a melhor abordagem para esta cliente:")
+                col_btn1, col_btn2 = st.columns(2)
+                
+                with col_btn1:
+                    st.link_button("🚨 Enviar Extrato/Cobrança", f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_cobranca)}", type="primary", use_container_width=True)
+                
+                with col_btn2:
+                    st.link_button("📅 Enviar Lembrete Preventivo", f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_lembrete)}", type="secondary", use_container_width=True)
             else:
                 st.error("⚠️ Telefone não localizado na base desta cliente.")
                 
