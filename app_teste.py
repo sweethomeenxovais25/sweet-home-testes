@@ -1254,10 +1254,13 @@ Chave PIX: SUA_CHAVE_PIX
             st.link_button("📲 Cobrar no WhatsApp", f"https://wa.me/55{tel_c}?text={urllib.parse.quote(msg_zap)}", use_container_width=True)
         else: st.success("✅ Esta cliente não possui débitos pendentes.")
 
-        st.write("#### ⏳ Histórico de Vendas Localizado")
+       st.write("#### ⏳ Histórico de Vendas Localizado")
         if not v_hist.empty:
             st.dataframe(v_hist[['DATA DA VENDA', 'PRODUTO', 'TOTAL R$', 'SALDO DEVEDOR', 'STATUS']], use_container_width=True, hide_index=True)
-        else: st.info("Nenhuma compra registrada para esta cliente ainda.")
+        else: 
+            st.info("Nenhuma compra registrada para esta cliente ainda.")
+
+# <--- O SEU BLOCO DE FINANCEIRO TERMINA AQUI
             
 # ==========================================
 # --- SEÇÃO 3: ESTOQUE (MEMÓRIA ETERNA + IA) ---
