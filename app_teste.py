@@ -1235,14 +1235,21 @@ elif menu_selecionado == "💰 Financeiro":
                 tel_c = "55" + tel_c
 
             # ---------------------------------------------------------
-            # 2. CONSTRUÇÃO DO RECIBO FINANCEIRO (TOM AMIGÁVEL)
+            # 2. CONSTRUÇÃO DO RECIBO FINANCEIRO (HISTÓRICO COMPLETO)
             # ---------------------------------------------------------
-            itens_pendentes = v_hist[v_hist['SALDO_NUM'] > 0.01]
             lista_extrato = ""
             
-            for _, row in itens_pendentes.iterrows():
-                valor_formatado = f"R$ {row['SALDO_NUM']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                lista_extrato += f"🔸 {row['DATA DA VENDA']} | {row['PRODUTO']} | {valor_formatado}\n"
+            # Varre TODO o histórico da cliente para mostrar transparência
+            for _, row in v_hist.iterrows():
+                status_atual = str(row['STATUS']).strip()
+                
+                # Coloca um ícone visual dependendo do status na planilha
+                if status_atual.lower() in ['pago', 'quitado', 'ok']:
+                    icone = "✅"
+                else:
+                    icone = "⏳"
+                
+                lista_extrato += f"🔸 {row['DATA DA VENDA']} | {row['PRODUTO']} | Status: {status_atual} {icone}\n"
             
             saldo_formatado = f"R$ {saldo_devedor_real:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             
@@ -1252,9 +1259,9 @@ elif menu_selecionado == "💰 Financeiro":
                 f"Aqui é do *Setor Financeiro da Sweet Home Enxovais*. "
                 f"Criamos esse departamento recentemente para melhorar a nossa organização e estarmos ainda mais próximos de você!\n\n"
                 f"Passando para deixar o resumo atualizado da sua ficha conosco:\n\n"
-                f"🧾 *EXTRATO DE COMPRAS:*\n"
+                f"🧾 *HISTÓRICO DE COMPRAS:*\n"
                 f"{lista_extrato}\n"
-                f"💰 *Total em aberto:* {saldo_formatado}\n\n"
+                f"💰 *Total Pendente Atual:* {saldo_formatado}\n\n"
                 f"Qualquer dúvida sobre os itens ou se precisar da nossa chave PIX para regularizar, estou à disposição! 😊"
             )
 
@@ -1263,9 +1270,9 @@ elif menu_selecionado == "💰 Financeiro":
                 f"Olá, *{nome_c_ficha}*! Tudo bem? 🌸\n\n"
                 f"Aqui é do *Setor Financeiro da Sweet Home Enxovais*.\n\n"
                 f"Passando apenas para te enviar um lembrete super amigável de que você tem itens com vencimento se aproximando! 📅\n\n"
-                f"🧾 *RESUMO DOS ITENS:*\n"
+                f"🧾 *RESUMO DA SUA FICHA:*\n"
                 f"{lista_extrato}\n"
-                f"💰 *Valor programado:* {saldo_formatado}\n\n"
+                f"💰 *Valor programado para acerto:* {saldo_formatado}\n\n"
                 f"Se precisar da nossa chave PIX para já deixar agendado, é só me avisar. Tenha um excelente dia! ✨"
             )
             
@@ -1273,14 +1280,65 @@ elif menu_selecionado == "💰 Financeiro":
             # 3. EXIBIÇÃO DOS BOTÕES LADO A LADO
             # ---------------------------------------------------------
             if tel_c:
-                st.write("Escolha a melhor abordagem para esta cliente:")
+                st.write("#### 🎯 Escolha a abordagem:")
                 col_btn1, col_btn2 = st.columns(2)
                 
                 with col_btn1:
-                    st.link_button("🚨 Enviar Extrato/Cobrança", f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_cobranca)}", type="primary", use_container_width=True)
+                    st.link_button("🚨 Enviar Cobrança (Atrasados)", f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_cobranca)}", type="primary", use_container_width=True)
                 
                 with col_btn2:
-                    st.link_button("📅 Enviar Lembrete Preventivo", f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_lembrete)}", type="secondary", use_container_width=True)
+                    st.link_button("📅 Enviar Lembrete (Preventivo)", f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_lembrete)}", type="secondary", use_container_width=True)
+                
+                # ---------------------------------------------------------
+                # 4. MÓDULO DE IA SOB DEMANDA (Opcional)
+                # ---------------------------------------------------------
+                st.markdown("---")
+                st.write("✨ **Precisa de uma abordagem diferente?**")
+                
+                if st.button("🤖 Personalizar mensagem com IA", use_container_width=True):
+                    st.session_state['ia_ficha_ativa'] = True
+                    
+                if st.session_state.get('ia_ficha_ativa', False):
+                    tipo_ia = st.radio("Qual mensagem você quer que a IA reescreva?", ["Cobrança", "Lembrete Preventivo"])
+                    msg_base_ia = msg_cobranca if tipo_ia == "Cobrança" else msg_lembrete
+                    
+                    with st.spinner("🤖 Consultando a IA (Modo Seguro)..."):
+                        try:
+                            import google.generativeai as genai
+                            genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+                            
+                            prompt = f"""
+                            Você atua no Setor Financeiro da 'Sweet Home Enxovais'. 
+                            Reescreva a mensagem abaixo para deixá-la incrivelmente empática e persuasiva, mas sem perder a educação. 
+                            MANTENHA INTACTA a lista de produtos (o histórico com as datas e emojis) e o valor final.
+                            
+                            Mensagem:
+                            {msg_base_ia}
+                            """
+                            
+                            modelos = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"]
+                            resultado_ia = None
+                            
+                            for m in modelos:
+                                try:
+                                    modelo_gen = genai.GenerativeModel(m)
+                                    resultado_ia = modelo_gen.generate_content(prompt)
+                                    break
+                                except: continue
+                                
+                            if resultado_ia:
+                                st.success("✨ Mensagem Otimizada com Sucesso!")
+                                texto_final_ia = st.text_area("Revise a mensagem da IA:", value=resultado_ia.text, height=250)
+                                st.link_button("📲 Enviar Mensagem da IA", f"https://wa.me/{tel_c}?text={urllib.parse.quote(texto_final_ia)}", type="primary", use_container_width=True)
+                                
+                                if st.button("❌ Dispensar IA"):
+                                    st.session_state['ia_ficha_ativa'] = False
+                                    st.rerun()
+                            else:
+                                st.error("⚠️ Nenhum modelo de IA suportado encontrado na sua API.")
+                        except Exception as e_ia:
+                            st.error(f"⚠️ Erro de comunicação com o Google: {e_ia}")
+
             else:
                 st.error("⚠️ Telefone não localizado na base desta cliente.")
                 
