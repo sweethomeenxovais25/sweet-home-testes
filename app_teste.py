@@ -1146,7 +1146,7 @@ elif menu_selecionado == "💰 Financeiro":
                                 st.session_state['v2_ia_cob'] = True
 
                         # ====================================================
-                        # 5. MÓDULO IA BLINDADO (Evita o Erro 404)
+                        # 5. MÓDULO IA BLINDADO (Com Gemini 2.5)
                         # ====================================================
                         if st.session_state.get('v2_ia_cob', False):
                             st.markdown("---")
@@ -1169,8 +1169,8 @@ elif menu_selecionado == "💰 Financeiro":
                                     {texto_final}
                                     """
                                     
-                                    # Lógica de "Cascata": Se o modelo mais novo der 404, ele tenta os anteriores automaticamente.
-                                    modelos_teste = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"]
+                                    # Cascata de Modelos: Tenta o 2.5 primeiro. Se der 404, cai para os outros automaticamente.
+                                    modelos_teste = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"]
                                     res = None
                                     motor = ""
                                     
@@ -1179,9 +1179,9 @@ elif menu_selecionado == "💰 Financeiro":
                                             model = genai.GenerativeModel(nome_modelo)
                                             res = model.generate_content(prompt_ia)
                                             motor = nome_modelo
-                                            break # Sucesso! Sai do loop de tentativas
+                                            break # Sucesso! Sai do loop
                                         except:
-                                            continue # Deu erro (ex: 404), tenta o próximo modelo
+                                            continue # Deu erro 404, tenta o próximo da fila
                                     
                                     if res:
                                         st.success(f"✨ Texto Gerado com Sucesso | Motor utilizado: `{motor}`")
@@ -1194,10 +1194,10 @@ elif menu_selecionado == "💰 Financeiro":
                                             st.session_state['v2_ia_cob'] = False
                                             st.rerun()
                                     else:
-                                        st.error("⚠️ Nenhum modelo de IA suportado foi encontrado na sua chave de API (Erro de Região ou Permissão).")
+                                        st.error("⚠️ Nenhum modelo foi suportado. A chave da API pode estar sem permissão para as versões mais recentes.")
                                         
                                 except Exception as e_ia:
-                                    st.error(f"⚠️ Falha geral de comunicação com a IA: {e_ia}")
+                                    st.error(f"⚠️ Falha geral na API da IA: {e_ia}")
 
             else:
                 st.info("Aguardando dados de vendas na planilha para iniciar as análises de cobrança.")
