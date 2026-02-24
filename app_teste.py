@@ -1246,18 +1246,26 @@ Chave PIX: SUA_CHAVE_PIX
         nome_c_ficha = " - ".join(sel_ficha.split(" - ")[1:])
         v_hist = df_vendas_hist[df_vendas_hist['CÓD. CLIENTE'].astype(str) == id_c]
         saldo_devedor_real = v_hist['SALDO DEVEDOR'].apply(limpar_v).sum()
+        
         c_f1, c_f2 = st.columns(2)
         c_f1.metric("Saldo Devedor Atual", f"R$ {saldo_devedor_real:,.2f}")
+        
         if saldo_devedor_real > 0.01:
             tel_c = banco_de_clientes.get(id_c, {}).get('fone', "")
             msg_zap = f"Olá {nome_c_ficha}! 🏠 Segue seu extrato na *Sweet Home Enxovais*. Atualmente consta um saldo pendente de *R$ {saldo_devedor_real:.2f}*. Qualquer dúvida estou à disposição! 😊"
             st.link_button("📲 Cobrar no WhatsApp", f"https://wa.me/55{tel_c}?text={urllib.parse.quote(msg_zap)}", use_container_width=True)
-        else: st.success("✅ Esta cliente não possui débitos pendentes.")
+        else: 
+            st.success("✅ Esta cliente não possui débitos pendentes.")
 
-       st.write("#### ⏳ Histórico de Vendas Localizado")
+        st.write("#### ⏳ Histórico de Vendas Localizado")
         if not v_hist.empty:
             st.dataframe(v_hist[['DATA DA VENDA', 'PRODUTO', 'TOTAL R$', 'SALDO DEVEDOR', 'STATUS']], use_container_width=True, hide_index=True)
-        else: st.info("Nenhuma compra registrada para esta cliente ainda.")
+        else: 
+            st.info("Nenhuma compra registrada para esta cliente ainda.")
+
+# --- ENCERRAMENTO DA SEÇÃO FINANCEIRO ---
+except Exception as e:
+    st.error(f"⚠️ Erro no processamento financeiro: {e}")
 
 # ==========================================
 # --- SEÇÃO 3: ESTOQUE (MEMÓRIA ETERNA + IA) ---
