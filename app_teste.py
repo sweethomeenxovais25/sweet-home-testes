@@ -1066,21 +1066,26 @@ elif menu_selecionado == "💰 Financeiro":
             )
             
             # ---------------------------------------------------------
-            # 3. EXIBIÇÃO DOS BOTÕES LADO A LADO (Bala de Prata UTF-8)
+            # 3. EXIBIÇÃO DOS BOTÕES LADO A LADO (Bypass com HTML Puro)
             # ---------------------------------------------------------
             if tel_c:
                 st.write("#### 🎯 Escolha a abordagem:")
                 col_btn1, col_btn2 = st.columns(2)
                 
-                # A MÁGICA AQUI: O .encode('utf-8') blinda os emojis antes de virar link
-                url_cob = f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_cobranca.encode('utf-8'))}"
-                url_prev = f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_lembrete.encode('utf-8'))}"
+                # Voltamos para o quote normal, o HTML vai cuidar do resto
+                url_cob = f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_cobranca)}"
+                url_prev = f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_lembrete)}"
+                
+                # Criando botões com HTML/CSS para driblar o bloqueio do Streamlit
+                btn_cob_html = f"""<a href="{url_cob}" target="_blank" style="display: block; width: 100%; text-align: center; background-color: #ff4b4b; color: white; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold;">🚨 Enviar Cobrança (Atrasados)</a>"""
+                
+                btn_prev_html = f"""<a href="{url_prev}" target="_blank" style="display: block; width: 100%; text-align: center; background-color: #262730; color: white; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold;">📅 Enviar Lembrete (Preventivo)</a>"""
                 
                 with col_btn1:
-                    st.link_button("🚨 Enviar Cobrança (Atrasados)", url_cob, type="primary", use_container_width=True)
+                    st.markdown(btn_cob_html, unsafe_allow_html=True)
                 
                 with col_btn2:
-                    st.link_button("📅 Enviar Lembrete (Preventivo)", url_prev, type="secondary", use_container_width=True)
+                    st.markdown(btn_prev_html, unsafe_allow_html=True)
                 
                 # ---------------------------------------------------------
                 # 4. MÓDULO DE IA SOB DEMANDA
@@ -1127,10 +1132,13 @@ elif menu_selecionado == "💰 Financeiro":
                                 st.success("✨ Mensagem Otimizada com Sucesso!")
                                 texto_final_ia = st.text_area("Revise a mensagem da IA:", value=resultado_ia.text.strip(), height=250)
                                 
-                                # A MÁGICA AQUI TAMBÉM: Blindando a resposta da IA
-                                url_ia = f"https://wa.me/{tel_c}?text={urllib.parse.quote(texto_final_ia.encode('utf-8'))}"
-                                st.link_button("📲 Enviar Mensagem da IA", url_ia, type="primary", use_container_width=True)
+                                # Botão HTML também para a IA
+                                url_ia = f"https://wa.me/{tel_c}?text={urllib.parse.quote(texto_final_ia)}"
+                                btn_ia_html = f"""<a href="{url_ia}" target="_blank" style="display: block; width: 100%; text-align: center; background-color: #ff4b4b; color: white; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold;">📲 Enviar Mensagem da IA</a>"""
                                 
+                                st.markdown(btn_ia_html, unsafe_allow_html=True)
+                                
+                                st.write("") # Espaçinho visual
                                 if st.button("❌ Dispensar IA"):
                                     st.session_state['ia_ficha_ativa'] = False
                                     st.rerun()
