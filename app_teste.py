@@ -993,7 +993,7 @@ elif menu_selecionado == "💰 Financeiro":
     # ====================================================
     # ⚖️ PAINEL GERENCIAL DE INADIMPLÊNCIA E ACORDOS
     # ====================================================
-    st.divider() # Divisória para separar do FIFO acima
+    st.markdown("---")
             
     with st.expander("⚖️ Painel Estratégico de Inadimplência (Visão Gerencial)", expanded=False):
         st.write("Análise de carteira, cálculo de juros (CDC) e simulador de acordos com IA.")
@@ -1007,7 +1007,7 @@ elif menu_selecionado == "💰 Financeiro":
                 fuso_br = pytz.timezone('America/Sao_Paulo') 
                 hoje_pd = pd.to_datetime(datetime.now(fuso_br).strftime("%Y-%m-%d"))
                 
-                # 📅 REGRA DE NEGÓCIO: Dívidas antes de Fev/2026 são "Legado"
+                # 📅 REGRA DE NEGÓCIO: Dívidas antes de Fev/2026 são "Legado" (Sem Juros automáticos)
                 DATA_CORTE_LEGADO = pd.to_datetime("2026-02-01")
                 
                 # --- 1. HIGIENIZAÇÃO DE DADOS ---
@@ -1020,7 +1020,7 @@ elif menu_selecionado == "💰 Financeiro":
                 df_dev_real = df_dev_real.dropna(subset=['VENCIMENTO'])
                 df_dev_real['DIAS_ATRASO'] = (hoje_pd - df_dev_real['VENCIMENTO']).dt.days
 
-                # --- 2. MOTOR FINANCEIRO ---
+                # --- 2. MOTOR FINANCEIRO (POR FATURA) ---
                 def calc_compliance(row):
                     multa = 0
                     juros = 0
@@ -1028,8 +1028,8 @@ elif menu_selecionado == "💰 Financeiro":
                     
                     if row['DIAS_ATRASO'] > 0:
                         if not is_legado:
-                            multa = row['SALDO_NUM'] * 0.02
-                            juros = row['SALDO_NUM'] * (0.01 / 30) * row['DIAS_ATRASO']
+                            multa = row['SALDO_NUM'] * 0.02 # 2% de multa (CDC)
+                            juros = row['SALDO_NUM'] * (0.01 / 30) * row['DIAS_ATRASO'] # 1% ao mês pro rata
                         status = "🕰️ Legado" if is_legado else ("🔴 Crítico" if row['DIAS_ATRASO'] > 30 else "🟡 Recente")
                     elif row['DIAS_ATRASO'] == 0:
                         status = "🟢 Vence Hoje"
@@ -1041,7 +1041,7 @@ elif menu_selecionado == "💰 Financeiro":
 
                 df_dev_real[['MULTA', 'JUROS', 'VALOR_ATUALIZADO', 'FASE', 'IS_LEGADO']] = df_dev_real.apply(calc_compliance, axis=1)
 
-                # --- 3. CONSOLIDAÇÃO, SWEET FLEX E SWEET SCORE ---
+                # --- 3. CONSOLIDAÇÃO POR CLIENTE ---
                 df_agrupado = df_dev_real.groupby(['CÓD. CLIENTE', 'CLIENTE']).agg(
                     TOTAL_ORIGINAL=pd.NamedAgg(column='SALDO_NUM', aggfunc='sum'),
                     TOTAL_ATUALIZADO=pd.NamedAgg(column='VALOR_ATUALIZADO', aggfunc='sum'),
@@ -1050,13 +1050,12 @@ elif menu_selecionado == "💰 Financeiro":
                     STATUS_PREDOMINANTE=pd.NamedAgg(column='FASE', aggfunc=lambda x: x.iloc[0])
                 ).reset_index()
 
-                # 🔒 Gatilho Sweet Flex
+                # 💡 NOVA INJEÇÃO: Regras de Score e Sweet Flex
                 LIMITE_DIAS_FLEX = 15
                 df_agrupado['SWEET_FLEX'] = df_agrupado['MAIOR_ATRASO'].apply(
                     lambda dias: "🔒 Suspenso" if dias > LIMITE_DIAS_FLEX else "🔑 Liberado"
                 )
                 
-                # ⭐ Gatilho Sweet Score (Nota de Crédito)
                 def calcular_score(dias):
                     if dias <= 0: return "⭐ 10/10 (Excelente)"
                     elif dias <= 7: return "🟢 8/10 (Bom)"
@@ -1073,17 +1072,17 @@ elif menu_selecionado == "💰 Financeiro":
                 with t1:
                     if not atrasados.empty:
                         c_m1, c_m2, c_m3 = st.columns(3)
-                        c_m1.metric("💰 Capital Retido", f"R$ {atrasados['TOTAL_ORIGINAL'].sum():,.2f}")
+                        c_m1.metric("💰 Capital Retido (Original)", f"R$ {atrasados['TOTAL_ORIGINAL'].sum():,.2f}")
                         c_m2.metric("📈 Expectativa c/ Encargos", f"R$ {atrasados['TOTAL_ATUALIZADO'].sum():,.2f}")
-                        c_m3.metric("👥 Inadimplentes", f"{len(atrasados)}")
+                        c_m3.metric("👥 Clientes Inadimplentes", f"{len(atrasados)}")
                         
                         st.dataframe(
-                            atrasados[['CLIENTE', 'SWEET_SCORE', 'SWEET_FLEX', 'TOTAL_ATUALIZADO', 'MAIOR_ATRASO']], 
+                            atrasados[['CLIENTE', 'SWEET_SCORE', 'SWEET_FLEX', 'MAIOR_ATRASO', 'TOTAL_ORIGINAL', 'TOTAL_ENCARGOS', 'TOTAL_ATUALIZADO', 'STATUS_PREDOMINANTE']], 
                             column_config={
-                                "TOTAL_ATUALIZADO": st.column_config.NumberColumn("Dívida (R$)", format="R$ %.2f"),
-                                "MAIOR_ATRASO": "Atraso (Dias)",
-                                "SWEET_SCORE": "Sweet Score",
-                                "SWEET_FLEX": "Crédito Flex"
+                                "TOTAL_ORIGINAL": st.column_config.NumberColumn("Original (R$)", format="R$ %.2f"),
+                                "TOTAL_ENCARGOS": st.column_config.NumberColumn("Juros/Multa (R$)", format="R$ %.2f"),
+                                "TOTAL_ATUALIZADO": st.column_config.NumberColumn("Atualizado (R$)", format="R$ %.2f"),
+                                "MAIOR_ATRASO": "Dias Atraso"
                             },
                             use_container_width=True, hide_index=True
                         )
@@ -1093,17 +1092,18 @@ elif menu_selecionado == "💰 Financeiro":
                 with t2:
                     if not prevencao.empty:
                         st.dataframe(
-                            prevencao[['CLIENTE', 'SWEET_SCORE', 'TOTAL_ORIGINAL', 'STATUS_PREDOMINANTE']], 
+                            prevencao[['CLIENTE', 'SWEET_SCORE', 'MAIOR_ATRASO', 'TOTAL_ORIGINAL', 'STATUS_PREDOMINANTE']], 
                             column_config={"TOTAL_ORIGINAL": st.column_config.NumberColumn("Valor (R$)", format="R$ %.2f")},
                             use_container_width=True, hide_index=True
                         )
                     else:
                         st.write("Nenhum vencimento previsto para os próximos 5 dias.")
 
-                # --- 5. SIMULADOR E TREINADOR DE OBJEÇÕES COM IA ---
+                # --- 5. SIMULADOR DE ACORDOS COM IA ---
                 if not atrasados.empty:
                     st.markdown("---")
-                    st.markdown("#### 🤖 Simulador de Acordos e Objeções")
+                    st.markdown("#### 🤖 Simulador de Cenários de Negociação")
+                    st.write("Escolha uma cliente para a IA gerar opções de parcelamento e descontos matematicamente viáveis.")
                     
                     opcoes_acordo = atrasados['CLIENTE'].tolist()
                     cliente_alvo = st.selectbox("Selecionar Cliente:", ["---"] + opcoes_acordo)
@@ -1111,40 +1111,45 @@ elif menu_selecionado == "💰 Financeiro":
                     if cliente_alvo != "---":
                         dados_cli = atrasados[atrasados['CLIENTE'] == cliente_alvo].iloc[0]
                         
-                        # 💬 Módulo de Objeções e Escassez
-                        st.write("##### 🛡️ Preparação para a Negociação")
-                        desculpa_cliente = st.text_input("A cliente deu alguma desculpa para o atraso? (Opcional)", placeholder="Ex: Achei o juros alto, tive imprevisto médico...")
-                        usar_escassez = st.checkbox("🔥 Aplicar Gatilho de Escassez (Prioridade em Novidades do Estoque)")
+                        # 💡 NOVA INJEÇÃO: Preparação para a Negociação (Objeções e Escassez)
+                        st.write("##### 🛡️ Preparação Adicional (Opcional)")
+                        desculpa_cliente = st.text_input("A cliente deu alguma desculpa para o atraso?", placeholder="Ex: Fiquei doente, achei o juros alto...")
+                        usar_escassez = st.checkbox("🔥 Aplicar Gatilho de Escassez (Prioridade em Novidades)")
                         
-                        if st.button("✨ Gerar Propostas e Contornos de Objeção", type="primary"):
-                            with st.spinner("Analisando perfil, calculando cenários e preparando argumentos..."):
+                        if st.button("✨ Gerar Propostas de Acordo", type="primary"):
+                            with st.spinner("Analisando perfil da dívida e calculando cenários..."):
                                 try:
                                     import google.generativeai as genai
                                     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
                                     
-                                    # Montando as instruções dinâmicas para a IA
-                                    instrucao_escassez = "Inclua um argumento de escassez forte: se ela fechar o acordo hoje, terá acesso prioritário e VIP à nova coleção que chega semana que vem, antes de abrir para o público." if usar_escassez else ""
-                                    
-                                    instrucao_objecao = f"A cliente apresentou a seguinte objeção/desculpa: '{desculpa_cliente}'. Crie um parágrafo de 'Contorno de Objeção' orientando o vendedor sobre o que responder para desarmar essa desculpa com empatia e firmeza." if desculpa_cliente else ""
+                                    # Montando regras extras baseadas no que você preencheu
+                                    instrucao_escassez = "Inclua um forte gatilho de escassez: se ela fechar hoje, ganha prioridade VIP nas novidades da próxima coleção." if usar_escassez else ""
+                                    instrucao_objecao = f"A cliente deu esta desculpa: '{desculpa_cliente}'. Escreva um parágrafo orientando o vendedor sobre como contornar isso com empatia." if desculpa_cliente else ""
                                     
                                     prompt_estrategia = f"""
-                                    Você é o Diretor Financeiro da 'Sweet Home Enxovais'. Analise a dívida abaixo e crie um Plano de Ação para a equipe de cobrança.
+                                    Você é o Diretor Financeiro da 'Sweet Home Enxovais'. Analise a dívida abaixo e crie 3 cenários de negociação para a equipe de cobrança apresentar à cliente.
                                     
-                                    Perfil da Cliente:
+                                    Dados do Débito:
                                     - Cliente: {dados_cli['CLIENTE']}
                                     - Score Interno: {dados_cli['SWEET_SCORE']}
                                     - Status do Crédito (Sweet Flex): {dados_cli['SWEET_FLEX']}
                                     - Dias de Atraso: {dados_cli['MAIOR_ATRASO']}
                                     - Valor Original (Sem Juros): R$ {dados_cli['TOTAL_ORIGINAL']:.2f}
+                                    - Juros/Multas Legais: R$ {dados_cli['TOTAL_ENCARGOS']:.2f}
                                     - Valor Total Atualizado: R$ {dados_cli['TOTAL_ATUALIZADO']:.2f}
+                                    - Possui dívida antiga (Legado)? {'Sim' if 'Legado' in dados_cli['STATUS_PREDOMINANTE'] else 'Não'}
                                     
-                                    DIRETRIZES:
-                                    1. Crie 3 opções claras de acordo (À vista com desconto, Parcelamento curto, Parcelamento longo).
-                                    2. ESTRATÉGIA DE REABILITAÇÃO: Se o Status do Crédito for '🔒 Suspenso', oriente o vendedor a usar o argumento de que quitar a dívida e comprar à vista destrava o limite automaticamente.
+                                    Diretrizes para a IA:
+                                    Crie 3 opções claras de acordo:
+                                    1. Quitação à vista (Sugira um desconto atrativo em cima dos juros, se houver).
+                                    2. Parcelamento curto (Ex: 2x ou 3x).
+                                    3. Parcelamento longo (Se o valor for alto, sugira até 6x com parcelas mínimas viáveis).
+                                    
+                                    ⚠️ ESTRATÉGIA DE REABILITAÇÃO: Se o Status do Crédito for '🔒 Suspenso', você DEVE orientar o vendedor a argumentar que a quitação da dívida e uma nova compra à vista destravará o limite no Sweet Flex.
                                     {instrucao_escassez}
                                     {instrucao_objecao}
                                     
-                                    O formato deve ser direto, como um "Plano de Ação Tático" para o vendedor ler antes de mandar mensagem. Não crie um texto genérico, seja um estrategista financeiro.
+                                    O formato deve ser direto, como um "Plano de Ação" para o vendedor ler e usar como base na negociação. Não crie texto para enviar ao cliente, crie estratégia para a loja.
                                     """
                                     
                                     modelos = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"]
@@ -1153,7 +1158,7 @@ elif menu_selecionado == "💰 Financeiro":
                                             modelo = genai.GenerativeModel(m)
                                             resposta = modelo.generate_content(prompt_estrategia)
                                             if resposta:
-                                                st.info("💡 **Seu Plano de Ação Estratégico:**")
+                                                st.info("💡 **Cenários Estratégicos Recomendados:**")
                                                 st.write(resposta.text)
                                                 break
                                         except: continue
