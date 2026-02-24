@@ -1078,7 +1078,7 @@ elif menu_selecionado == "💰 Financeiro":
                     carteira = banco_de_clientes.get(cod_str, {})
                     vale = str(carteira.get('VALE DESCONTO', carteira.get('vale desconto', ''))).strip()
                     
-                    if not vale or vale.lower() in ['nan', 'none', '0', '0,00', 'r$ 0,00']:
+                    if not vale or vale.lower() in ['nan', 'none', '0', '0,00', 'r$ 0,00', '']:
                         return "R$ 0,00"
                     
                     # Garante que tenha R$ na frente para ficar bonito na tabela
@@ -1101,7 +1101,7 @@ elif menu_selecionado == "💰 Financeiro":
                         c_m2.metric("📈 Expectativa c/ Encargos", f"R$ {atrasados['TOTAL_ATUALIZADO'].sum():,.2f}")
                         c_m3.metric("👥 Clientes Inadimplentes", f"{len(atrasados)}")
                         
-                        # A Coluna VALE_DESCONTO agora aparece aqui!
+                        # A Coluna VALE_DESCONTO agora aparece aqui na tela principal!
                         st.dataframe(
                             atrasados[['CLIENTE', 'SWEET_SCORE', 'SWEET_FLEX', 'VALE_DESCONTO', 'MAIOR_ATRASO', 'TOTAL_ORIGINAL', 'TOTAL_ENCARGOS', 'TOTAL_ATUALIZADO', 'STATUS_PREDOMINANTE']], 
                             column_config={
@@ -1119,8 +1119,11 @@ elif menu_selecionado == "💰 Financeiro":
                 with t2:
                     if not prevencao.empty:
                         st.dataframe(
-                            prevencao[['CLIENTE', 'SWEET_SCORE', 'MAIOR_ATRASO', 'TOTAL_ORIGINAL', 'STATUS_PREDOMINANTE']], 
-                            column_config={"TOTAL_ORIGINAL": st.column_config.NumberColumn("Valor (R$)", format="R$ %.2f")},
+                            prevencao[['CLIENTE', 'SWEET_SCORE', 'VALE_DESCONTO', 'MAIOR_ATRASO', 'TOTAL_ORIGINAL', 'STATUS_PREDOMINANTE']], 
+                            column_config={
+                                "TOTAL_ORIGINAL": st.column_config.NumberColumn("Valor (R$)", format="R$ %.2f"),
+                                "VALE_DESCONTO": "Vale (R$)"
+                            },
                             use_container_width=True, hide_index=True
                         )
                     else:
@@ -1138,15 +1141,15 @@ elif menu_selecionado == "💰 Financeiro":
                     if cliente_alvo != "---":
                         dados_cli = atrasados[atrasados['CLIENTE'] == cliente_alvo].iloc[0]
                         
-                        # Puxando o Vale diretamente da tabela nova
+                        # 💡 A IA agora puxa a informação oficial da nova coluna
                         vale_atual = dados_cli['VALE_DESCONTO']
                         tem_vale_valido = vale_atual != "R$ 0,00"
                         
-                        # 💡 Preparação para a Negociação
                         st.write("##### 🛡️ Preparação Adicional (Opcional)")
                         desculpa_cliente = st.text_input("A cliente deu alguma desculpa para o atraso?", placeholder="Ex: Fiquei doente, achei o juros alto...")
                         
-                        texto_check = f"🎁 Usar Saldo de {vale_atual} (da Carteira) na negociação" if tem_vale_valido else "🎁 Ativar 'Sweet Rewards' (Oferecer NOVO Vale-Desconto como negociação)"
+                        # O Checkbox se adapta se a cliente tiver dinheiro na casa
+                        texto_check = f"🎁 Usar Saldo de {vale_atual} (Carteira) na negociação" if tem_vale_valido else "🎁 Ativar 'Sweet Rewards' (Oferecer NOVO Vale-Desconto como negociação)"
                         usar_rewards = st.checkbox(texto_check)
                         
                         if st.button("✨ Gerar Propostas de Acordo", type="primary"):
@@ -1155,18 +1158,20 @@ elif menu_selecionado == "💰 Financeiro":
                                     import google.generativeai as genai
                                     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
                                     
+                                    # Lógica Dinâmica do Vale
                                     if usar_rewards:
                                         if tem_vale_valido:
-                                            instrucao_rewards = f"ESTRATÉGIA SWEET REWARDS ATIVADA: A cliente JÁ POSSUI um saldo de 'Vale-Desconto' de {vale_atual} cadastrado no nosso sistema. Use esse argumento OBRIGATORIAMENTE na proposta: proponha que ela use esse saldo acumulado agora mesmo para abater a dívida/encargos, desde que faça o pagamento à vista hoje."
+                                            instrucao_rewards = f"ESTRATÉGIA SWEET REWARDS: A cliente JÁ POSSUI um saldo de 'Vale-Desconto' de {vale_atual} no nosso sistema. Use esse argumento OBRIGATORIAMENTE na proposta: proponha que ela use esse saldo acumulado agora mesmo para abater a dívida/encargos, desde que faça o pagamento à vista hoje."
                                         else:
-                                            instrucao_rewards = "ESTRATÉGIA SWEET REWARDS ATIVADA: Oriente a vendedora a gerar um NOVO 'Vale-Fidelidade' (entre R$ 20 e R$ 50) ou um 'Cupom de 10%' para a PRÓXIMA compra, condicionando isso à quitação da dívida hoje."
+                                            instrucao_rewards = "ESTRATÉGIA SWEET REWARDS: Oriente a vendedora a gerar um NOVO 'Vale-Fidelidade' (entre R$ 20 e R$ 50) ou um 'Cupom de 10%' para a PRÓXIMA compra, condicionando isso à quitação da dívida hoje."
                                     else:
                                         instrucao_rewards = ""
                                         
                                     instrucao_objecao = f"A cliente deu esta desculpa: '{desculpa_cliente}'. Escreva um parágrafo amigável (pronto para copiar e colar no WhatsApp) desarmando essa desculpa com empatia e focando na solução." if desculpa_cliente else ""
                                     
+                                    # 💡 O PROMPT DE AÇO: A IA agora enxerga a matemática completa
                                     prompt_estrategia = f"""
-                                    Você é o Diretor Financeiro da 'Sweet Home Enxovais'. Analise a dívida abaixo e crie opções de negociação.
+                                    Você é o Diretor Financeiro da 'Sweet Home Enxovais'. Analise a dívida abaixo e crie opções de negociação matemática e persuasiva.
                                     
                                     DADOS DO DÉBITO (BASE PARA ANÁLISE):
                                     - Cliente: {dados_cli['CLIENTE']}
@@ -1179,10 +1184,11 @@ elif menu_selecionado == "💰 Financeiro":
                                     - Valor Total Atualizado: R$ {dados_cli['TOTAL_ATUALIZADO']:.2f}
                                     - Possui dívida antiga (Legado)? {'Sim' if 'Legado' in dados_cli['STATUS_PREDOMINANTE'] else 'Não'}
                                     
-                                    ⚠️ REGRAS CRÍTICAS DE FORMATAÇÃO:
+                                    ⚠️ REGRAS CRÍTICAS DE FORMATAÇÃO E ANÁLISE:
                                     1. NÃO use Markdown de cabeçalhos (como #, ## ou ###). Use apenas texto normal e negrito.
                                     2. Seja extremamente organizado, use emojis para listar os tópicos.
-                                    3. Entregue a resposta EXATAMENTE nesta estrutura:
+                                    3. Analise o "Saldo de Vale-Desconto Disponível". Se for maior que zero, faça a conta abatendo esse valor da dívida atualizada na opção à vista.
+                                    4. Entregue a resposta EXATAMENTE nesta estrutura:
                                     
                                     🎯 **CENÁRIOS DE ACORDO (Para a Loja)**
                                     (Liste 3 opções: Quitação com desconto / Parcelamento Curto / Parcelamento Longo)
