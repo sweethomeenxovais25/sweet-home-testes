@@ -998,9 +998,8 @@ elif menu_selecionado == "💰 Financeiro":
         try:
         # --- LÓGICA DE CÁLCULO ---
         import pytz # Garante que o mapa de fusos está ativo
-        fuso_br = pytz.timezone('America/Sao_Paulo') # Ensina o fuso para este bloco
+        fuso_br = pytz.timezone('America/Sao_Paulo')
         hoje = datetime.now(fuso_br).date()
-        # ... (o resto do código continua igual) ...
             
             # Exemplo simulado para testar visual
             dados_simulados = [
