@@ -990,8 +990,10 @@ elif menu_selecionado == "💰 Financeiro":
 
     st.divider()
 
+        st.divider()
+
         # ====================================================
-        # ⚖️ GESTÃO DE INADIMPLÊNCIA E RECUPERAÇÃO DE CRÉDITO (SMART RECOVERY 2.0)
+        # ⚖️ GESTÃO DE INADIMPLÊNCIA
         # ====================================================
         st.markdown("---")
         
