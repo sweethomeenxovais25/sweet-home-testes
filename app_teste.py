@@ -990,6 +990,160 @@ elif menu_selecionado == "💰 Financeiro":
 
     st.divider()
 
+    # ====================================================
+    # ⚖️ PAINEL GERENCIAL DE INADIMPLÊNCIA E ACORDOS
+    # ====================================================
+    st.markdown("---")
+            
+    with st.expander("⚖️ Painel Estratégico de Inadimplência (Visão Gerencial)", expanded=False):
+        st.write("Análise de carteira, cálculo de juros (CDC) e simulador de acordos com IA.")
+        
+        try:
+            import pytz
+            from datetime import datetime
+            import pandas as pd
+            
+            if not df_vendas_hist.empty:
+                fuso_br = pytz.timezone('America/Sao_Paulo') 
+                hoje_pd = pd.to_datetime(datetime.now(fuso_br).strftime("%Y-%m-%d"))
+                
+                # 📅 REGRA DE NEGÓCIO: Dívidas antes de Fev/2026 são "Legado" (Sem Juros automáticos)
+                DATA_CORTE_LEGADO = pd.to_datetime("2026-02-01")
+                
+                # --- 1. HIGIENIZAÇÃO DE DADOS ---
+                df_cobranca = df_vendas_hist.copy()
+                df_cobranca['SALDO_NUM'] = df_cobranca['SALDO DEVEDOR'].apply(limpar_v)
+                df_dev_real = df_cobranca[df_cobranca['SALDO_NUM'] > 0.01].copy()
+                
+                df_dev_real['CÓD. CLIENTE'] = df_dev_real['CÓD. CLIENTE'].astype(str).str.split('.').str[0].str.strip()
+                df_dev_real['VENCIMENTO'] = pd.to_datetime(df_dev_real['PRÓXIMA PARCELA'], format="%d/%m/%Y", errors='coerce')
+                df_dev_real = df_dev_real.dropna(subset=['VENCIMENTO'])
+                df_dev_real['DIAS_ATRASO'] = (hoje_pd - df_dev_real['VENCIMENTO']).dt.days
+
+                # --- 2. MOTOR FINANCEIRO (POR FATURA) ---
+                def calc_compliance(row):
+                    multa = 0
+                    juros = 0
+                    is_legado = row['VENCIMENTO'] < DATA_CORTE_LEGADO
+                    
+                    if row['DIAS_ATRASO'] > 0:
+                        if not is_legado:
+                            multa = row['SALDO_NUM'] * 0.02 # 2% de multa (CDC)
+                            juros = row['SALDO_NUM'] * (0.01 / 30) * row['DIAS_ATRASO'] # 1% ao mês pro rata
+                        status = "🕰️ Legado" if is_legado else ("🔴 Crítico" if row['DIAS_ATRASO'] > 30 else "🟡 Recente")
+                    elif row['DIAS_ATRASO'] == 0:
+                        status = "🟢 Vence Hoje"
+                    else:
+                        status = f"📅 Vence em {abs(row['DIAS_ATRASO'])}d"
+                    
+                    valor_total = row['SALDO_NUM'] + multa + juros
+                    return pd.Series([multa, juros, valor_total, status, is_legado])
+
+                df_dev_real[['MULTA', 'JUROS', 'VALOR_ATUALIZADO', 'FASE', 'IS_LEGADO']] = df_dev_real.apply(calc_compliance, axis=1)
+
+                # --- 3. CONSOLIDAÇÃO POR CLIENTE ---
+                df_agrupado = df_dev_real.groupby(['CÓD. CLIENTE', 'CLIENTE']).agg(
+                    TOTAL_ORIGINAL=pd.NamedAgg(column='SALDO_NUM', aggfunc='sum'),
+                    TOTAL_ATUALIZADO=pd.NamedAgg(column='VALOR_ATUALIZADO', aggfunc='sum'),
+                    TOTAL_ENCARGOS=pd.NamedAgg(column='MULTA', aggfunc=lambda x: x.sum() + df_dev_real.loc[x.index, 'JUROS'].sum()),
+                    MAIOR_ATRASO=pd.NamedAgg(column='DIAS_ATRASO', aggfunc='max'),
+                    STATUS_PREDOMINANTE=pd.NamedAgg(column='FASE', aggfunc=lambda x: x.iloc[0])
+                ).reset_index()
+
+                atrasados = df_agrupado[df_agrupado['MAIOR_ATRASO'] > 0].sort_values('MAIOR_ATRASO', ascending=False)
+                prevencao = df_agrupado[(df_agrupado['MAIOR_ATRASO'] <= 0) & (df_agrupado['MAIOR_ATRASO'] >= -5)].sort_values('MAIOR_ATRASO', ascending=False)
+
+                # --- 4. INTERFACE DE GESTÃO ---
+                t1, t2 = st.tabs(["🚨 Mapa de Risco (Atrasados)", "📅 Fluxo de Caixa (Próximos 5 dias)"])
+                
+                with t1:
+                    if not atrasados.empty:
+                        c_m1, c_m2, c_m3 = st.columns(3)
+                        c_m1.metric("💰 Capital Retido (Original)", f"R$ {atrasados['TOTAL_ORIGINAL'].sum():,.2f}")
+                        c_m2.metric("📈 Expectativa c/ Encargos", f"R$ {atrasados['TOTAL_ATUALIZADO'].sum():,.2f}")
+                        c_m3.metric("👥 Clientes Inadimplentes", f"{len(atrasados)}")
+                        
+                        st.dataframe(
+                            atrasados[['CLIENTE', 'MAIOR_ATRASO', 'TOTAL_ORIGINAL', 'TOTAL_ENCARGOS', 'TOTAL_ATUALIZADO', 'STATUS_PREDOMINANTE']], 
+                            column_config={
+                                "TOTAL_ORIGINAL": st.column_config.NumberColumn("Original (R$)", format="R$ %.2f"),
+                                "TOTAL_ENCARGOS": st.column_config.NumberColumn("Juros/Multa (R$)", format="R$ %.2f"),
+                                "TOTAL_ATUALIZADO": st.column_config.NumberColumn("Atualizado (R$)", format="R$ %.2f"),
+                                "MAIOR_ATRASO": "Dias Atraso"
+                            },
+                            use_container_width=True, hide_index=True
+                        )
+                    else:
+                        st.success("🎉 Excelência! Nenhum cliente em atraso na base.")
+
+                with t2:
+                    if not prevencao.empty:
+                        st.dataframe(
+                            prevencao[['CLIENTE', 'MAIOR_ATRASO', 'TOTAL_ORIGINAL', 'STATUS_PREDOMINANTE']], 
+                            column_config={"TOTAL_ORIGINAL": st.column_config.NumberColumn("Valor (R$)", format="R$ %.2f")},
+                            use_container_width=True, hide_index=True
+                        )
+                    else:
+                        st.write("Nenhum vencimento previsto para os próximos 5 dias.")
+
+                # --- 5. SIMULADOR DE ACORDOS COM IA ---
+                if not atrasados.empty:
+                    st.markdown("---")
+                    st.markdown("#### 🤖 Simulador de Cenários de Negociação")
+                    st.write("Escolha uma cliente para a IA gerar opções de parcelamento e descontos matematicamente viáveis.")
+                    
+                    opcoes_acordo = atrasados['CLIENTE'].tolist()
+                    cliente_alvo = st.selectbox("Selecionar Cliente:", ["---"] + opcoes_acordo)
+                    
+                    if cliente_alvo != "---":
+                        dados_cli = atrasados[atrasados['CLIENTE'] == cliente_alvo].iloc[0]
+                        
+                        if st.button("✨ Gerar Propostas de Acordo", type="primary"):
+                            with st.spinner("Analisando perfil da dívida e calculando cenários..."):
+                                try:
+                                    import google.generativeai as genai
+                                    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+                                    
+                                    prompt_estrategia = f"""
+                                    Você é o Diretor Financeiro da 'Sweet Home Enxovais'. Analise a dívida abaixo e crie 3 cenários de negociação para a equipe de cobrança apresentar à cliente.
+                                    
+                                    Dados do Débito:
+                                    - Cliente: {dados_cli['CLIENTE']}
+                                    - Dias de Atraso: {dados_cli['MAIOR_ATRASO']}
+                                    - Valor Original (Sem Juros): R$ {dados_cli['TOTAL_ORIGINAL']:.2f}
+                                    - Juros/Multas Legais: R$ {dados_cli['TOTAL_ENCARGOS']:.2f}
+                                    - Valor Total Atualizado: R$ {dados_cli['TOTAL_ATUALIZADO']:.2f}
+                                    - Possui dívida antiga (Legado)? {'Sim' if 'Legado' in dados_cli['STATUS_PREDOMINANTE'] else 'Não'}
+                                    
+                                    Diretrizes para a IA:
+                                    Crie 3 opções claras de acordo:
+                                    1. Quitação à vista (Sugira um desconto atrativo em cima dos juros, se houver).
+                                    2. Parcelamento curto (Ex: 2x ou 3x).
+                                    3. Parcelamento longo (Se o valor for alto, sugira até 6x com parcelas mínimas viáveis).
+                                    
+                                    O formato deve ser direto, como um "Plano de Ação" para o vendedor ler e usar como base na negociação. Não crie texto para enviar ao cliente, crie estratégia para a loja.
+                                    """
+                                    
+                                    modelos = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"]
+                                    for m in modelos:
+                                        try:
+                                            modelo = genai.GenerativeModel(m)
+                                            resposta = modelo.generate_content(prompt_estrategia)
+                                            if resposta:
+                                                st.info("💡 **Cenários Estratégicos Recomendados:**")
+                                                st.write(resposta.text)
+                                                break
+                                        except: continue
+                                        
+                                except Exception as e:
+                                    st.error(f"Erro ao gerar estratégia: {e}")
+
+            else:
+                st.info("Aguardando dados de vendas na planilha para iniciar as análises.")
+                
+        except Exception as e:
+            st.error(f"⚠️ Erro no núcleo de processamento gerencial: {e}")
+    
     st.markdown("### 🔍 Ficha de Cliente (Extrato Dinâmico)")
     opcoes_ficha = sorted([f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
     sel_ficha = st.selectbox("Selecione para ver o que ela deve:", ["---"] + opcoes_ficha, key="ficha_sel_cliente")
