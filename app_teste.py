@@ -1066,18 +1066,21 @@ elif menu_selecionado == "💰 Financeiro":
             )
             
             # ---------------------------------------------------------
-            # 3. EXIBIÇÃO DOS BOTÕES LADO A LADO (Com encoding seguro)
+            # 3. EXIBIÇÃO DOS BOTÕES LADO A LADO (Blindado contra erro de Emoji)
             # ---------------------------------------------------------
             if tel_c:
                 st.write("#### 🎯 Escolha a abordagem:")
                 col_btn1, col_btn2 = st.columns(2)
                 
-                # O parâmetro safe='' garante que os emojis sejam codificados 100% corretos
+                # Empacotando as URLs de forma isolada e forçando conversão segura
+                url_cob = f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_cobranca)}"
+                url_prev = f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_lembrete)}"
+                
                 with col_btn1:
-                    st.link_button("🚨 Enviar Cobrança (Atrasados)", f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_cobranca, safe='')}", type="primary", use_container_width=True)
+                    st.link_button("🚨 Enviar Cobrança (Atrasados)", url_cob, type="primary", use_container_width=True)
                 
                 with col_btn2:
-                    st.link_button("📅 Enviar Lembrete (Preventivo)", f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_lembrete, safe='')}", type="secondary", use_container_width=True)
+                    st.link_button("📅 Enviar Lembrete (Preventivo)", url_prev, type="secondary", use_container_width=True)
                 
                 # ---------------------------------------------------------
                 # 4. MÓDULO DE IA SOB DEMANDA
@@ -1122,9 +1125,10 @@ elif menu_selecionado == "💰 Financeiro":
                                 
                             if resultado_ia:
                                 st.success("✨ Mensagem Otimizada com Sucesso!")
-                                # .strip() remove espaços vazios ou quebras de linha que a IA possa colocar no começo/fim
                                 texto_final_ia = st.text_area("Revise a mensagem da IA:", value=resultado_ia.text.strip(), height=250)
-                                st.link_button("📲 Enviar Mensagem da IA", f"https://wa.me/{tel_c}?text={urllib.parse.quote(texto_final_ia, safe='')}", type="primary", use_container_width=True)
+                                
+                                url_ia = f"https://wa.me/{tel_c}?text={urllib.parse.quote(texto_final_ia)}"
+                                st.link_button("📲 Enviar Mensagem da IA", url_ia, type="primary", use_container_width=True)
                                 
                                 if st.button("❌ Dispensar IA"):
                                     st.session_state['ia_ficha_ativa'] = False
