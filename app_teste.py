@@ -1135,26 +1135,27 @@ elif menu_selecionado == "💰 Financeiro":
                             with st.spinner("🤖 Gerando abordagem humanizada..."):
                                 try:
                                     import google.generativeai as genai
+                                    import urllib.parse
                                     
                                     # 🔑 CONFIGURAÇÃO DA API
                                     CHAVE_API = "AIzaSyDfnLUjLUZip1KI8PJBEh3iYUDeED9dvlc" 
                                     genai.configure(api_key=CHAVE_API)
                                     
-                                    # 🚀 MODELO GEMINI 2.0 FLASH
-                                    model = genai.GenerativeModel("gemini-2.0-flash")
-                                    
-                                    prompt_ia = f"""
-                                    Reescreva esta mensagem para a loja Sweet Home Enxovais (CNPJ: {cnpj_sweet}).
-                                    Tom: Gentil, profissional e focado em resolução.
-                                    Mantenha: Produtos, valores e vencimento.
-                                    Mensagem original:
-                                    {msg_padrao}
-                                    """
-                                    
-                                    res = model.generate_content(prompt_ia)
+                                    # 🧠 LÓGICA DE TENTATIVA (Try-Except Interno)
+                                    try:
+                                        # Tenta o modelo de ponta (2.0)
+                                        model = genai.GenerativeModel("gemini-2.0-flash")
+                                        res = model.generate_content(f"Reescreva para Sweet Home Enxovais (CNPJ {cnpj_sweet}) de forma gentil: {msg_padrao}")
+                                        motor_usado = "Gemini 2.0 Flash"
+                                    except Exception:
+                                        # Se o 2.0 falhar (por cota ou erro), usa o 1.5 que é garantido
+                                        model = genai.GenerativeModel("gemini-1.5-flash")
+                                        res = model.generate_content(f"Reescreva para Sweet Home Enxovais (CNPJ {cnpj_sweet}) de forma gentil: {msg_padrao}")
+                                        motor_usado = "Gemini 1.5 Flash (Reserva)"
+
                                     texto_gerado = res.text
                                     
-                                    st.info("💡 Sugestão da IA (Gemini 2.0 Flash):")
+                                    st.info(f"💡 Sugestão da IA (Motor: `{motor_usado}`):")
                                     st.write(texto_gerado)
                                     
                                     if tel_limpo:
@@ -1166,7 +1167,7 @@ elif menu_selecionado == "💰 Financeiro":
                                         st.rerun()
                                         
                                 except Exception as e_ia:
-                                    st.error(f"Erro na IA (Versão 2.0): {e_ia}")
+                                    st.error(f"⚠️ Ocorreu um problema técnico na IA: {e_ia}")
 
             except Exception as e:
                 st.error(f"Erro ao processar as cobranças reais: {e}")
