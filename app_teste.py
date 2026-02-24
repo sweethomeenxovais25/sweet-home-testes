@@ -989,7 +989,6 @@ elif menu_selecionado == "💰 Financeiro":
                 st.info("🕒 O histórico aparecerá após o primeiro recebimento ser registrado.")
 
     st.divider()
-
     # ====================================================
     # ⚖️ PAINEL GERENCIAL DE INADIMPLÊNCIA E ACORDOS
     # ====================================================
