@@ -1003,167 +1003,207 @@ elif menu_selecionado == "💰 Financeiro":
             from datetime import datetime
             import pandas as pd
             
-            fuso_br = pytz.timezone('America/Sao_Paulo') 
-            hoje_pd = pd.to_datetime(datetime.now(fuso_br).strftime("%Y-%m-%d"))
-            
-            df_cobranca = df_vendas_hist.copy()
-            df_cobranca['SALDO_NUM'] = df_cobranca['SALDO DEVEDOR'].apply(limpar_v)
-            df_dev_real = df_cobranca[df_cobranca['SALDO_NUM'] > 0].copy()
-            
-            df_dev_real['CÓD. CLIENTE'] = df_dev_real['CÓD. CLIENTE'].astype(str).str.replace(".0", "", regex=False).str.strip()
-            df_dev_real['CLIENTE'] = df_dev_real['CLIENTE'].astype(str).str.strip()
-            df_dev_real['PRODUTO'] = df_dev_real['PRODUTO'].astype(str).str.strip()
-            df_dev_real['DATA DA VENDA'] = df_dev_real['DATA DA VENDA'].astype(str).str.strip()
-            
-            df_dev_real['VENCIMENTO'] = pd.to_datetime(df_dev_real['PRÓXIMA PARCELA'], format="%d/%m/%Y", errors='coerce')
-            df_dev_real = df_dev_real.dropna(subset=['VENCIMENTO'])
-            df_dev_real['DIAS_ATRASO'] = (hoje_pd - df_dev_real['VENCIMENTO']).dt.days
-            
-            df_agrupado = df_dev_real.groupby(['CÓD. CLIENTE', 'CLIENTE', 'VENCIMENTO', 'DATA DA VENDA', 'DIAS_ATRASO']).agg(
-                VALOR_ORIGINAL=pd.NamedAgg(column='SALDO_NUM', aggfunc='sum'),
-                PRODUTOS=pd.NamedAgg(column='PRODUTO', aggfunc=lambda x: ' | '.join(x))
-            ).reset_index()
-
-            def calc_compliance(row):
-                if row['DIAS_ATRASO'] > 0:
-                    multa = row['VALOR_ORIGINAL'] * 0.02
-                    juros = row['VALOR_ORIGINAL'] * (0.01 / 30) * row['DIAS_ATRASO']
-                    status = "🔴 Fase 3 (+30d)" if row['DIAS_ATRASO'] > 30 else ("🟡 Fase 2 (8-30d)" if row['DIAS_ATRASO'] > 7 else "🟠 Fase 1 (1-7d)")
-                elif row['DIAS_ATRASO'] == 0:
-                    multa, juros, status = 0, 0, "🟢 Vence Hoje"
-                else:
-                    multa, juros, status = 0, 0, f"📅 Vence em {abs(row['DIAS_ATRASO'])}d"
+            if not df_vendas_hist.empty:
+                fuso_br = pytz.timezone('America/Sao_Paulo') 
+                hoje_pd = pd.to_datetime(datetime.now(fuso_br).strftime("%Y-%m-%d"))
                 
-                valor_total = row['VALOR_ORIGINAL'] + multa + juros
-                return pd.Series([multa, juros, valor_total, status])
-
-            df_agrupado[['MULTA', 'JUROS', 'VALOR_ATUALIZADO', 'FASE']] = df_agrupado.apply(calc_compliance, axis=1)
-            
-            atrasados = df_agrupado[df_agrupado['DIAS_ATRASO'] > 0].sort_values('DIAS_ATRASO', ascending=False)
-            prevenção = df_agrupado[(df_agrupado['DIAS_ATRASO'] <= 0) & (df_agrupado['DIAS_ATRASO'] >= -5)].sort_values('DIAS_ATRASO', ascending=False)
-
-            t1, t2 = st.tabs(["🚨 Recuperação (Vencidos)", "📅 Prevenção (Próximos)"])
-            
-            with t1:
-                if not atrasados.empty:
-                    c_m1, c_m2, c_m3 = st.columns(3)
-                    c_m1.metric("💰 Principal Retido", f"R$ {atrasados['VALOR_ORIGINAL'].sum():,.2f}")
-                    c_m2.metric("📈 Valor Corrigido", f"R$ {atrasados['VALOR_ATUALIZADO'].sum():,.2f}")
-                    c_m3.metric("👥 Acordos Pendentes", f"{len(atrasados)}")
-                    
-                    df_ex_at = atrasados.copy()
-                    df_ex_at['VENCIMENTO'] = df_ex_at['VENCIMENTO'].dt.strftime("%d/%m/%Y")
-                    st.dataframe(df_ex_at[['CLIENTE', 'DATA DA VENDA', 'PRODUTOS', 'DIAS_ATRASO', 'VALOR_ATUALIZADO', 'FASE']], use_container_width=True, hide_index=True)
-                else:
-                    st.success("🎉 Excelência em recebimentos! Nenhum cliente em atraso.")
-
-            with t2:
-                if not prevenção.empty:
-                    st.info("💡 **Dica de Caixa:** Lembretes amigáveis reduzem a inadimplência em até 40%.")
-                    df_ex_prev = prevenção.copy()
-                    df_ex_prev['VENCIMENTO'] = df_ex_prev['VENCIMENTO'].dt.strftime("%d/%m/%Y")
-                    st.dataframe(df_ex_prev[['CLIENTE', 'PRODUTOS', 'VENCIMENTO', 'VALOR_ORIGINAL', 'FASE']], use_container_width=True, hide_index=True)
-                else:
-                    st.write("Nenhum vencimento para os próximos 5 dias.")
-
-            st.markdown("---")
-            st.markdown("#### 💬 Central de Acordos e Lembretes")
-            
-            todos_clientes = pd.concat([atrasados, prevenção])
-            
-            if not todos_clientes.empty:
-                todos_clientes['LABEL'] = todos_clientes['CLIENTE'] + " | Venc: " + todos_clientes['VENCIMENTO'].dt.strftime('%d/%m') + " | " + todos_clientes['FASE']
-                selecao = st.selectbox("Selecione a fatura para atuar:", ["---"] + list(todos_clientes['LABEL']))
+                # ====================================================
+                # 1. TRATAMENTO E HIGIENIZAÇÃO DE DADOS (A CESTA)
+                # ====================================================
+                df_cobranca = df_vendas_hist.copy()
+                df_cobranca['SALDO_NUM'] = df_cobranca['SALDO DEVEDOR'].apply(limpar_v)
+                df_dev_real = df_cobranca[df_cobranca['SALDO_NUM'] > 0.01].copy() # Ignora centavos perdidos
                 
-                if selecao != "---":
-                    dados = todos_clientes[todos_clientes['LABEL'] == selecao].iloc[0]
-                    
-                    cod_cliente_busca = str(dados['CÓD. CLIENTE'])
-                    dados_cadastrais = banco_de_clientes.get(cod_cliente_busca, {})
-                    telefone_cru = str(dados_cadastrais.get('fone', '')).strip()
-                    
-                    tel_limpo = "".join(filter(str.isdigit, telefone_cru))
-                    if tel_limpo and not tel_limpo.startswith("55"): tel_limpo = "55" + tel_limpo
+                # Limpeza extrema do CÓD. CLIENTE (Remove '.0' e espaços para não falhar a busca na carteira)
+                df_dev_real['CÓD. CLIENTE'] = df_dev_real['CÓD. CLIENTE'].astype(str).str.split('.').str[0].str.strip()
+                df_dev_real['CLIENTE'] = df_dev_real['CLIENTE'].astype(str).str.strip()
+                df_dev_real['DATA DA VENDA'] = df_dev_real['DATA DA VENDA'].astype(str).str.strip()
+                df_dev_real['VENCIMENTO'] = pd.to_datetime(df_dev_real['PRÓXIMA PARCELA'], format="%d/%m/%Y", errors='coerce')
+                df_dev_real = df_dev_real.dropna(subset=['VENCIMENTO'])
+                df_dev_real['DIAS_ATRASO'] = (hoje_pd - df_dev_real['VENCIMENTO']).dt.days
+                
+                # Agrupamento inteligente por Cliente, Data da Venda e Vencimento
+                df_agrupado = df_dev_real.groupby(['CÓD. CLIENTE', 'CLIENTE', 'VENCIMENTO', 'DATA DA VENDA', 'DIAS_ATRASO']).agg(
+                    VALOR_ORIGINAL=pd.NamedAgg(column='SALDO_NUM', aggfunc='sum'),
+                    PRODUTOS=pd.NamedAgg(column='PRODUTO', aggfunc=lambda x: ' | '.join(x))
+                ).reset_index()
 
-                    dias = dados['DIAS_ATRASO']
-                    cnpj_sweet = "62.862.825/0001-72" 
-                    lista_produtos = "\n".join([f"🔸 {p.strip()}" for p in dados['PRODUTOS'].split("|")])
-                    
-                    v_orig = f"R$ {dados['VALOR_ORIGINAL']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                    v_atu = f"R$ {dados['VALOR_ATUALIZADO']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                    v_enc = f"R$ {(dados['MULTA'] + dados['JUROS']):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                    d_venc_br = dados['VENCIMENTO'].strftime("%d/%m/%Y")
-                    
-                    if dias <= 0:
-                        assunto = "Lembrete Preventivo"
-                        msg_base = f"Olá, *{dados['CLIENTE']}*! Tudo bem? 🌸\n\nAqui é da Equipe Sweet Home Enxovais.\nPassando apenas para te enviar um lembrete amigável referente à sua última compra.\n\n🧾 *RESUMO DO PEDIDO*\n📅 Compra de Origem: {dados['DATA DA VENDA']}\n🛍️ *Itens Inclusos:*\n{lista_produtos}\n\n⚠️ O vencimento da sua parcela de *{v_orig}* está programado para o dia *{d_venc_br}*.\n\nCaso precise da nossa chave PIX para já deixar agendado, estamos à disposição! Tenha um ótimo dia. 😊"
-                    elif dias <= 7:
-                        assunto = "Atraso Recente (Conciliação)"
-                        msg_base = f"Olá, *{dados['CLIENTE']}*! Tudo bem? 🌸\n\nAqui é da Equipe Financeira Sweet Home.\nEstamos atualizando os nossos registros e identificamos que a sua parcela com vencimento em *{d_venc_br}* consta em aberto.\n\n🧾 *CUPOM DE CONFERÊNCIA*\n🛍️ *Itens:*\n{lista_produtos}\n\n💰 *Valor Original Pendente:* {v_orig}\n\nSabemos que na correria do dia a dia essas datas podem passar. Para evitar a geração de multas do sistema amanhã, você conseguiria regularizar esse valor hoje? Se precisar da chave PIX, só me avisar! 😊"
+                # ====================================================
+                # 2. MOTOR FINANCEIRO (JUROS E MULTAS LEGAIS)
+                # ====================================================
+                def calc_compliance(row):
+                    if row['DIAS_ATRASO'] > 0:
+                        multa = row['VALOR_ORIGINAL'] * 0.02
+                        juros = row['VALOR_ORIGINAL'] * (0.01 / 30) * row['DIAS_ATRASO']
+                        status = "🔴 Fase 3 (+30d)" if row['DIAS_ATRASO'] > 30 else ("🟡 Fase 2 (8-30d)" if row['DIAS_ATRASO'] > 7 else "🟠 Fase 1 (1-7d)")
+                    elif row['DIAS_ATRASO'] == 0:
+                        multa, juros, status = 0, 0, "🟢 Vence Hoje"
                     else:
-                        assunto = "Notificação Formal e Negociação"
-                        msg_base = f"Prezado(a) *{dados['CLIENTE']}*,\n\nEntramos em contato em nome do Departamento Financeiro da *Sweet Home Enxovais* (CNPJ: {cnpj_sweet}).\n\nConsta em nosso sistema a ausência de pagamento referente à sua compra realizada em {dados['DATA DA VENDA']}. Segue o extrato detalhado:\n\n🧾 *EXTRATO FINANCEIRO*\n🛍️ *Itens Relacionados:*\n{lista_produtos}\n\n💸 Valor Original: {v_orig}\n📈 Atualização Legal (Multa 2% + Juros): {v_enc}\n🔴 *VALOR TOTAL DEVIDO: {v_atu}*\n\nNós valorizamos muito você como cliente. Para evitarmos restrições sistêmicas, conseguimos gerar uma isenção dos encargos caso a regularização seja feita à vista até o fim do dia de hoje (o valor volta para {v_orig}).\n\nPor favor, retorne esta mensagem para alinharmos."
+                        multa, juros, status = 0, 0, f"📅 Vence em {abs(row['DIAS_ATRASO'])}d"
+                    
+                    valor_total = row['VALOR_ORIGINAL'] + multa + juros
+                    return pd.Series([multa, juros, valor_total, status])
 
-                    st.info(f"📍 **Diretriz de Comunicação:** {assunto}")
-                    texto_final = st.text_area("Revisão da Mensagem:", value=msg_base, height=250)
+                df_agrupado[['MULTA', 'JUROS', 'VALOR_ATUALIZADO', 'FASE']] = df_agrupado.apply(calc_compliance, axis=1)
+                
+                atrasados = df_agrupado[df_agrupado['DIAS_ATRASO'] > 0].sort_values('DIAS_ATRASO', ascending=False)
+                prevencao = df_agrupado[(df_agrupado['DIAS_ATRASO'] <= 0) & (df_agrupado['DIAS_ATRASO'] >= -5)].sort_values('DIAS_ATRASO', ascending=False)
+
+                # ====================================================
+                # 3. INTERFACE DE GESTÃO E EXIBIÇÃO
+                # ====================================================
+                t1, t2 = st.tabs(["🚨 Recuperação (Vencidos)", "📅 Prevenção (Próximos 5 dias)"])
+                
+                with t1:
+                    if not atrasados.empty:
+                        c_m1, c_m2, c_m3 = st.columns(3)
+                        c_m1.metric("💰 Principal Retido", f"R$ {atrasados['VALOR_ORIGINAL'].sum():,.2f}")
+                        c_m2.metric("📈 Atualizado (c/ Juros)", f"R$ {atrasados['VALOR_ATUALIZADO'].sum():,.2f}")
+                        c_m3.metric("👥 Faturas Pendentes", f"{len(atrasados)}")
+                        
+                        df_ex_at = atrasados.copy()
+                        df_ex_at['VENCIMENTO'] = df_ex_at['VENCIMENTO'].dt.strftime("%d/%m/%Y")
+                        # Formatação visual das colunas
+                        st.dataframe(
+                            df_ex_at[['CLIENTE', 'DATA DA VENDA', 'PRODUTOS', 'DIAS_ATRASO', 'VALOR_ATUALIZADO', 'FASE']], 
+                            column_config={"VALOR_ATUALIZADO": st.column_config.NumberColumn("TOTAL (R$)", format="R$ %.2f")},
+                            use_container_width=True, hide_index=True
+                        )
+                    else:
+                        st.success("🎉 Excelência! Nenhum cliente em atraso na base.")
+
+                with t2:
+                    if not prevencao.empty:
+                        st.info("💡 **Dica de Caixa:** Lembretes amigáveis preventivos reduzem a inadimplência em até 40%.")
+                        df_ex_prev = prevencao.copy()
+                        df_ex_prev['VENCIMENTO'] = df_ex_prev['VENCIMENTO'].dt.strftime("%d/%m/%Y")
+                        st.dataframe(
+                            df_ex_prev[['CLIENTE', 'PRODUTOS', 'VENCIMENTO', 'VALOR_ORIGINAL', 'FASE']], 
+                            column_config={"VALOR_ORIGINAL": st.column_config.NumberColumn("VALOR (R$)", format="R$ %.2f")},
+                            use_container_width=True, hide_index=True
+                        )
+                    else:
+                        st.write("Nenhum vencimento previsto para os próximos 5 dias.")
+
+                # ====================================================
+                # 4. CENTRAL DE COMUNICAÇÃO (INTEGRAÇÃO WPP + CARTEIRA)
+                # ====================================================
+                st.markdown("---")
+                st.markdown("#### 💬 Central de Acordos e Lembretes")
+                
+                todos_clientes = pd.concat([atrasados, prevencao])
+                
+                if not todos_clientes.empty:
+                    todos_clientes['LABEL'] = todos_clientes['CLIENTE'] + " | Venc: " + todos_clientes['VENCIMENTO'].dt.strftime('%d/%m') + " | " + todos_clientes['FASE']
+                    selecao = st.selectbox("Selecione a fatura para atuar:", ["---"] + list(todos_clientes['LABEL']))
                     
-                    c_b1, c_b2 = st.columns(2)
-                    
-                    with c_b1:
-                        if tel_limpo:
-                            st.link_button("📲 Enviar Mensagem Padrão", f"https://wa.me/{tel_limpo}?text={urllib.parse.quote(texto_final)}", type="primary", use_container_width=True)
+                    if selecao != "---":
+                        dados = todos_clientes[todos_clientes['LABEL'] == selecao].iloc[0]
+                        
+                        # 📞 BUSCA INTELIGENTE NA CARTEIRA DE CLIENTES
+                        cod_cliente_busca = str(dados['CÓD. CLIENTE']).strip()
+                        dados_cadastrais = banco_de_clientes.get(cod_cliente_busca, {})
+                        # Tenta pegar a coluna certa indepedente de como esteja nomeada no dicionário
+                        telefone_cru = str(dados_cadastrais.get('TELEFONE', dados_cadastrais.get('telefone', dados_cadastrais.get('fone', '')))).strip()
+                        
+                        tel_limpo = "".join(filter(str.isdigit, telefone_cru))
+                        if tel_limpo and not tel_limpo.startswith("55"): tel_limpo = "55" + tel_limpo
+
+                        # Variáveis para a Mensagem
+                        dias = dados['DIAS_ATRASO']
+                        cnpj_sweet = "62.862.825/0001-72" 
+                        lista_produtos = "\n".join([f"🔸 {p.strip()}" for p in dados['PRODUTOS'].split("|")])
+                        
+                        v_orig = f"R$ {dados['VALOR_ORIGINAL']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                        v_atu = f"R$ {dados['VALOR_ATUALIZADO']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                        v_enc = f"R$ {(dados['MULTA'] + dados['JUROS']):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                        d_venc_br = dados['VENCIMENTO'].strftime("%d/%m/%Y")
+                        
+                        # Réguas de Comunicação (Orientadas ao CDC)
+                        if dias <= 0:
+                            assunto = "Lembrete Preventivo"
+                            msg_base = f"Olá, *{dados['CLIENTE']}*! Tudo bem? 🌸\n\nAqui é da Equipe Sweet Home Enxovais.\nPassando apenas para te enviar um lembrete amigável referente à sua compra.\n\n🧾 *RESUMO DO PEDIDO*\n📅 Data da Compra: {dados['DATA DA VENDA']}\n🛍️ *Itens:*\n{lista_produtos}\n\n⚠️ O vencimento da sua parcela de *{v_orig}* está programado para o dia *{d_venc_br}*.\n\nCaso precise da nossa chave PIX para agendamento, estamos à disposição! Tenha um ótimo dia. 😊"
+                        elif dias <= 7:
+                            assunto = "Atraso Recente (Conciliação Leve)"
+                            msg_base = f"Olá, *{dados['CLIENTE']}*! Tudo bem? 🌸\n\nAqui é da Equipe Financeira Sweet Home.\nAtualizando nossos registros, identificamos que a sua parcela de vencimento em *{d_venc_br}* consta em aberto.\n\n🧾 *EXTRATO DE CONFERÊNCIA*\n📅 Data da Compra: {dados['DATA DA VENDA']}\n🛍️ *Itens:*\n{lista_produtos}\n\n💰 *Valor Pendente:* {v_orig}\n\nSabemos que essas datas podem passar batido. Para evitar a geração de encargos, você conseguiria regularizar esse valor hoje? Se precisar do PIX, só avisar! 😊"
                         else:
-                            st.error("⚠️ ERRO: Telefone não localizado na base de clientes.")
-                    
-                    with c_b2:
-                        if st.button("✨ Humanizar Acordo com IA", use_container_width=True):
-                            st.session_state['v2_ia_cob'] = True
+                            assunto = "Notificação Formal (Cobrança Ativa)"
+                            msg_base = f"Prezado(a) *{dados['CLIENTE']}*,\n\nEntramos em contato em nome do Departamento Financeiro da *Sweet Home Enxovais* (CNPJ: {cnpj_sweet}).\n\nConsta em nosso sistema a ausência de pagamento referente à sua compra. Segue o extrato detalhado:\n\n🧾 *EXTRATO FINANCEIRO*\n📅 Data da Compra: {dados['DATA DA VENDA']}\n🛍️ *Itens Relacionados:*\n{lista_produtos}\n\n💸 Valor Original: {v_orig}\n📈 Encargos Legais (Multa 2% + Juros 1% a.m): {v_enc}\n🔴 *VALOR TOTAL ATUALIZADO: {v_atu}*\n\nValorizamos você como cliente. Para evitarmos restrições financeiras, conseguimos uma isenção total dos encargos caso a regularização seja feita hoje (o valor retorna para {v_orig}).\n\nPor favor, retorne esta mensagem para alinharmos a quitação."
 
-                    if st.session_state.get('v2_ia_cob', False):
-                        st.markdown("---")
-                        with st.spinner("🤖 Consultando IA de Negociação (Cofre Seguro)..."):
-                            try:
-                                import google.generativeai as genai
-                                chave_segura = st.secrets["GOOGLE_API_KEY"]
-                                genai.configure(api_key=chave_segura)
-                                
-                                prompt_ia = f"""
-                                Você é o especialista de Recuperação de Crédito da 'Sweet Home Enxovais' (CNPJ: {cnpj_sweet}).
-                                O objetivo é reescrever a mensagem abaixo garantindo que ela seja mais persuasiva, educada e empática, aplicando técnicas de conciliação do varejo brasileiro.
-                                
-                                REGRAS ESTRITAS DE COMPLIANCE (CDC):
-                                1. Jamais altere valores, taxas ou a lista de produtos.
-                                2. Não faça ameaças ou use tom de constrangimento.
-                                3. Mantenha a estrutura visual de "Recibo" ou "Extrato" com bullet points/emojis.
-                                
-                                Mensagem Original:
-                                {texto_final}
-                                """
-                                
+                        st.info(f"📍 **Estratégia Atual:** {assunto}")
+                        texto_final = st.text_area("Edite a mensagem antes de enviar:", value=msg_base, height=250)
+                        
+                        c_b1, c_b2 = st.columns(2)
+                        
+                        with c_b1:
+                            if tel_limpo:
+                                st.link_button("📲 Enviar via WhatsApp (Padrão)", f"https://wa.me/{tel_limpo}?text={urllib.parse.quote(texto_final)}", type="primary", use_container_width=True)
+                            else:
+                                st.error("⚠️ Telefone ausente na Carteira de Clientes.")
+                        
+                        with c_b2:
+                            if st.button("✨ Otimizar Acordo com IA", use_container_width=True):
+                                st.session_state['v2_ia_cob'] = True
+
+                        # ====================================================
+                        # 5. MÓDULO IA BLINDADO (Evita o Erro 404)
+                        # ====================================================
+                        if st.session_state.get('v2_ia_cob', False):
+                            st.markdown("---")
+                            with st.spinner("🤖 Conectando ao motor de IA..."):
                                 try:
-                                    model = genai.GenerativeModel("gemini-2.0-flash")
-                                    res = model.generate_content(prompt_ia)
-                                    motor = "Gemini 2.0 Flash (Alta Performance)"
-                                except Exception:
-                                    model = genai.GenerativeModel("gemini-1.5-flash")
-                                    res = model.generate_content(prompt_ia)
-                                    motor = "Gemini 1.5 Flash (Modo Estável)"
+                                    import google.generativeai as genai
+                                    chave_segura = st.secrets["GOOGLE_API_KEY"]
+                                    genai.configure(api_key=chave_segura)
                                     
-                                st.success(f"✨ Texto Otimizado pela IA | Motor: `{motor}`")
-                                st.write(res.text)
-                                
-                                if tel_limpo:
-                                    st.link_button("📲 Enviar Proposta da IA", f"https://wa.me/{tel_limpo}?text={urllib.parse.quote(res.text)}", type="secondary", use_container_width=True)
-                                
-                                if st.button("❌ Dispensar Sugestão"):
-                                    st.session_state['v2_ia_cob'] = False
-                                    st.rerun()
+                                    prompt_ia = f"""
+                                    Você é o especialista de Recuperação de Crédito da 'Sweet Home Enxovais' (CNPJ: {cnpj_sweet}).
+                                    Reescreva a mensagem abaixo para ser mais persuasiva e empática, aplicando técnicas de conciliação comercial.
                                     
-                            except Exception as e_ia:
-                                st.error(f"Erro na comunicação com a IA. Verifique se 'GOOGLE_API_KEY' está correto no Secrets. Detalhe: {e_ia}")
+                                    REGRAS ESTRITAS (Código de Defesa do Consumidor):
+                                    1. Nunca altere os valores ou a lista de produtos.
+                                    2. Não use tom de ameaça.
+                                    3. Mantenha os emojis (🧾, 🛍️, 💰) e o formato de extrato escaneável.
+                                    
+                                    Mensagem Original:
+                                    {texto_final}
+                                    """
+                                    
+                                    # Lógica de "Cascata": Se o modelo mais novo der 404, ele tenta os anteriores automaticamente.
+                                    modelos_teste = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"]
+                                    res = None
+                                    motor = ""
+                                    
+                                    for nome_modelo in modelos_teste:
+                                        try:
+                                            model = genai.GenerativeModel(nome_modelo)
+                                            res = model.generate_content(prompt_ia)
+                                            motor = nome_modelo
+                                            break # Sucesso! Sai do loop de tentativas
+                                        except:
+                                            continue # Deu erro (ex: 404), tenta o próximo modelo
+                                    
+                                    if res:
+                                        st.success(f"✨ Texto Gerado com Sucesso | Motor utilizado: `{motor}`")
+                                        st.write(res.text)
+                                        
+                                        if tel_limpo:
+                                            st.link_button("📲 Enviar Texto da IA", f"https://wa.me/{tel_limpo}?text={urllib.parse.quote(res.text)}", type="secondary", use_container_width=True)
+                                        
+                                        if st.button("❌ Dispensar"):
+                                            st.session_state['v2_ia_cob'] = False
+                                            st.rerun()
+                                    else:
+                                        st.error("⚠️ Nenhum modelo de IA suportado foi encontrado na sua chave de API (Erro de Região ou Permissão).")
+                                        
+                                except Exception as e_ia:
+                                    st.error(f"⚠️ Falha geral de comunicação com a IA: {e_ia}")
 
+            else:
+                st.info("Aguardando dados de vendas na planilha para iniciar as análises de cobrança.")
+                
         except Exception as e:
-            st.error(f"⚠️ Erro crítico no processamento de inadimplência: {e}")
+            st.error(f"⚠️ Erro no núcleo de processamento financeiro: {e}")
 
     st.markdown("### 🔍 Ficha de Cliente (Extrato Dinâmico)")
     opcoes_ficha = sorted([f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
