@@ -1102,6 +1102,10 @@ elif menu_selecionado == "💰 Financeiro":
                             Reescreva a mensagem abaixo para deixá-la incrivelmente empática e persuasiva, mas sem perder a educação. 
                             MANTENHA INTACTA a lista de produtos (o histórico com as datas e emojis) e o valor final.
                             
+                            ⚠️ REGRA CRÍTICA: Retorne EXATAMENTE APENAS o texto da mensagem final. 
+                            NÃO inclua introduções como "Com certeza!", "Aqui está..." ou tracejados iniciais. 
+                            NÃO explique o que você fez. O texto deve estar pronto para eu copiar e colar diretamente no WhatsApp.
+                            
                             Mensagem:
                             {msg_base_ia}
                             """
@@ -1118,7 +1122,8 @@ elif menu_selecionado == "💰 Financeiro":
                                 
                             if resultado_ia:
                                 st.success("✨ Mensagem Otimizada com Sucesso!")
-                                texto_final_ia = st.text_area("Revise a mensagem da IA:", value=resultado_ia.text, height=250)
+                                # .strip() remove espaços vazios ou quebras de linha que a IA possa colocar no começo/fim
+                                texto_final_ia = st.text_area("Revise a mensagem da IA:", value=resultado_ia.text.strip(), height=250)
                                 st.link_button("📲 Enviar Mensagem da IA", f"https://wa.me/{tel_c}?text={urllib.parse.quote(texto_final_ia, safe='')}", type="primary", use_container_width=True)
                                 
                                 if st.button("❌ Dispensar IA"):
