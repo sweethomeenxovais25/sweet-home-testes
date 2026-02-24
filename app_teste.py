@@ -996,7 +996,13 @@ elif menu_selecionado == "💰 Financeiro":
     st.markdown("---")
             
     with st.expander("⚖️ Painel Estratégico de Inadimplência (Visão Gerencial)", expanded=False):
-        st.write("Análise de carteira, cálculo de juros (CDC) e simulador de acordos com IA.")
+        
+        # 💡 NOVA INJEÇÃO: Botão para forçar a atualização da planilha em tempo real
+        col_tit, col_ref = st.columns([3, 1])
+        col_tit.write("Análise de carteira, cálculo de juros (CDC) e simulador de acordos com IA.")
+        if col_ref.button("🔄 Recarregar Dados", use_container_width=True):
+            st.cache_data.clear() # Limpa a memória do Streamlit
+            st.rerun() # Força a tela a piscar e buscar os dados novos do Google Sheets
         
         try:
             import pytz
@@ -1161,9 +1167,9 @@ elif menu_selecionado == "💰 Financeiro":
                                     # Lógica Dinâmica do Vale
                                     if usar_rewards:
                                         if tem_vale_valido:
-                                            instrucao_rewards = f"ESTRATÉGIA SWEET REWARDS: A cliente JÁ POSSUI um saldo de 'Vale-Desconto' de {vale_atual} no nosso sistema. Use esse argumento OBRIGATORIAMENTE na proposta: proponha que ela use esse saldo acumulado agora mesmo para abater a dívida/encargos, desde que faça o pagamento à vista hoje."
+                                            instrucao_rewards = f"ESTRATÉGIA SWEET REWARDS ATIVADA: A cliente JÁ POSSUI um saldo de 'Vale-Desconto' de {vale_atual} cadastrado no nosso sistema. Use esse argumento OBRIGATORIAMENTE na proposta: proponha que ela use esse saldo acumulado agora mesmo para abater a dívida/encargos, desde que faça o pagamento à vista hoje."
                                         else:
-                                            instrucao_rewards = "ESTRATÉGIA SWEET REWARDS: Oriente a vendedora a gerar um NOVO 'Vale-Fidelidade' (entre R$ 20 e R$ 50) ou um 'Cupom de 10%' para a PRÓXIMA compra, condicionando isso à quitação da dívida hoje."
+                                            instrucao_rewards = "ESTRATÉGIA SWEET REWARDS ATIVADA: Oriente a vendedora a gerar um NOVO 'Vale-Fidelidade' (entre R$ 20 e R$ 50) ou um 'Cupom de 10%' para a PRÓXIMA compra, condicionando isso à quitação da dívida hoje."
                                     else:
                                         instrucao_rewards = ""
                                         
@@ -1187,7 +1193,7 @@ elif menu_selecionado == "💰 Financeiro":
                                     ⚠️ REGRAS CRÍTICAS DE FORMATAÇÃO E ANÁLISE:
                                     1. NÃO use Markdown de cabeçalhos (como #, ## ou ###). Use apenas texto normal e negrito.
                                     2. Seja extremamente organizado, use emojis para listar os tópicos.
-                                    3. Analise o "Saldo de Vale-Desconto Disponível". Se for maior que zero, faça a conta abatendo esse valor da dívida atualizada na opção à vista.
+                                    3. Analise o "Saldo de Vale-Desconto Disponível". Se for maior que zero e a estratégia Sweet Rewards estiver ativada, faça a conta abatendo esse valor da dívida atualizada na opção à vista.
                                     4. Entregue a resposta EXATAMENTE nesta estrutura:
                                     
                                     🎯 **CENÁRIOS DE ACORDO (Para a Loja)**
