@@ -993,7 +993,7 @@ elif menu_selecionado == "💰 Financeiro":
         st.divider()
 
         # ====================================================
-        # ⚖️ GESTÃO DE INADIMPLÊNCIA
+        # ⚖️ GESTÃO DE INADIMPLÊNCIA E RECUPERAÇÃO DE CRÉDITO
         # ====================================================
         st.markdown("---")
         
@@ -1048,7 +1048,7 @@ elif menu_selecionado == "💰 Financeiro":
                 df_agrupado[['MULTA', 'JUROS', 'VALOR_ATUALIZADO', 'FASE']] = df_agrupado.apply(calc_compliance, axis=1)
                 
                 atrasados = df_agrupado[df_agrupado['DIAS_ATRASO'] > 0].sort_values('DIAS_ATRASO', ascending=False)
-                prevenção = df_agrupado[(df_agrupado['DIAS_ATRASO'] <= 0) & (df_agrupado['DIAS_ATRASO'] >= -5)].sort_values('DIAS_ATRASO', ascending=False)
+                prevencao = df_agrupado[(df_agrupado['DIAS_ATRASO'] <= 0) & (df_agrupado['DIAS_ATRASO'] >= -5)].sort_values('DIAS_ATRASO', ascending=False)
 
                 # ====================================================
                 # 3. INTERFACE DE GESTÃO
@@ -1069,9 +1069,9 @@ elif menu_selecionado == "💰 Financeiro":
                         st.success("🎉 Excelência em recebimentos! Nenhum cliente em atraso.")
 
                 with t2:
-                    if not prevenção.empty:
+                    if not prevencao.empty:
                         st.info("💡 **Dica de Caixa:** Lembretes amigáveis reduzem a inadimplência em até 40%.")
-                        df_ex_prev = prevenção.copy()
+                        df_ex_prev = prevencao.copy()
                         df_ex_prev['VENCIMENTO'] = df_ex_prev['VENCIMENTO'].dt.strftime("%d/%m/%Y")
                         st.dataframe(df_ex_prev[['CLIENTE', 'PRODUTOS', 'VENCIMENTO', 'VALOR_ORIGINAL', 'FASE']], use_container_width=True, hide_index=True)
                     else:
@@ -1083,7 +1083,7 @@ elif menu_selecionado == "💰 Financeiro":
                 st.markdown("---")
                 st.markdown("#### 💬 Central de Acordos e Lembretes")
                 
-                todos_clientes = pd.concat([atrasados, prevenção])
+                todos_clientes = pd.concat([atrasados, prevencao])
                 
                 if not todos_clientes.empty:
                     todos_clientes['LABEL'] = todos_clientes['CLIENTE'] + " | Venc: " + todos_clientes['VENCIMENTO'].dt.strftime('%d/%m') + " | " + todos_clientes['FASE']
@@ -1184,27 +1184,34 @@ elif menu_selecionado == "💰 Financeiro":
             except Exception as e:
                 st.error(f"⚠️ Erro crítico no processamento financeiro: {e}")
 
-    st.markdown("### 🔍 Ficha de Cliente (Extrato Dinâmico)")
-    opcoes_ficha = sorted([f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
-    sel_ficha = st.selectbox("Selecione para ver o que ela deve:", ["---"] + opcoes_ficha, key="ficha_sel_cliente")
-    
-    if sel_ficha != "---":
-        id_c = sel_ficha.split(" - ")[0]
-        nome_c_ficha = " - ".join(sel_ficha.split(" - ")[1:])
-        v_hist = df_vendas_hist[df_vendas_hist['CÓD. CLIENTE'].astype(str) == id_c]
-        saldo_devedor_real = v_hist['SALDO DEVEDOR'].apply(limpar_v).sum()
-        c_f1, c_f2 = st.columns(2)
-        c_f1.metric("Saldo Devedor Atual", f"R$ {saldo_devedor_real:,.2f}")
-        if saldo_devedor_real > 0.01:
-            tel_c = banco_de_clientes.get(id_c, {}).get('fone', "")
-            msg_zap = f"Olá {nome_c_ficha}! 🏠 Segue seu extrato na *Sweet Home Enxovais*. Atualmente consta um saldo pendente de *R$ {saldo_devedor_real:.2f}*. Qualquer dúvida estou à disposição! 😊"
-            st.link_button("📲 Cobrar no WhatsApp", f"https://wa.me/55{tel_c}?text={urllib.parse.quote(msg_zap)}", use_container_width=True)
-        else: st.success("✅ Esta cliente não possui débitos pendentes.")
+        # ====================================================
+        # 🔍 FICHA DE CLIENTE (EXTRATO DINÂMICO)
+        # ====================================================
+        st.markdown("### 🔍 Ficha de Cliente (Extrato Dinâmico)")
+        opcoes_ficha = sorted([f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
+        sel_ficha = st.selectbox("Selecione para ver o que ela deve:", ["---"] + opcoes_ficha, key="ficha_sel_cliente")
+        
+        if sel_ficha != "---":
+            id_c = sel_ficha.split(" - ")[0]
+            nome_c_ficha = " - ".join(sel_ficha.split(" - ")[1:])
+            v_hist = df_vendas_hist[df_vendas_hist['CÓD. CLIENTE'].astype(str) == id_c]
+            saldo_devedor_real = v_hist['SALDO DEVEDOR'].apply(limpar_v).sum()
+            
+            c_f1, c_f2 = st.columns(2)
+            c_f1.metric("Saldo Devedor Atual", f"R$ {saldo_devedor_real:,.2f}")
+            
+            if saldo_devedor_real > 0.01:
+                tel_c = banco_de_clientes.get(id_c, {}).get('fone', "")
+                msg_zap = f"Olá {nome_c_ficha}! 🏠 Segue seu extrato na *Sweet Home Enxovais*. Atualmente consta um saldo pendente de *R$ {saldo_devedor_real:.2f}*. Qualquer dúvida estou à disposição! 😊"
+                st.link_button("📲 Cobrar no WhatsApp", f"https://wa.me/55{tel_c}?text={urllib.parse.quote(msg_zap)}", use_container_width=True)
+            else: 
+                st.success("✅ Esta cliente não possui débitos pendentes.")
 
-        st.write("#### ⏳ Histórico de Vendas Localizado")
-        if not v_hist.empty:
-            st.dataframe(v_hist[['DATA DA VENDA', 'PRODUTO', 'TOTAL R$', 'SALDO DEVEDOR', 'STATUS']], use_container_width=True, hide_index=True)
-        else: st.info("Nenhuma compra registrada para esta cliente ainda.")
+            st.write("#### ⏳ Histórico de Vendas Localizado")
+            if not v_hist.empty:
+                st.dataframe(v_hist[['DATA DA VENDA', 'PRODUTO', 'TOTAL R$', 'SALDO DEVEDOR', 'STATUS']], use_container_width=True, hide_index=True)
+            else: 
+                st.info("Nenhuma compra registrada para esta cliente ainda.")
 
 # ==========================================
 # --- SEÇÃO 3: ESTOQUE (MEMÓRIA ETERNA + IA) ---
