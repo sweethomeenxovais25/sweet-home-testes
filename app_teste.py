@@ -1078,27 +1078,41 @@ elif menu_selecionado == "💰 Financeiro":
                     else: return "🔴 3/10 (Risco)"
                 df_agrupado['SWEET_SCORE'] = df_agrupado['MAIOR_ATRASO'].apply(calcular_score)
 
-                # 💡 INJEÇÃO BLINDADA: Busca nativa da Coluna F (Vale Desconto) na Carteira de Clientes
+                # 💡 LEITOR "TANQUE DE GUERRA": Extrator Impecável de Vale Desconto
                 def resgatar_vale(cod_cliente):
                     cod_str = str(cod_cliente).strip()
                     carteira = banco_de_clientes.get(cod_str, {})
                     
-                    vale = ""
-                    # Radar de palavras: procura qualquer coluna que tenha 'vale' ou 'desconto' no nome
-                    for chave, valor in carteira.items():
-                        chave_limpa = str(chave).lower().strip()
-                        if 'vale' in chave_limpa or 'desconto' in chave_limpa:
-                            vale = str(valor).strip()
-                            break
+                    # Tentativa 1: Busca os nomes exatos possíveis
+                    vale = carteira.get('VALE DESCONTO', carteira.get('vale desconto', carteira.get('VALE', '')))
                     
-                    # Se vier vazio ou zerado, formata para 0
-                    if not vale or vale.lower() in ['nan', 'none', '0', '0.0', '0,00', 'r$ 0,00', 'r$ 0']:
+                    # Tentativa 2: Radar que ignora espaços extras na planilha
+                    if not vale or str(vale).lower() == 'nan':
+                        for chave, valor in carteira.items():
+                            chave_limpa = str(chave).lower().strip()
+                            if 'vale' in chave_limpa or 'desconto' in chave_limpa:
+                                vale = valor
+                                break
+                    
+                    vale_str = str(vale).strip()
+                    
+                    # Filtra tudo que for considerado nulo ou zero
+                    if not vale_str or vale_str.lower() in ['nan', 'none', '0', '0.0', '0,00', 'r$ 0,00', 'r$ 0', 'null']:
                         return "R$ 0,00"
                     
-                    # Garante que tenha R$ na frente para ficar bonito na tabela
-                    if vale.replace(',','').replace('.','').replace('-','').isdigit() and not vale.upper().startswith('R$'):
-                        return f"R$ {vale}"
-                    return vale
+                    # Se o valor já tiver "R$", retorna limpo
+                    if vale_str.upper().startswith('R$'):
+                        return vale_str
+                    
+                    # Se a vendedora digitou "35" ou "35,50", transforma em dinheiro bonito
+                    try:
+                        v_float = float(vale_str.replace('.', '').replace(',', '.'))
+                        if v_float > 0.01:
+                            return f"R$ {v_float:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                    except:
+                        pass # Se falhar, segue para retornar só o texto
+                        
+                    return f"R$ {vale_str}"
                 
                 df_agrupado['VALE_DESCONTO'] = df_agrupado['CÓD. CLIENTE'].apply(resgatar_vale)
 
