@@ -1482,6 +1482,7 @@ def render_painel_inadimplencia(df_fin, df_carteira):
                 st.dataframe(v_hist[['DATA DA VENDA', 'PRODUTO', 'TOTAL R$', 'SALDO DEVEDOR', 'STATUS']], use_container_width=True, hide_index=True)
             else: 
                 st.info("Nenhuma compra registrada para esta cliente ainda.")
+                
 
 # ==========================================
 # --- SEÇÃO 3: ESTOQUE (MEMÓRIA ETERNA + IA) ---
