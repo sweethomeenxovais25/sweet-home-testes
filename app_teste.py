@@ -997,7 +997,7 @@ elif menu_selecionado == "💰 Financeiro":
             
     with st.expander("⚖️ Painel Estratégico de Inadimplência (Visão Gerencial)", expanded=False):
         
-        # 💡 NOVA INJEÇÃO: Botão para forçar a atualização da planilha em tempo real
+        # 💡 Botão para forçar a atualização da planilha em tempo real
         col_tit, col_ref = st.columns([3, 1])
         col_tit.write("Análise de carteira, cálculo de juros (CDC) e simulador de acordos com IA.")
         if col_ref.button("🔄 Recarregar Dados", use_container_width=True):
@@ -1078,43 +1078,51 @@ elif menu_selecionado == "💰 Financeiro":
                     else: return "🔴 3/10 (Risco)"
                 df_agrupado['SWEET_SCORE'] = df_agrupado['MAIOR_ATRASO'].apply(calcular_score)
 
-                # 💡 LEITOR "TANQUE DE GUERRA": Extrator Impecável de Vale Desconto
-                def resgatar_vale(cod_cliente):
-                    cod_str = str(cod_cliente).strip()
-                    carteira = banco_de_clientes.get(cod_str, {})
+                # 💡 NOVA INJEÇÃO: Leitor Raiz baseado na lógica do seu CRM (Puxa do df_clientes_full)
+                try:
+                    # Mapeia a Tabela Mãe na hora
+                    df_carteira_temp = df_clientes_full.copy()
                     
-                    # Tentativa 1: Busca os nomes exatos possíveis
-                    vale = carteira.get('VALE DESCONTO', carteira.get('vale desconto', carteira.get('VALE', '')))
+                    # Coluna 0 é o COD. CLIENTE
+                    df_carteira_temp['COD_LIMPO'] = df_carteira_temp[df_carteira_temp.columns[0]].astype(str).str.split('.').str[0].str.strip()
                     
-                    # Tentativa 2: Radar que ignora espaços extras na planilha
-                    if not vale or str(vale).lower() == 'nan':
-                        for chave, valor in carteira.items():
-                            chave_limpa = str(chave).lower().strip()
-                            if 'vale' in chave_limpa or 'desconto' in chave_limpa:
-                                vale = valor
+                    # Coluna 5 é a F (VALE DESCONTO). Se a planilha tiver a Coluna F, ele puxa ela.
+                    if len(df_carteira_temp.columns) > 5:
+                        coluna_vale_real = df_carteira_temp.columns[5] 
+                    else:
+                        # Fallback: Se por acaso a ordem mudar, procura a palavra "vale"
+                        coluna_vale_real = None
+                        for c in df_carteira_temp.columns:
+                            if 'vale' in str(c).lower() or 'desconto' in str(c).lower():
+                                coluna_vale_real = c
                                 break
                     
-                    vale_str = str(vale).strip()
+                    if coluna_vale_real:
+                        dicionario_vales_vivos = dict(zip(df_carteira_temp['COD_LIMPO'], df_carteira_temp[coluna_vale_real]))
+                    else:
+                        dicionario_vales_vivos = {}
+                except:
+                    dicionario_vales_vivos = {}
+
+                def resgatar_vale_vivo(cod_cliente):
+                    cod_str = str(cod_cliente).strip()
+                    vale = str(dicionario_vales_vivos.get(cod_str, '')).strip()
                     
-                    # Filtra tudo que for considerado nulo ou zero
-                    if not vale_str or vale_str.lower() in ['nan', 'none', '0', '0.0', '0,00', 'r$ 0,00', 'r$ 0', 'null']:
+                    if not vale or vale.lower() in ['nan', 'none', '0', '0.0', '0,00', 'r$ 0,00', 'r$ 0', 'null']:
                         return "R$ 0,00"
                     
-                    # Se o valor já tiver "R$", retorna limpo
-                    if vale_str.upper().startswith('R$'):
-                        return vale_str
-                    
-                    # Se a vendedora digitou "35" ou "35,50", transforma em dinheiro bonito
+                    if vale.upper().startswith('R$'):
+                        return vale
+                        
                     try:
-                        v_float = float(vale_str.replace('.', '').replace(',', '.'))
+                        v_float = float(vale.replace('.', '').replace(',', '.'))
                         if v_float > 0.01:
                             return f"R$ {v_float:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                     except:
-                        pass # Se falhar, segue para retornar só o texto
-                        
-                    return f"R$ {vale_str}"
+                        pass
+                    return f"R$ {vale}"
                 
-                df_agrupado['VALE_DESCONTO'] = df_agrupado['CÓD. CLIENTE'].apply(resgatar_vale)
+                df_agrupado['VALE_DESCONTO'] = df_agrupado['CÓD. CLIENTE'].apply(resgatar_vale_vivo)
 
                 atrasados = df_agrupado[df_agrupado['MAIOR_ATRASO'] > 0].sort_values('MAIOR_ATRASO', ascending=False)
                 prevencao = df_agrupado[(df_agrupado['MAIOR_ATRASO'] <= 0) & (df_agrupado['MAIOR_ATRASO'] >= -5)].sort_values('MAIOR_ATRASO', ascending=False)
