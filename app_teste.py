@@ -1072,6 +1072,22 @@ elif menu_selecionado == "💰 Financeiro":
                     else: return "🔴 3/10 (Risco)"
                 df_agrupado['SWEET_SCORE'] = df_agrupado['MAIOR_ATRASO'].apply(calcular_score)
 
+                # 💡 NOVA INJEÇÃO: Busca nativa da Coluna F (Vale Desconto) na Carteira de Clientes
+                def resgatar_vale(cod_cliente):
+                    cod_str = str(cod_cliente).strip()
+                    carteira = banco_de_clientes.get(cod_str, {})
+                    vale = str(carteira.get('VALE DESCONTO', carteira.get('vale desconto', ''))).strip()
+                    
+                    if not vale or vale.lower() in ['nan', 'none', '0', '0,00', 'r$ 0,00']:
+                        return "R$ 0,00"
+                    
+                    # Garante que tenha R$ na frente para ficar bonito na tabela
+                    if vale.replace(',','').replace('.','').isdigit() and not vale.upper().startswith('R$'):
+                        return f"R$ {vale}"
+                    return vale
+                
+                df_agrupado['VALE_DESCONTO'] = df_agrupado['CÓD. CLIENTE'].apply(resgatar_vale)
+
                 atrasados = df_agrupado[df_agrupado['MAIOR_ATRASO'] > 0].sort_values('MAIOR_ATRASO', ascending=False)
                 prevencao = df_agrupado[(df_agrupado['MAIOR_ATRASO'] <= 0) & (df_agrupado['MAIOR_ATRASO'] >= -5)].sort_values('MAIOR_ATRASO', ascending=False)
 
@@ -1085,13 +1101,15 @@ elif menu_selecionado == "💰 Financeiro":
                         c_m2.metric("📈 Expectativa c/ Encargos", f"R$ {atrasados['TOTAL_ATUALIZADO'].sum():,.2f}")
                         c_m3.metric("👥 Clientes Inadimplentes", f"{len(atrasados)}")
                         
+                        # A Coluna VALE_DESCONTO agora aparece aqui!
                         st.dataframe(
-                            atrasados[['CLIENTE', 'SWEET_SCORE', 'SWEET_FLEX', 'MAIOR_ATRASO', 'TOTAL_ORIGINAL', 'TOTAL_ENCARGOS', 'TOTAL_ATUALIZADO', 'STATUS_PREDOMINANTE']], 
+                            atrasados[['CLIENTE', 'SWEET_SCORE', 'SWEET_FLEX', 'VALE_DESCONTO', 'MAIOR_ATRASO', 'TOTAL_ORIGINAL', 'TOTAL_ENCARGOS', 'TOTAL_ATUALIZADO', 'STATUS_PREDOMINANTE']], 
                             column_config={
                                 "TOTAL_ORIGINAL": st.column_config.NumberColumn("Original (R$)", format="R$ %.2f"),
                                 "TOTAL_ENCARGOS": st.column_config.NumberColumn("Juros/Multa (R$)", format="R$ %.2f"),
                                 "TOTAL_ATUALIZADO": st.column_config.NumberColumn("Atualizado (R$)", format="R$ %.2f"),
-                                "MAIOR_ATRASO": "Dias Atraso"
+                                "MAIOR_ATRASO": "Dias Atraso",
+                                "VALE_DESCONTO": "Vale (R$)"
                             },
                             use_container_width=True, hide_index=True
                         )
@@ -1120,20 +1138,15 @@ elif menu_selecionado == "💰 Financeiro":
                     if cliente_alvo != "---":
                         dados_cli = atrasados[atrasados['CLIENTE'] == cliente_alvo].iloc[0]
                         
-                        # 💡 NOVA INJEÇÃO: Busca o Vale Desconto na Carteira de Clientes
-                        cod_cli_busca = str(dados_cli['CÓD. CLIENTE']).strip()
-                        carteira_cliente = banco_de_clientes.get(cod_cli_busca, {})
+                        # Puxando o Vale diretamente da tabela nova
+                        vale_atual = dados_cli['VALE_DESCONTO']
+                        tem_vale_valido = vale_atual != "R$ 0,00"
                         
-                        # Tenta puxar a coluna (cobre variações de nome na planilha)
-                        vale_atual = str(carteira_cliente.get('VALE DESCONTO', carteira_cliente.get('vale desconto', ''))).strip()
-                        tem_vale_valido = vale_atual and vale_atual.lower() not in ['nan', 'none', '', '0', '0,00', 'r$ 0,00']
-                        
-                        # 💡 Preparação para a Negociação (Objeções e SWEET REWARDS)
+                        # 💡 Preparação para a Negociação
                         st.write("##### 🛡️ Preparação Adicional (Opcional)")
                         desculpa_cliente = st.text_input("A cliente deu alguma desculpa para o atraso?", placeholder="Ex: Fiquei doente, achei o juros alto...")
                         
-                        # Checkbox inteligente (Muda de texto se já tiver vale)
-                        texto_check = f"🎁 Usar Saldo de {vale_atual} (Carteira) na negociação" if tem_vale_valido else "🎁 Ativar 'Sweet Rewards' (Oferecer NOVO Vale-Desconto como negociação)"
+                        texto_check = f"🎁 Usar Saldo de {vale_atual} (da Carteira) na negociação" if tem_vale_valido else "🎁 Ativar 'Sweet Rewards' (Oferecer NOVO Vale-Desconto como negociação)"
                         usar_rewards = st.checkbox(texto_check)
                         
                         if st.button("✨ Gerar Propostas de Acordo", type="primary"):
@@ -1142,33 +1155,31 @@ elif menu_selecionado == "💰 Financeiro":
                                     import google.generativeai as genai
                                     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
                                     
-                                    # Montando a lógica do Vale Dinâmico
                                     if usar_rewards:
                                         if tem_vale_valido:
-                                            instrucao_rewards = f"ESTRATÉGIA SWEET REWARDS ATIVADA: A cliente JÁ POSSUI um saldo de 'Vale-Desconto' de {vale_atual} cadastrado no nosso sistema. Use esse argumento como moeda de troca: proponha que ela use esse saldo acumulado agora mesmo para abater a multa/juros, desde que faça o pagamento à vista hoje."
+                                            instrucao_rewards = f"ESTRATÉGIA SWEET REWARDS ATIVADA: A cliente JÁ POSSUI um saldo de 'Vale-Desconto' de {vale_atual} cadastrado no nosso sistema. Use esse argumento OBRIGATORIAMENTE na proposta: proponha que ela use esse saldo acumulado agora mesmo para abater a dívida/encargos, desde que faça o pagamento à vista hoje."
                                         else:
-                                            instrucao_rewards = "ESTRATÉGIA SWEET REWARDS ATIVADA: Oriente a vendedora a gerar um NOVO 'Vale-Fidelidade' (entre R$ 20 e R$ 50) ou um 'Cupom de 10%' para a PRÓXIMA compra, condicionando isso à quitação da dívida hoje. Use isso para quebrar resistências."
+                                            instrucao_rewards = "ESTRATÉGIA SWEET REWARDS ATIVADA: Oriente a vendedora a gerar um NOVO 'Vale-Fidelidade' (entre R$ 20 e R$ 50) ou um 'Cupom de 10%' para a PRÓXIMA compra, condicionando isso à quitação da dívida hoje."
                                     else:
                                         instrucao_rewards = ""
                                         
                                     instrucao_objecao = f"A cliente deu esta desculpa: '{desculpa_cliente}'. Escreva um parágrafo amigável (pronto para copiar e colar no WhatsApp) desarmando essa desculpa com empatia e focando na solução." if desculpa_cliente else ""
                                     
-                                    # ⚠️ MUDANÇA AQUI: Injeção do Saldo de Vale-Desconto nos Dados da IA
                                     prompt_estrategia = f"""
                                     Você é o Diretor Financeiro da 'Sweet Home Enxovais'. Analise a dívida abaixo e crie opções de negociação.
                                     
-                                    Dados do Débito:
+                                    DADOS DO DÉBITO (BASE PARA ANÁLISE):
                                     - Cliente: {dados_cli['CLIENTE']}
                                     - Score Interno: {dados_cli['SWEET_SCORE']}
                                     - Status do Crédito: {dados_cli['SWEET_FLEX']}
-                                    - Saldo de Vale-Desconto Disponível: {vale_atual if tem_vale_valido else 'Nenhum (R$ 0,00)'}
+                                    - Saldo de Vale-Desconto Disponível na Ficha: {vale_atual}
                                     - Dias de Atraso: {dados_cli['MAIOR_ATRASO']}
                                     - Valor Original (Sem Juros): R$ {dados_cli['TOTAL_ORIGINAL']:.2f}
                                     - Juros/Multas Legais: R$ {dados_cli['TOTAL_ENCARGOS']:.2f}
                                     - Valor Total Atualizado: R$ {dados_cli['TOTAL_ATUALIZADO']:.2f}
                                     - Possui dívida antiga (Legado)? {'Sim' if 'Legado' in dados_cli['STATUS_PREDOMINANTE'] else 'Não'}
                                     
-                                    ⚠️ REGRAS CRÍTICAS DE FORMATAÇÃO (LEIA COM ATENÇÃO):
+                                    ⚠️ REGRAS CRÍTICAS DE FORMATAÇÃO:
                                     1. NÃO use Markdown de cabeçalhos (como #, ## ou ###). Use apenas texto normal e negrito.
                                     2. Seja extremamente organizado, use emojis para listar os tópicos.
                                     3. Entregue a resposta EXATAMENTE nesta estrutura:
