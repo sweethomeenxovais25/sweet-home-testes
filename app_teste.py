@@ -997,11 +997,11 @@ elif menu_selecionado == "💰 Financeiro":
     with st.expander("⚖️ Painel de Inadimplência e Cobranças (Smart Recovery)", expanded=False):
         st.write("Recuperação de crédito humanizada, em conformidade com o CDC e LGPD.")
 
-            try:
-                import pytz
-                import urllib.parse
-                from datetime import datetime
-                import pandas as pd
+        try:
+            import pytz
+            import urllib.parse
+            from datetime import datetime
+            import pandas as pd
                 
                 fuso_br = pytz.timezone('America/Sao_Paulo') 
                 hoje_pd = pd.to_datetime(datetime.now(fuso_br).strftime("%Y-%m-%d"))
