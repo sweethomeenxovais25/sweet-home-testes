@@ -1214,19 +1214,62 @@ elif menu_selecionado == "💰 Financeiro":
         id_c = sel_ficha.split(" - ")[0]
         nome_c_ficha = " - ".join(sel_ficha.split(" - ")[1:])
         v_hist = df_vendas_hist[df_vendas_hist['CÓD. CLIENTE'].astype(str) == id_c]
-        saldo_devedor_real = v_hist['SALDO DEVEDOR'].apply(limpar_v).sum()
+        
+        # Cria uma coluna numérica temporária para facilitar a soma e o filtro
+        v_hist['SALDO_NUM'] = v_hist['SALDO DEVEDOR'].apply(limpar_v)
+        saldo_devedor_real = v_hist['SALDO_NUM'].sum()
+        
         c_f1, c_f2 = st.columns(2)
         c_f1.metric("Saldo Devedor Atual", f"R$ {saldo_devedor_real:,.2f}")
+        
         if saldo_devedor_real > 0.01:
-            tel_c = banco_de_clientes.get(id_c, {}).get('fone', "")
-            msg_zap = f"Olá {nome_c_ficha}! 🏠 Segue seu extrato na *Sweet Home Enxovais*. Atualmente consta um saldo pendente de *R$ {saldo_devedor_real:.2f}*. Qualquer dúvida estou à disposição! 😊"
-            st.link_button("📲 Cobrar no WhatsApp", f"https://wa.me/55{tel_c}?text={urllib.parse.quote(msg_zap)}", use_container_width=True)
-        else: st.success("✅ Esta cliente não possui débitos pendentes.")
+            # ---------------------------------------------------------
+            # 1. BUSCA INTELIGENTE DO NÚMERO NA CARTEIRA DE CLIENTES
+            # ---------------------------------------------------------
+            dados_cliente = banco_de_clientes.get(id_c, {})
+            telefone_cru = str(dados_cliente.get('TELEFONE', dados_cliente.get('telefone', dados_cliente.get('fone', ''))))
+            
+            # Limpa tudo que não for número e garante o 55 do Brasil
+            tel_c = "".join(filter(str.isdigit, telefone_cru))
+            if tel_c and not tel_c.startswith("55"): 
+                tel_c = "55" + tel_c
+
+            # ---------------------------------------------------------
+            # 2. CONSTRUÇÃO DO RECIBO FINANCEIRO (TOM AMIGÁVEL)
+            # ---------------------------------------------------------
+            # Filtra apenas os itens que realmente estão devendo
+            itens_pendentes = v_hist[v_hist['SALDO_NUM'] > 0.01]
+            lista_extrato = ""
+            
+            # Monta a listinha de produtos dinamicamente
+            for _, row in itens_pendentes.iterrows():
+                valor_formatado = f"R$ {row['SALDO_NUM']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                lista_extrato += f"🔸 {row['DATA DA VENDA']} | {row['PRODUTO']} | {valor_formatado}\n"
+            
+            saldo_formatado = f"R$ {saldo_devedor_real:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            
+            msg_zap = (
+                f"Olá, *{nome_c_ficha}*! Tudo bem? 🌸\n"
+                f"Aqui é da equipe Sweet Home Enxovais. Passando para te enviar o seu extrato atualizado conosco.\n\n"
+                f"🧾 *RESUMO DE PENDÊNCIAS:*\n"
+                f"{lista_extrato}\n"
+                f"💰 *Total em aberto:* {saldo_formatado}\n\n"
+                f"Qualquer dúvida sobre os itens ou se precisar da nossa chave PIX, estou à disposição! 😊"
+            )
+            
+            if tel_c:
+                st.link_button("📲 Cobrar no WhatsApp (Extrato Completo)", f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_zap)}", use_container_width=True)
+            else:
+                st.error("⚠️ Telefone não localizado na base desta cliente.")
+                
+        else: 
+            st.success("✅ Esta cliente não possui débitos pendentes.")
 
         st.write("#### ⏳ Histórico de Vendas Localizado")
         if not v_hist.empty:
             st.dataframe(v_hist[['DATA DA VENDA', 'PRODUTO', 'TOTAL R$', 'SALDO DEVEDOR', 'STATUS']], use_container_width=True, hide_index=True)
-        else: st.info("Nenhuma compra registrada para esta cliente ainda.")
+        else: 
+            st.info("Nenhuma compra registrada para esta cliente ainda.")
 
 # ==========================================
 # --- SEÇÃO 3: ESTOQUE (MEMÓRIA ETERNA + IA) ---
