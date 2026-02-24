@@ -1133,21 +1133,47 @@ elif menu_selecionado == "💰 Financeiro":
                         if st.session_state.get('proc_ia_cob', False):
                             st.markdown("---")
                             with st.spinner("🤖 IA humanizando..."):
-                                try:
+                               try:
+                                    import google.generativeai as genai
+                                    import urllib.parse
+                                    
+                                    # 🔑 CONFIGURAÇÃO DA API
                                     CHAVE_API = "AIzaSyDfnLUjLUZip1KI8PJBEh3iYUDeED9dvlc" 
                                     genai.configure(api_key=CHAVE_API)
-                                    # Fallback seguro para modelo pro se flash falhar
+                                    
+                                    # 🚀 UTILIZANDO O NOVO MODELO GEMINI 2.0 FLASH
                                     model = genai.GenerativeModel("gemini-2.0-flash")
-                                    res = model.generate_content(f"Reescreva para Sweet Home Enxovais (CNPJ {cnpj_sweet}) de forma gentil: {msg_padrao}")
-                                    st.info("💡 Sugestão da IA:")
-                                    st.write(res.text)
+                                    
+                                    # Prompt otimizado para a Sweet Home
+                                    prompt_ia = f"""
+                                    Reescreva a mensagem abaixo para a loja Sweet Home Enxovais (CNPJ: {cnpj_sweet}).
+                                    O tom deve ser gentil, profissional e focado em resolução amigável.
+                                    Mantenha obrigatoriamente: lista de produtos, valores e data de vencimento.
+                                    Use formatação scannable (bullet points e negrito).
+                                    
+                                    Mensagem original:
+                                    {msg_padrao}
+                                    """
+                                    
+                                    res = model.generate_content(prompt_ia)
+                                    texto_gerado = res.text
+                                    
+                                    st.info("💡 Sugestão da IA (Gemini 2.0 Flash):")
+                                    st.write(texto_gerado)
+                                    
+                                    # Botão para enviar o texto gerado pela nova IA
                                     if tel_limpo:
-                                        st.link_button("📲 Enviar Texto da IA", f"https://wa.me/{tel_limpo}?text={urllib.parse.quote(res.text)}", use_container_width=True)
+                                        link_ia = f"https://wa.me/{tel_limpo}?text={urllib.parse.quote(texto_gerado)}"
+                                        st.link_button("📲 Enviar Texto da IA", link_ia, use_container_width=True, type="secondary")
+                                    
                                     if st.button("❌ Fechar IA"):
                                         st.session_state['proc_ia_cob'] = False
                                         st.rerun()
+                                        
                                 except Exception as e_ia:
-                                    st.error(f"Erro na IA: {e_ia}")
+                                    # Caso o 2.0 ainda sofra alguma instabilidade regional na API, 
+                                    # ele reportará o erro exato aqui.
+                                    st.error(f"Erro na IA (Versão 2.0): {e_ia}")
 
             except Exception as e:
                 st.error(f"Erro ao processar as cobranças reais: {e}")
