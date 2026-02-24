@@ -989,7 +989,7 @@ elif menu_selecionado == "💰 Financeiro":
 
     st.divider()
 
-    # ====================================================
+# ====================================================
 # ⚖️ GESTÃO DE INADIMPLÊNCIA E RECUPERAÇÃO DE CRÉDITO (SMART RECOVERY 3.0)
 # ====================================================
 st.markdown("---")
@@ -1259,7 +1259,6 @@ Chave PIX: SUA_CHAVE_PIX
             st.dataframe(v_hist[['DATA DA VENDA', 'PRODUTO', 'TOTAL R$', 'SALDO DEVEDOR', 'STATUS']], use_container_width=True, hide_index=True)
         else: st.info("Nenhuma compra registrada para esta cliente ainda.")
             
-
 # ==========================================
 # --- SEÇÃO 3: ESTOQUE (MEMÓRIA ETERNA + IA) ---
 # ==========================================
