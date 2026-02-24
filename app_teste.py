@@ -1023,35 +1023,35 @@ elif menu_selecionado == "💰 Financeiro":
             df_dev_real['DIAS_ATRASO'] = (hoje_pd - df_dev_real['VENCIMENTO']).dt.days
                 
                 df_agrupado = df_dev_real.groupby(['CÓD. CLIENTE', 'CLIENTE', 'VENCIMENTO', 'DATA DA VENDA', 'DIAS_ATRASO']).agg(
-                    VALOR_ORIGINAL=pd.NamedAgg(column='SALDO_NUM', aggfunc='sum'),
-                    PRODUTOS=pd.NamedAgg(column='PRODUTO', aggfunc=lambda x: ' | '.join(x))
-                ).reset_index()
+                VALOR_ORIGINAL=pd.NamedAgg(column='SALDO_NUM', aggfunc='sum'),
+                PRODUTOS=pd.NamedAgg(column='PRODUTO', aggfunc=lambda x: ' | '.join(x))
+            ).reset_index()
 
-                # ====================================================
-                # 2. MOTOR FINANCEIRO (COMPLIANCE CDC)
-                # ====================================================
-                def calc_compliance(row):
-                    if row['DIAS_ATRASO'] > 0:
-                        multa = row['VALOR_ORIGINAL'] * 0.02
-                        juros = row['VALOR_ORIGINAL'] * (0.01 / 30) * row['DIAS_ATRASO']
-                        status = "🔴 Fase 3 (+30d)" if row['DIAS_ATRASO'] > 30 else ("🟡 Fase 2 (8-30d)" if row['DIAS_ATRASO'] > 7 else "🟠 Fase 1 (1-7d)")
-                    elif row['DIAS_ATRASO'] == 0:
-                        multa, juros, status = 0, 0, "🟢 Vence Hoje"
-                    else:
-                        multa, juros, status = 0, 0, f"📅 Vence em {abs(row['DIAS_ATRASO'])}d"
-                    
-                    valor_total = row['VALOR_ORIGINAL'] + multa + juros
-                    return pd.Series([multa, juros, valor_total, status])
-
-                df_agrupado[['MULTA', 'JUROS', 'VALOR_ATUALIZADO', 'FASE']] = df_agrupado.apply(calc_compliance, axis=1)
+            # ====================================================
+            # 2. MOTOR FINANCEIRO (COMPLIANCE CDC)
+            # ====================================================
+            def calc_compliance(row):
+                if row['DIAS_ATRASO'] > 0:
+                    multa = row['VALOR_ORIGINAL'] * 0.02
+                    juros = row['VALOR_ORIGINAL'] * (0.01 / 30) * row['DIAS_ATRASO']
+                    status = "🔴 Fase 3 (+30d)" if row['DIAS_ATRASO'] > 30 else ("🟡 Fase 2 (8-30d)" if row['DIAS_ATRASO'] > 7 else "🟠 Fase 1 (1-7d)")
+                elif row['DIAS_ATRASO'] == 0:
+                    multa, juros, status = 0, 0, "🟢 Vence Hoje"
+                else:
+                    multa, juros, status = 0, 0, f"📅 Vence em {abs(row['DIAS_ATRASO'])}d"
                 
-                atrasados = df_agrupado[df_agrupado['DIAS_ATRASO'] > 0].sort_values('DIAS_ATRASO', ascending=False)
-                prevencao = df_agrupado[(df_agrupado['DIAS_ATRASO'] <= 0) & (df_agrupado['DIAS_ATRASO'] >= -5)].sort_values('DIAS_ATRASO', ascending=False)
+                valor_total = row['VALOR_ORIGINAL'] + multa + juros
+                return pd.Series([multa, juros, valor_total, status])
 
-                # ====================================================
-                # 3. INTERFACE DE GESTÃO
-                # ====================================================
-                t1, t2 = st.tabs(["🚨 Recuperação (Vencidos)", "📅 Prevenção (Próximos)"])
+            df_agrupado[['MULTA', 'JUROS', 'VALOR_ATUALIZADO', 'FASE']] = df_agrupado.apply(calc_compliance, axis=1)
+            
+            atrasados = df_agrupado[df_agrupado['DIAS_ATRASO'] > 0].sort_values('DIAS_ATRASO', ascending=False)
+            prevencao = df_agrupado[(df_agrupado['DIAS_ATRASO'] <= 0) & (df_agrupado['DIAS_ATRASO'] >= -5)].sort_values('DIAS_ATRASO', ascending=False)
+
+            # ====================================================
+            # 3. INTERFACE DE GESTÃO
+            # ====================================================
+            t1, t2 = st.tabs(["🚨 Recuperação (Vencidos)", "📅 Prevenção (Próximos)"])
                 
                 with t1:
                     if not atrasados.empty:
