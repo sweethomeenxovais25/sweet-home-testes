@@ -1259,8 +1259,6 @@ Chave PIX: SUA_CHAVE_PIX
             st.dataframe(v_hist[['DATA DA VENDA', 'PRODUTO', 'TOTAL R$', 'SALDO DEVEDOR', 'STATUS']], use_container_width=True, hide_index=True)
         else: st.info("Nenhuma compra registrada para esta cliente ainda.")
 
-# <--- O SEU BLOCO DE FINANCEIRO TERMINA AQUI
-            
 # ==========================================
 # --- SEÇÃO 3: ESTOQUE (MEMÓRIA ETERNA + IA) ---
 # ==========================================
