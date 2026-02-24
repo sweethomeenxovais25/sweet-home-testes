@@ -1078,17 +1078,25 @@ elif menu_selecionado == "💰 Financeiro":
                     else: return "🔴 3/10 (Risco)"
                 df_agrupado['SWEET_SCORE'] = df_agrupado['MAIOR_ATRASO'].apply(calcular_score)
 
-                # 💡 NOVA INJEÇÃO: Busca nativa da Coluna F (Vale Desconto) na Carteira de Clientes
+                # 💡 INJEÇÃO BLINDADA: Busca nativa da Coluna F (Vale Desconto) na Carteira de Clientes
                 def resgatar_vale(cod_cliente):
                     cod_str = str(cod_cliente).strip()
                     carteira = banco_de_clientes.get(cod_str, {})
-                    vale = str(carteira.get('VALE DESCONTO', carteira.get('vale desconto', ''))).strip()
                     
-                    if not vale or vale.lower() in ['nan', 'none', '0', '0,00', 'r$ 0,00', '']:
+                    vale = ""
+                    # Radar de palavras: procura qualquer coluna que tenha 'vale' ou 'desconto' no nome
+                    for chave, valor in carteira.items():
+                        chave_limpa = str(chave).lower().strip()
+                        if 'vale' in chave_limpa or 'desconto' in chave_limpa:
+                            vale = str(valor).strip()
+                            break
+                    
+                    # Se vier vazio ou zerado, formata para 0
+                    if not vale or vale.lower() in ['nan', 'none', '0', '0.0', '0,00', 'r$ 0,00', 'r$ 0']:
                         return "R$ 0,00"
                     
                     # Garante que tenha R$ na frente para ficar bonito na tabela
-                    if vale.replace(',','').replace('.','').isdigit() and not vale.upper().startswith('R$'):
+                    if vale.replace(',','').replace('.','').replace('-','').isdigit() and not vale.upper().startswith('R$'):
                         return f"R$ {vale}"
                     return vale
                 
