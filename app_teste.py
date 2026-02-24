@@ -996,8 +996,11 @@ elif menu_selecionado == "💰 Financeiro":
         st.write("Monitoramento inteligente de atrasos, cálculo de juros e scripts de recuperação.")
 
         try:
-            # --- LÓGICA DE CÁLCULO ---
-            hoje = datetime.now(fuso_br).date()
+        # --- LÓGICA DE CÁLCULO ---
+        import pytz # Garante que o mapa de fusos está ativo
+        fuso_br = pytz.timezone('America/Sao_Paulo') # Ensina o fuso para este bloco
+        hoje = datetime.now(fuso_br).date()
+        # ... (o resto do código continua igual) ...
             
             # Exemplo simulado para testar visual
             dados_simulados = [
