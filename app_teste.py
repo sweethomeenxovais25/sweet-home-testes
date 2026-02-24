@@ -1137,7 +1137,7 @@ elif menu_selecionado == "💰 Financeiro":
                                     CHAVE_API = "AIzaSyDfnLUjLUZip1KI8PJBEh3iYUDeED9dvlc" 
                                     genai.configure(api_key=CHAVE_API)
                                     # Fallback seguro para modelo pro se flash falhar
-                                    model = genai.GenerativeModel("gemini-1.5-flash")
+                                    model = genai.GenerativeModel("gemini-2.0-flash")
                                     res = model.generate_content(f"Reescreva para Sweet Home Enxovais (CNPJ {cnpj_sweet}) de forma gentil: {msg_padrao}")
                                     st.info("💡 Sugestão da IA:")
                                     st.write(res.text)
@@ -1148,9 +1148,6 @@ elif menu_selecionado == "💰 Financeiro":
                                         st.rerun()
                                 except Exception as e_ia:
                                     st.error(f"Erro na IA: {e_ia}")
-
-            except Exception as e:
-                st.error(f"Erro ao processar as cobranças reais: {e}")
 
             except Exception as e:
                 st.error(f"Erro ao processar as cobranças reais: {e}")
