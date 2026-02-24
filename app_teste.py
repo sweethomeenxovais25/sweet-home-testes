@@ -1269,8 +1269,6 @@ elif menu_selecionado == "💰 Financeiro":
         except Exception as e:
             st.error(f"⚠️ Erro no núcleo de processamento gerencial: {e}")
             
-    st.divider() # Divisória para separar da Ficha de Cliente logo abaixo
-    
     st.markdown("### 🔍 Ficha de Cliente (Extrato Dinâmico)")
     opcoes_ficha = sorted([f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
     sel_ficha = st.selectbox("Selecione para ver o que ela deve:", ["---"] + opcoes_ficha, key="ficha_sel_cliente")
@@ -1300,68 +1298,73 @@ elif menu_selecionado == "💰 Financeiro":
                 tel_c = "55" + tel_c
 
             # ---------------------------------------------------------
-            # 2. CONSTRUÇÃO DO RECIBO FINANCEIRO (Agora com Emojis 🛍️)
+            # 2. CONSTRUÇÃO DO RECIBO FINANCEIRO (TEXTO PURO PARA O WPP)
             # ---------------------------------------------------------
             lista_extrato = ""
             
-            # Varre TODO o histórico com visual de Ticket
+            # Varre TODO o histórico com visual de Ticket (Sem Emojis para o WPP)
             for _, row in v_hist.iterrows():
                 status_atual = str(row['STATUS']).strip()
                 
-                # Farol visual
+                # Farol em Texto Puro
                 if status_atual.lower() in ['pago', 'quitado', 'ok']:
-                    icone = "✅ [ PAGO ]"
+                    icone = "[ PAGO ]"
                 else:
-                    icone = "⏳ [ PENDENTE ]"
+                    icone = "[ PENDENTE ]"
                 
                 # Estrutura visual textual para o WhatsApp
-                lista_extrato += f"🛍️ *{row['PRODUTO']}*\n ├ Data: {row['DATA DA VENDA']}\n └ Status: {icone}\n\n"
+                lista_extrato += f"*{row['PRODUTO']}*\n ├ Data: {row['DATA DA VENDA']}\n └ Status: {icone}\n\n"
             
             saldo_formatado = f"R$ {saldo_devedor_real:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             
-            # MENSAGEM 1: COBRANÇA (Com Emojis)
+            # MENSAGEM 1: COBRANÇA (Texto Puro, Sem Emojis)
             msg_cobranca = (
-                f"Olá, *{nome_c_ficha}*! Tudo bem? ✨\n\n"
-                f"Aqui é do *Setor Financeiro da Sweet Home Enxovais* 🌸.\n"
+                f"Olá, *{nome_c_ficha}*! Tudo bem?\n\n"
+                f"Aqui é do *Setor Financeiro da Sweet Home Enxovais*.\n"
                 f"Criamos esse departamento recentemente para melhorar a nossa organização e estarmos ainda mais próximos de você!\n\n"
                 f"Passando para deixar o resumo atualizado da sua ficha conosco:\n\n"
-                f"📋 *HISTÓRICO DE COMPRAS:*\n"
-                f"━━━━━━━━━━━━━━━━━━━\n"
+                f"*HISTÓRICO DE COMPRAS:*\n"
+                f"-----------------------------------\n"
                 f"{lista_extrato}"
-                f"━━━━━━━━━━━━━━━━━━━\n"
-                f"💰 *Total Pendente Atual: {saldo_formatado}*\n\n"
-                f"Qualquer dúvida sobre os itens ou se precisar da nossa chave PIX para regularizar, estou à disposição! 🥰"
+                f"-----------------------------------\n"
+                f"*Total Pendente Atual: {saldo_formatado}*\n\n"
+                f"Qualquer dúvida sobre os itens ou se precisar da nossa chave PIX para regularizar, estou à disposição!"
             )
 
-            # MENSAGEM 2: LEMBRETE PREVENTIVO (Com Emojis)
+            # MENSAGEM 2: LEMBRETE PREVENTIVO (Texto Puro, Sem Emojis)
             msg_lembrete = (
-                f"Olá, *{nome_c_ficha}*! Tudo bem? ✨\n\n"
-                f"Aqui é do *Setor Financeiro da Sweet Home Enxovais* 🌸.\n\n"
-                f"Passando apenas para te enviar um lembrete super amigável de que você tem itens com vencimento se aproximando. 🗓️\n\n"
-                f"📋 *RESUMO DA SUA FICHA:*\n"
-                f"━━━━━━━━━━━━━━━━━━━\n"
+                f"Olá, *{nome_c_ficha}*! Tudo bem?\n\n"
+                f"Aqui é do *Setor Financeiro da Sweet Home Enxovais*.\n\n"
+                f"Passando apenas para te enviar um lembrete super amigável de que você tem itens com vencimento se aproximando.\n\n"
+                f"*RESUMO DA SUA FICHA:*\n"
+                f"-----------------------------------\n"
                 f"{lista_extrato}"
-                f"━━━━━━━━━━━━━━━━━━━\n"
-                f"💰 *Valor programado para acerto: {saldo_formatado}*\n\n"
-                f"Se precisar da nossa chave PIX para já deixar agendado, é só me avisar. Tenha um excelente dia! 🥰"
+                f"-----------------------------------\n"
+                f"*Valor programado para acerto: {saldo_formatado}*\n\n"
+                f"Se precisar da nossa chave PIX para já deixar agendado, é só me avisar. Tenha um excelente dia!"
             )
             
             # ---------------------------------------------------------
-            # 3. EXIBIÇÃO DOS BOTÕES LADO A LADO (Usando a técnica do Recibo: st.link_button)
+            # 3. EXIBIÇÃO DOS BOTÕES LADO A LADO (Bypass com HTML Puro)
             # ---------------------------------------------------------
             if tel_c:
                 st.write("#### 🎯 Escolha a abordagem:")
                 col_btn1, col_btn2 = st.columns(2)
                 
-                # O quote protege os Emojis para o WPP ler!
+                # Voltamos para o quote normal, o HTML vai cuidar do resto
                 url_cob = f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_cobranca)}"
                 url_prev = f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_lembrete)}"
                 
+                # Criando botões com HTML/CSS para driblar o bloqueio do Streamlit
+                btn_cob_html = f"""<a href="{url_cob}" target="_blank" style="display: block; width: 100%; text-align: center; background-color: #ff4b4b; color: white; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold;">🚨 Enviar Cobrança (Atrasados)</a>"""
+                
+                btn_prev_html = f"""<a href="{url_prev}" target="_blank" style="display: block; width: 100%; text-align: center; background-color: #262730; color: white; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold;">📅 Enviar Lembrete (Preventivo)</a>"""
+                
                 with col_btn1:
-                    st.link_button("🚨 Enviar Cobrança (Atrasados)", url_cob, use_container_width=True, type="primary")
+                    st.markdown(btn_cob_html, unsafe_allow_html=True)
                 
                 with col_btn2:
-                    st.link_button("📅 Enviar Lembrete (Preventivo)", url_prev, use_container_width=True)
+                    st.markdown(btn_prev_html, unsafe_allow_html=True)
                 
                 # ---------------------------------------------------------
                 # 4. MÓDULO DE IA SOB DEMANDA
@@ -1381,7 +1384,6 @@ elif menu_selecionado == "💰 Financeiro":
                             import google.generativeai as genai
                             genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
                             
-                            # 💡 AJUSTE DA IA: Mudei a regra para EXIGIR emojis
                             prompt = f"""
                             Você atua no Setor Financeiro da 'Sweet Home Enxovais'. 
                             Reescreva a mensagem abaixo para deixá-la incrivelmente empática e persuasiva, mas sem perder a educação. 
@@ -1390,7 +1392,7 @@ elif menu_selecionado == "💰 Financeiro":
                             ⚠️ REGRA CRÍTICA: Retorne EXATAMENTE APENAS o texto da mensagem final. 
                             NÃO inclua introduções como "Com certeza!", "Aqui está..." ou tracejados iniciais. 
                             NÃO explique o que você fez. O texto deve estar pronto para eu copiar e colar diretamente no WhatsApp.
-                            UTILIZE emojis estratégicos para deixar a mensagem amigável e simpática.
+                            NÃO utilize emojis na sua resposta, apenas texto e negrito.
                             
                             Mensagem:
                             {msg_base_ia}
@@ -1410,14 +1412,18 @@ elif menu_selecionado == "💰 Financeiro":
                                 st.success("✨ Mensagem Otimizada com Sucesso!")
                                 texto_final_ia = st.text_area("Revise a mensagem da IA:", value=resultado_ia.text.strip(), height=250)
                                 
-                                # Botão nativo para a IA também
+                                # Botão HTML também para a IA
                                 url_ia = f"https://wa.me/{tel_c}?text={urllib.parse.quote(texto_final_ia)}"
-                                st.link_button("📲 Enviar Mensagem da IA", url_ia, use_container_width=True, type="primary")
+                                btn_ia_html = f"""<a href="{url_ia}" target="_blank" style="display: block; width: 100%; text-align: center; background-color: #ff4b4b; color: white; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold;">📲 Enviar Mensagem da IA</a>"""
+                                
+                                st.markdown(btn_ia_html, unsafe_allow_html=True)
                                 
                                 st.write("") # Espaçinho visual
                                 if st.button("❌ Dispensar IA"):
                                     st.session_state['ia_ficha_ativa'] = False
                                     st.rerun()
+                            else:
+                                st.error("⚠️ Nenhum modelo de IA suportado encontrado na sua API.")
                         except Exception as e_ia:
                             st.error(f"⚠️ Erro de comunicação com o Google: {e_ia}")
 
