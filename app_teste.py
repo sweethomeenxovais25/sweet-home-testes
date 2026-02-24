@@ -1459,10 +1459,28 @@ elif menu_selecionado == "📦 Estoque":
         qtd_baixos = len(df_estoque[(df_estoque['EST_NUM'] > 0) & (df_estoque['EST_NUM'] <= 3)])
 
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("📦 Itens no Catálogo", total_skus)
-        c2.metric("💰 Capital na Prateleira", f"R$ {capital_parado:,.2f}")
-        c3.metric("🚨 Esgotados / Furos", qtd_furos)
-        c4.metric("⚠️ Estoque Baixo (≤3)", qtd_baixos)
+        
+        # 💡 Injeção do parâmetro 'help' para clareza gerencial
+        c1.metric(
+            "📦 Variações (SKUs)", 
+            total_skus, 
+            help="Total de linhas (variações de cor/modelo) cadastradas na planilha. Não é a quantidade de peças físicas, nem a quantidade de famílias de produtos."
+        )
+        c2.metric(
+            "💰 Capital na Prateleira", 
+            f"R$ {capital_parado:,.2f}", 
+            help="Soma financeira de todas as suas peças físicas multiplicadas pelo Custo Unitário de cada uma delas."
+        )
+        c3.metric(
+            "🚨 Esgotados / Furos", 
+            qtd_furos, 
+            help="Quantidade de variações (linhas) que estão com o estoque zerado ou negativo na planilha."
+        )
+        c4.metric(
+            "⚠️ Estoque Baixo (≤3)", 
+            qtd_baixos, 
+            help="Quantidade de variações (linhas) que estão entrando na zona de risco (com 3 ou menos peças físicas disponíveis)."
+        )
 
         with st.expander("📊 Central de Reposição e Tendências", expanded=False):
             tab1, tab2 = st.tabs(["🚨 Malha Fina", "🏆 Campeões de Venda"])
