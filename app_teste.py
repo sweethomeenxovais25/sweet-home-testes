@@ -1146,14 +1146,30 @@ elif menu_selecionado == "💰 Financeiro":
                                     Mensagem original:
                                     {msg_padrao}
                                     """
-                                    modelo_ia = genai.GenerativeModel("gemini-pro")
-                                    resposta_ia = modelo_ia.generate_content(prompt_ia)
                                     
-                                    st.success("✨ Texto gerado pela IA:")
-                                    st.code(resposta_ia.text, language="markdown")
+                                    # 💡 NOVO MOTOR: Busca automaticamente o modelo mais avançado liberado na sua chave!
+                                    modelos_disponiveis = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
                                     
-                                    link_wpp_ia = f"https://wa.me/?text={urllib.parse.quote(resposta_ia.text)}"
-                                    st.link_button("📲 Enviar Texto da IA no WhatsApp", link_wpp_ia, type="secondary", use_container_width=True)
+                                    if not modelos_disponiveis:
+                                        st.error("Nenhum modelo de IA habilitado nesta chave API.")
+                                    else:
+                                        # Tenta achar o Gemini 2.0 ou os modelos mais rápidos. Se não achar, usa o primeiro que funcionar.
+                                        modelo_escolhido = modelos_disponiveis[0]
+                                        for nome_modelo in modelos_disponiveis:
+                                            if "2.0" in nome_modelo or "flash" in nome_modelo or "thinking" in nome_modelo:
+                                                modelo_escolhido = nome_modelo
+                                                break # Achou um modelo moderno, para de procurar!
+                                                
+                                        modelo_ia = genai.GenerativeModel(modelo_escolhido)
+                                        resposta_ia = modelo_ia.generate_content(prompt_ia)
+                                        
+                                        # Mostramos até qual modelo a IA escolheu pra você saber que tá usando o de ponta!
+                                        st.success(f"✨ Texto gerado pela IA (Motor: `{modelo_escolhido.replace('models/', '')}`):")
+                                        st.code(resposta_ia.text, language="markdown")
+                                        
+                                        link_wpp_ia = f"https://wa.me/?text={urllib.parse.quote(resposta_ia.text)}"
+                                        st.link_button("📲 Enviar Texto da IA no WhatsApp", link_wpp_ia, type="secondary", use_container_width=True)
+                                        
                                 except Exception as e_ia:
                                     st.error("Erro ao chamar a IA. Detalhe do erro: " + str(e_ia))
 
