@@ -1001,25 +1001,21 @@ elif menu_selecionado == "💰 Financeiro":
                 # ====================================================
                 # 🔌 CONEXÃO COM DADOS REAIS DA PLANILHA VENDAS
                 # ====================================================
-                # 1. Filtra apenas as vendas onde ainda há Saldo Devedor (Coluna U > 0)
                 df_devedores_real = df_fin[df_fin['SALDO_NUM'] > 0].copy()
                 
-                # 2. Captura a data exata que o cliente deveria ter pago (Coluna V)
                 df_devedores_real['VENCIMENTO'] = pd.to_datetime(df_devedores_real['PRÓXIMA PARCELA'], format="%d/%m/%Y", errors='coerce')
                 
-                # 3. Limpeza de segurança: remove linhas que não têm data de vencimento preenchida
+                # Remove apenas se realmente não houver data de vencimento preenchida
                 df_devedores_real = df_devedores_real.dropna(subset=['VENCIMENTO'])
                 
-                # 4. Organiza os dados para o Cérebro de Cobrança ler (COM OS NOVOS DADOS)
+                # Organiza os dados e garante que tudo é texto para não dar erro
                 df_devedores_real['VALOR_ORIGINAL'] = df_devedores_real['SALDO_NUM'] 
-                df_devedores_real['NOME'] = df_devedores_real['CLIENTE'] 
-                df_devedores_real['PRODUTO_COMPRADO'] = df_devedores_real['PRODUTO'] # <-- Novo!
-                df_devedores_real['DATA_COMPRA'] = df_devedores_real['DATA DA VENDA'] # <-- Novo!
+                df_devedores_real['NOME'] = df_devedores_real['CLIENTE'].astype(str)
+                df_devedores_real['PRODUTO_COMPRADO'] = df_devedores_real['PRODUTO'].astype(str)
+                df_devedores_real['DATA_COMPRA'] = df_devedores_real['DATA DA VENDA'].astype(str)
                 
-                # 💡 CÁLCULO INTELIGENTE (Substitui a fórmula da Coluna X da sua planilha)
                 df_devedores_real['DIAS_ATRASO'] = (hoje_pd - df_devedores_real['VENCIMENTO']).dt.days
                 
-                # --- APLICANDO AS REGRAS DA SWEET HOME ---
                 def calcular_encargos(row):
                     if row['DIAS_ATRASO'] > 0:
                         multa = row['VALOR_ORIGINAL'] * 0.02
@@ -1033,11 +1029,13 @@ elif menu_selecionado == "💰 Financeiro":
 
                 df_devedores_real[['MULTA', 'JUROS', 'VALOR_ATUALIZADO', 'FASE_COBRANCA']] = df_devedores_real.apply(calcular_encargos, axis=1)
                 
-                # Filtra apenas os que estão com Dias de Atraso POSITIVOS (Vencidos)
                 df_atrasados = df_devedores_real[df_devedores_real['DIAS_ATRASO'] > 0].sort_values(by='DIAS_ATRASO', ascending=False)
                 
                 # --- EXIBIÇÃO DO PAINEL ---
                 if not df_atrasados.empty:
+                    # 💡 SOLUÇÃO DO BUG: Criamos um rótulo único exato para o selectbox
+                    df_atrasados['LABEL_DROPDOWN'] = df_atrasados['NOME'] + " | Ref: " + df_atrasados['PRODUTO_COMPRADO']
+                    
                     col_m1, col_m2, col_m3 = st.columns(3)
                     valor_perdido = df_atrasados['VALOR_ORIGINAL'].sum()
                     valor_recuperavel = df_atrasados['VALOR_ATUALIZADO'].sum()
@@ -1046,7 +1044,6 @@ elif menu_selecionado == "💰 Financeiro":
                     col_m2.metric("📈 Valor Atualizado", f"R$ {valor_recuperavel:,.2f}", f"+ R$ {valor_recuperavel - valor_perdido:,.2f}")
                     col_m3.metric("👥 Inadimplentes", f"{len(df_atrasados)}")
                     
-                    # Cria uma cópia formatada para exibição
                     df_exibicao = df_atrasados.copy()
                     df_exibicao['VENCIMENTO'] = df_exibicao['VENCIMENTO'].dt.strftime("%d/%m/%Y")
                     
@@ -1068,26 +1065,23 @@ elif menu_selecionado == "💰 Financeiro":
                     # ====================================================
                     st.markdown("#### 💬 Gerador de Cobrança (WhatsApp)")
                     
-                    # Exibe Nome + Produto no seletor para você saber exatamente o que está cobrando
-                    lista_nomes = ["---"] + list(df_atrasados['NOME'] + " (" + df_atrasados['PRODUTO_COMPRADO'] + ")")
+                    lista_nomes = ["---"] + list(df_atrasados['LABEL_DROPDOWN'])
                     selecao = st.selectbox("Selecione a cobrança para gerar a mensagem:", lista_nomes)
                     
                     if selecao != "---":
-                        # Extrai o nome real da seleção para buscar no dataframe
-                        cliente_alvo = selecao.split(" (")[0]
-                        dados_cli = df_atrasados[df_atrasados['NOME'] == cliente_alvo].iloc[0]
+                        # 💡 Busca 100% segura usando a coluna nova exata
+                        dados_cli = df_atrasados[df_atrasados['LABEL_DROPDOWN'] == selecao].iloc[0]
                         
                         dias = dados_cli['DIAS_ATRASO']
+                        cliente_alvo = dados_cli['NOME']
                         produto = dados_cli['PRODUTO_COMPRADO']
                         dt_compra = dados_cli['DATA_COMPRA']
                         
-                        # Formatando valores para o padrão brasileiro
                         v_orig = f"R$ {dados_cli['VALOR_ORIGINAL']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                         v_atu = f"R$ {dados_cli['VALOR_ATUALIZADO']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                         d_venc = dados_cli['VENCIMENTO'].strftime("%d/%m/%Y")
                         cnpj_sweet = "00.000.000/0000-00" # <-- COLOQUE SEU CNPJ AQUI DEPOIS
                         
-                        # Motor de Decisão (Mensagens Atualizadas com Produto e Data)
                         if dias <= 7:
                             msg = f"Olá, *{cliente_alvo}*! Tudo bem? 🌸\n\nPassando rapidinho para avisar que a sua parcela de *{v_orig}*, referente à compra do(a) *{produto}*, venceu no dia {d_venc}. Às vezes na correria a gente acaba esquecendo, né? 😊\n\nSe precisar da chave PIX novamente, é só me dar um alô!"
                             st.info("💡 Fase 1: Abordagem amigável para lembrete.")
