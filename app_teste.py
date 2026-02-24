@@ -1019,26 +1019,26 @@ elif menu_selecionado == "💰 Financeiro":
                 tel_c = "55" + tel_c
 
             # ---------------------------------------------------------
-            # 2. CONSTRUÇÃO DO RECIBO FINANCEIRO (MINIMALISTA)
+            # 2. CONSTRUÇÃO DO RECIBO FINANCEIRO (TEXTO PURO PARA O WPP)
             # ---------------------------------------------------------
             lista_extrato = ""
             
-            # Varre TODO o histórico com visual de Ticket Textual
+            # Varre TODO o histórico com visual de Ticket (Sem Emojis para o WPP)
             for _, row in v_hist.iterrows():
                 status_atual = str(row['STATUS']).strip()
                 
-                # Farol em Texto
+                # Farol em Texto Puro
                 if status_atual.lower() in ['pago', 'quitado', 'ok']:
-                    icone = "*[ PAGO ]*"
+                    icone = "[ PAGO ]"
                 else:
-                    icone = "*[ PENDENTE ]*"
+                    icone = "[ PENDENTE ]"
                 
                 # Estrutura visual textual para o WhatsApp
                 lista_extrato += f"*{row['PRODUTO']}*\n ├ Data: {row['DATA DA VENDA']}\n └ Status: {icone}\n\n"
             
             saldo_formatado = f"R$ {saldo_devedor_real:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             
-            # MENSAGEM 1: COBRANÇA (Setor Financeiro)
+            # MENSAGEM 1: COBRANÇA (Texto Puro, Sem Emojis)
             msg_cobranca = (
                 f"Olá, *{nome_c_ficha}*! Tudo bem?\n\n"
                 f"Aqui é do *Setor Financeiro da Sweet Home Enxovais*.\n"
@@ -1052,7 +1052,7 @@ elif menu_selecionado == "💰 Financeiro":
                 f"Qualquer dúvida sobre os itens ou se precisar da nossa chave PIX para regularizar, estou à disposição!"
             )
 
-            # MENSAGEM 2: LEMBRETE PREVENTIVO (Vencimento Próximo)
+            # MENSAGEM 2: LEMBRETE PREVENTIVO (Texto Puro, Sem Emojis)
             msg_lembrete = (
                 f"Olá, *{nome_c_ficha}*! Tudo bem?\n\n"
                 f"Aqui é do *Setor Financeiro da Sweet Home Enxovais*.\n\n"
@@ -1066,32 +1066,41 @@ elif menu_selecionado == "💰 Financeiro":
             )
             
             # ---------------------------------------------------------
-            # 3. EXIBIÇÃO DOS BOTÕES LADO A LADO
+            # 3. EXIBIÇÃO DOS BOTÕES LADO A LADO (Bypass com HTML Puro)
             # ---------------------------------------------------------
             if tel_c:
-                st.write("#### Escolha a abordagem:")
+                st.write("#### 🎯 Escolha a abordagem:")
                 col_btn1, col_btn2 = st.columns(2)
                 
+                # Voltamos para o quote normal, o HTML vai cuidar do resto
+                url_cob = f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_cobranca)}"
+                url_prev = f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_lembrete)}"
+                
+                # Criando botões com HTML/CSS para driblar o bloqueio do Streamlit
+                btn_cob_html = f"""<a href="{url_cob}" target="_blank" style="display: block; width: 100%; text-align: center; background-color: #ff4b4b; color: white; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold;">🚨 Enviar Cobrança (Atrasados)</a>"""
+                
+                btn_prev_html = f"""<a href="{url_prev}" target="_blank" style="display: block; width: 100%; text-align: center; background-color: #262730; color: white; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold;">📅 Enviar Lembrete (Preventivo)</a>"""
+                
                 with col_btn1:
-                    st.link_button("Enviar Cobrança (Atrasados)", f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_cobranca)}", type="primary", use_container_width=True)
+                    st.markdown(btn_cob_html, unsafe_allow_html=True)
                 
                 with col_btn2:
-                    st.link_button("Enviar Lembrete (Preventivo)", f"https://wa.me/{tel_c}?text={urllib.parse.quote(msg_lembrete)}", type="secondary", use_container_width=True)
+                    st.markdown(btn_prev_html, unsafe_allow_html=True)
                 
                 # ---------------------------------------------------------
                 # 4. MÓDULO DE IA SOB DEMANDA
                 # ---------------------------------------------------------
                 st.markdown("---")
-                st.write("**Precisa de uma abordagem diferente?**")
+                st.write("✨ **Precisa de uma abordagem diferente?**")
                 
-                if st.button("Personalizar mensagem com IA", use_container_width=True):
+                if st.button("🤖 Personalizar mensagem com IA", use_container_width=True):
                     st.session_state['ia_ficha_ativa'] = True
                     
                 if st.session_state.get('ia_ficha_ativa', False):
                     tipo_ia = st.radio("Qual mensagem você quer que a IA reescreva?", ["Cobrança", "Lembrete Preventivo"])
                     msg_base_ia = msg_cobranca if tipo_ia == "Cobrança" else msg_lembrete
                     
-                    with st.spinner("Consultando a IA (Modo Seguro)..."):
+                    with st.spinner("🤖 Consultando a IA (Modo Seguro)..."):
                         try:
                             import google.generativeai as genai
                             genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
@@ -1100,11 +1109,11 @@ elif menu_selecionado == "💰 Financeiro":
                             Você atua no Setor Financeiro da 'Sweet Home Enxovais'. 
                             Reescreva a mensagem abaixo para deixá-la incrivelmente empática e persuasiva, mas sem perder a educação. 
                             MANTENHA INTACTA a lista de produtos (o histórico com as datas) e o valor final.
-                            NÃO UTILIZE EMOJIS NA SUA RESPOSTA. Use apenas texto e negrito.
                             
                             ⚠️ REGRA CRÍTICA: Retorne EXATAMENTE APENAS o texto da mensagem final. 
                             NÃO inclua introduções como "Com certeza!", "Aqui está..." ou tracejados iniciais. 
                             NÃO explique o que você fez. O texto deve estar pronto para eu copiar e colar diretamente no WhatsApp.
+                            NÃO utilize emojis na sua resposta, apenas texto e negrito.
                             
                             Mensagem:
                             {msg_base_ia}
@@ -1121,26 +1130,31 @@ elif menu_selecionado == "💰 Financeiro":
                                 except: continue
                                 
                             if resultado_ia:
-                                st.success("Mensagem Otimizada com Sucesso!")
+                                st.success("✨ Mensagem Otimizada com Sucesso!")
                                 texto_final_ia = st.text_area("Revise a mensagem da IA:", value=resultado_ia.text.strip(), height=250)
                                 
-                                st.link_button("Enviar Mensagem da IA", f"https://wa.me/{tel_c}?text={urllib.parse.quote(texto_final_ia)}", type="primary", use_container_width=True)
+                                # Botão HTML também para a IA
+                                url_ia = f"https://wa.me/{tel_c}?text={urllib.parse.quote(texto_final_ia)}"
+                                btn_ia_html = f"""<a href="{url_ia}" target="_blank" style="display: block; width: 100%; text-align: center; background-color: #ff4b4b; color: white; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold;">📲 Enviar Mensagem da IA</a>"""
                                 
-                                if st.button("Dispensar IA"):
+                                st.markdown(btn_ia_html, unsafe_allow_html=True)
+                                
+                                st.write("") # Espaçinho visual
+                                if st.button("❌ Dispensar IA"):
                                     st.session_state['ia_ficha_ativa'] = False
                                     st.rerun()
                             else:
-                                st.error("Nenhum modelo de IA suportado encontrado na sua API.")
+                                st.error("⚠️ Nenhum modelo de IA suportado encontrado na sua API.")
                         except Exception as e_ia:
-                            st.error(f"Erro de comunicação com o Google: {e_ia}")
+                            st.error(f"⚠️ Erro de comunicação com o Google: {e_ia}")
 
             else:
-                st.error("Telefone não localizado na base desta cliente.")
+                st.error("⚠️ Telefone não localizado na base desta cliente.")
                 
         else: 
-            st.success("Esta cliente não possui débitos pendentes.")
+            st.success("✅ Esta cliente não possui débitos pendentes.")
 
-        st.write("#### Histórico de Vendas Localizado")
+        st.write("#### ⏳ Histórico de Vendas Localizado")
         if not v_hist.empty:
             st.dataframe(v_hist[['DATA DA VENDA', 'PRODUTO', 'TOTAL R$', 'SALDO DEVEDOR', 'STATUS']], use_container_width=True, hide_index=True)
         else: 
