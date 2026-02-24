@@ -1036,14 +1036,13 @@ elif menu_selecionado == "💰 Financeiro":
 
                 df_agrupado[['MULTA', 'JUROS', 'VALOR_ATUALIZADO', 'FASE_COBRANCA']] = df_agrupado.apply(calcular_encargos, axis=1)
                 
-                # SEPARANDO OS PÚBLICOS
-                df_atrasados = df_agrupado[df_agrupado['DIAS_ATRASO'] > 0].sort_values(by='DIAS_ATRASO', ascending=False)
-                # Pega quem vence HOJE (0) ou nos próximos 5 dias (-1 a -5)
-                df_a_vencer = df_agrupado[(df_agrupado['DIAS_ATRASO'] <= 0) & (df_agrupado['DIAS_ATRASO'] >= -5)].sort_values(by='DIAS_ATRASO', ascending=False)
-                
-                # Cria rótulos para o Selectbox geral
+                # 💡 CORREÇÃO DO ERRO: Criar as colunas de rótulo ANTES de separar as listas
                 df_agrupado['TIPO'] = df_agrupado['DIAS_ATRASO'].apply(lambda x: "⚠️ Atrasado" if x > 0 else "📅 A Vencer")
                 df_agrupado['LABEL_DROPDOWN'] = df_agrupado['NOME'] + " | Venc: " + df_agrupado['VENCIMENTO'].dt.strftime("%d/%m") + " - " + df_agrupado['TIPO']
+
+                # SEPARANDO OS PÚBLICOS (Agor eles herdam o rótulo certinho)
+                df_atrasados = df_agrupado[df_agrupado['DIAS_ATRASO'] > 0].sort_values(by='DIAS_ATRASO', ascending=False)
+                df_a_vencer = df_agrupado[(df_agrupado['DIAS_ATRASO'] <= 0) & (df_agrupado['DIAS_ATRASO'] >= -5)].sort_values(by='DIAS_ATRASO', ascending=False)
 
                 # ====================================================
                 # 🖥️ INTERFACE COM ABAS (VENCIDOS vs PREVENÇÃO)
@@ -1082,7 +1081,7 @@ elif menu_selecionado == "💰 Financeiro":
                 st.markdown("---")
                 st.markdown("#### 💬 Central de Comunicação (WhatsApp)")
                 
-                # Junta todos (atrasados e a vencer) no mesmo gerador
+                # Junta todos (atrasados e a vencer) no mesmo gerador para você não ter retrabalho
                 clientes_comunicacao = pd.concat([df_atrasados, df_a_vencer])
                 
                 if not clientes_comunicacao.empty:
@@ -1156,7 +1155,7 @@ elif menu_selecionado == "💰 Financeiro":
                                     link_wpp_ia = f"https://wa.me/?text={urllib.parse.quote(resposta_ia.text)}"
                                     st.link_button("📲 Enviar Texto da IA no WhatsApp", link_wpp_ia, type="secondary", use_container_width=True)
                                 except Exception as e_ia:
-                                    st.error("Erro ao chamar a IA. Verifique sua chave API do Gemini no sistema. Detalhe do erro: " + str(e_ia))
+                                    st.error("Erro ao chamar a IA. Detalhe do erro: " + str(e_ia))
 
             except Exception as e:
                 st.error(f"Erro ao processar as cobranças reais: {e}")
