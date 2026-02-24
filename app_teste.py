@@ -1005,22 +1005,22 @@ elif menu_selecionado == "💰 Financeiro":
             
             fuso_br = pytz.timezone('America/Sao_Paulo') 
             hoje_pd = pd.to_datetime(datetime.now(fuso_br).strftime("%Y-%m-%d"))
-                
-                # ====================================================
-                # 1. TRATAMENTO DE DADOS E CRUZAMENTO (A CESTA)
-                # ====================================================
-                df_cobranca = df_vendas_hist.copy()
-                df_cobranca['SALDO_NUM'] = df_cobranca['SALDO DEVEDOR'].apply(limpar_v)
-                df_dev_real = df_cobranca[df_cobranca['SALDO_NUM'] > 0].copy()
-                
-                df_dev_real['CÓD. CLIENTE'] = df_dev_real['CÓD. CLIENTE'].astype(str).str.replace(".0", "", regex=False).str.strip()
-                df_dev_real['CLIENTE'] = df_dev_real['CLIENTE'].astype(str).str.strip()
-                df_dev_real['PRODUTO'] = df_dev_real['PRODUTO'].astype(str).str.strip()
-                df_dev_real['DATA DA VENDA'] = df_dev_real['DATA DA VENDA'].astype(str).str.strip()
-                
-                df_dev_real['VENCIMENTO'] = pd.to_datetime(df_dev_real['PRÓXIMA PARCELA'], format="%d/%m/%Y", errors='coerce')
-                df_dev_real = df_dev_real.dropna(subset=['VENCIMENTO'])
-                df_dev_real['DIAS_ATRASO'] = (hoje_pd - df_dev_real['VENCIMENTO']).dt.days
+            
+            # ====================================================
+            # 1. TRATAMENTO DE DADOS E CRUZAMENTO (A CESTA)
+            # ====================================================
+            df_cobranca = df_vendas_hist.copy()
+            df_cobranca['SALDO_NUM'] = df_cobranca['SALDO DEVEDOR'].apply(limpar_v)
+            df_dev_real = df_cobranca[df_cobranca['SALDO_NUM'] > 0].copy()
+            
+            df_dev_real['CÓD. CLIENTE'] = df_dev_real['CÓD. CLIENTE'].astype(str).str.replace(".0", "", regex=False).str.strip()
+            df_dev_real['CLIENTE'] = df_dev_real['CLIENTE'].astype(str).str.strip()
+            df_dev_real['PRODUTO'] = df_dev_real['PRODUTO'].astype(str).str.strip()
+            df_dev_real['DATA DA VENDA'] = df_dev_real['DATA DA VENDA'].astype(str).str.strip()
+            
+            df_dev_real['VENCIMENTO'] = pd.to_datetime(df_dev_real['PRÓXIMA PARCELA'], format="%d/%m/%Y", errors='coerce')
+            df_dev_real = df_dev_real.dropna(subset=['VENCIMENTO'])
+            df_dev_real['DIAS_ATRASO'] = (hoje_pd - df_dev_real['VENCIMENTO']).dt.days
                 
                 df_agrupado = df_dev_real.groupby(['CÓD. CLIENTE', 'CLIENTE', 'VENCIMENTO', 'DATA DA VENDA', 'DIAS_ATRASO']).agg(
                     VALOR_ORIGINAL=pd.NamedAgg(column='SALDO_NUM', aggfunc='sum'),
