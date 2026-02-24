@@ -1398,8 +1398,8 @@ elif menu_selecionado == "💰 Financeiro":
                             {msg_base_ia}
                             """
                             
-                            # 💡 AJUSTE: Modelos reordenados para maior estabilidade
-                            modelos = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-pro"]
+                            # 💡 AJUSTE: Apenas os modelos mais modernos e ativos do Google
+                            modelos = ["gemini-1.5-flash", "gemini-1.5-pro"]
                             resultado_ia = None
                             erro_google = ""
                             
@@ -1428,7 +1428,6 @@ elif menu_selecionado == "💰 Financeiro":
                                     st.session_state['ia_ficha_ativa'] = False
                                     st.rerun()
                             else:
-                                # 💡 AJUSTE: Agora ele imprime O QUE o Google reclamou
                                 st.error(f"⚠️ A IA falhou ao gerar. Motivo do bloqueio: {erro_google}")
                         except Exception as e_ia:
                             st.error(f"⚠️ Erro de comunicação com o Google: {e_ia}")
