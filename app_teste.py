@@ -1120,10 +1120,21 @@ elif menu_selecionado == "💰 Financeiro":
                     if cliente_alvo != "---":
                         dados_cli = atrasados[atrasados['CLIENTE'] == cliente_alvo].iloc[0]
                         
+                        # 💡 NOVA INJEÇÃO: Busca o Vale Desconto na Carteira de Clientes
+                        cod_cli_busca = str(dados_cli['CÓD. CLIENTE']).strip()
+                        carteira_cliente = banco_de_clientes.get(cod_cli_busca, {})
+                        
+                        # Tenta puxar a coluna (cobre variações de nome na planilha)
+                        vale_atual = str(carteira_cliente.get('VALE DESCONTO', carteira_cliente.get('vale desconto', ''))).strip()
+                        tem_vale_valido = vale_atual and vale_atual.lower() not in ['nan', 'none', '', '0', '0,00', 'r$ 0,00']
+                        
                         # 💡 Preparação para a Negociação (Objeções e SWEET REWARDS)
                         st.write("##### 🛡️ Preparação Adicional (Opcional)")
                         desculpa_cliente = st.text_input("A cliente deu alguma desculpa para o atraso?", placeholder="Ex: Fiquei doente, achei o juros alto...")
-                        usar_rewards = st.checkbox("🎁 Ativar 'Sweet Rewards' (Usar Vale-Desconto como negociação)")
+                        
+                        # Checkbox inteligente (Muda de texto se já tiver vale)
+                        texto_check = f"🎁 Usar Saldo de {vale_atual} (Carteira) na negociação" if tem_vale_valido else "🎁 Ativar 'Sweet Rewards' (Oferecer NOVO Vale-Desconto como negociação)"
+                        usar_rewards = st.checkbox(texto_check)
                         
                         if st.button("✨ Gerar Propostas de Acordo", type="primary"):
                             with st.spinner("Analisando perfil da dívida e calculando cenários..."):
@@ -1131,8 +1142,15 @@ elif menu_selecionado == "💰 Financeiro":
                                     import google.generativeai as genai
                                     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
                                     
-                                    # Montando regras focadas em Vale-Desconto e Retenção
-                                    instrucao_rewards = "ESTRATÉGIA SWEET REWARDS ATIVADA: Oriente a vendedora a usar um 'Vale-Fidelidade' (entre R$ 20 e R$ 50) ou um 'Cupom de 10%' na PRÓXIMA compra como moeda de troca, condicionado à quitação desta dívida hoje. Use isso para quebrar resistências." if usar_rewards else ""
+                                    # Montando a lógica do Vale Dinâmico
+                                    if usar_rewards:
+                                        if tem_vale_valido:
+                                            instrucao_rewards = f"ESTRATÉGIA SWEET REWARDS ATIVADA: A cliente JÁ POSSUI um saldo de 'Vale-Desconto' de {vale_atual} cadastrado no nosso sistema. Use esse argumento como moeda de troca: proponha que ela use esse saldo acumulado agora mesmo para abater a multa/juros, desde que faça o pagamento à vista hoje."
+                                        else:
+                                            instrucao_rewards = "ESTRATÉGIA SWEET REWARDS ATIVADA: Oriente a vendedora a gerar um NOVO 'Vale-Fidelidade' (entre R$ 20 e R$ 50) ou um 'Cupom de 10%' para a PRÓXIMA compra, condicionando isso à quitação da dívida hoje. Use isso para quebrar resistências."
+                                    else:
+                                        instrucao_rewards = ""
+                                        
                                     instrucao_objecao = f"A cliente deu esta desculpa: '{desculpa_cliente}'. Escreva um parágrafo amigável (pronto para copiar e colar no WhatsApp) desarmando essa desculpa com empatia e focando na solução." if desculpa_cliente else ""
                                     
                                     prompt_estrategia = f"""
