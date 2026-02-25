@@ -1270,8 +1270,6 @@ elif menu_selecionado == "💰 Financeiro":
         except Exception as e:
             st.error(f"⚠️ Erro no núcleo de processamento gerencial: {e}")
             
-    st.divider() # Divisória para separar da Ficha de Cliente logo abaixo
-    
     st.markdown("### 🔍 Ficha de Cliente (Extrato Dinâmico)")
     opcoes_ficha = sorted([f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
     sel_ficha = st.selectbox("Selecione para ver o que ela deve:", ["---"] + opcoes_ficha, key="ficha_sel_cliente")
@@ -1395,7 +1393,7 @@ elif menu_selecionado == "💰 Financeiro":
                             ⚠️ REGRA CRÍTICA: Retorne EXATAMENTE APENAS o texto da mensagem final. 
                             NÃO inclua introduções como "Com certeza!", "Aqui está..." ou tracejados iniciais. 
                             NÃO explique o que você fez. O texto deve estar pronto para eu copiar e colar diretamente no WhatsApp.
-                            NÃO utilize emojis na sua resposta, apenas texto e negrito.
+                            Você PODE e DEVE utilizar emojis estratégicos para deixar a mensagem amigável e simpática.
                             
                             Mensagem:
                             {msg_base_ia}
@@ -1415,11 +1413,9 @@ elif menu_selecionado == "💰 Financeiro":
                                 st.success("✨ Mensagem Otimizada com Sucesso!")
                                 texto_final_ia = st.text_area("Revise a mensagem da IA:", value=resultado_ia.text.strip(), height=250)
                                 
-                                # Botão HTML também para a IA
+                                # Botão Nativo (st.link_button) para garantir que os Emojis gerados pela IA não quebrem
                                 url_ia = f"https://wa.me/{tel_c}?text={urllib.parse.quote(texto_final_ia)}"
-                                btn_ia_html = f"""<a href="{url_ia}" target="_blank" style="display: block; width: 100%; text-align: center; background-color: #ff4b4b; color: white; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold;">📲 Enviar Mensagem da IA</a>"""
-                                
-                                st.markdown(btn_ia_html, unsafe_allow_html=True)
+                                st.link_button("📲 Enviar Mensagem da IA", url_ia, use_container_width=True, type="primary")
                                 
                                 st.write("") # Espaçinho visual
                                 if st.button("❌ Dispensar IA"):
@@ -1460,10 +1456,28 @@ elif menu_selecionado == "📦 Estoque":
         qtd_baixos = len(df_estoque[(df_estoque['EST_NUM'] > 0) & (df_estoque['EST_NUM'] <= 3)])
 
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("📦 Itens no Catálogo", total_skus)
-        c2.metric("💰 Capital na Prateleira", f"R$ {capital_parado:,.2f}")
-        c3.metric("🚨 Esgotados / Furos", qtd_furos)
-        c4.metric("⚠️ Estoque Baixo (≤3)", qtd_baixos)
+        
+        # 💡 Injeção do parâmetro 'help' para clareza gerencial
+        c1.metric(
+            "📦 Variações (SKUs)", 
+            total_skus, 
+            help="Total de linhas (variações de cor/modelo) cadastradas na planilha. Não é a quantidade de peças físicas, nem a quantidade de famílias de produtos."
+        )
+        c2.metric(
+            "💰 Capital na Prateleira", 
+            f"R$ {capital_parado:,.2f}", 
+            help="Soma financeira de todas as suas peças físicas multiplicadas pelo Custo Unitário de cada uma delas."
+        )
+        c3.metric(
+            "🚨 Esgotados / Furos", 
+            qtd_furos, 
+            help="Quantidade de variações (linhas) que estão com o estoque zerado ou negativo na planilha."
+        )
+        c4.metric(
+            "⚠️ Estoque Baixo (≤3)", 
+            qtd_baixos, 
+            help="Quantidade de variações (linhas) que estão entrando na zona de risco (com 3 ou menos peças físicas disponíveis)."
+        )
 
         with st.expander("📊 Central de Reposição e Tendências", expanded=False):
             tab1, tab2 = st.tabs(["🚨 Malha Fina", "🏆 Campeões de Venda"])
