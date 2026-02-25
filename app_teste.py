@@ -829,13 +829,25 @@ elif menu_selecionado == "💰 Financeiro":
     if not df_vendas_hist.empty:
         try:
             # 1. PROCESSAMENTO SEGURO POR POSIÇÃO (ILOC)
-            df_fin = df_vendas_hist.copy()
+            df_fin_total = df_vendas_hist.copy()
             
             # Mapeamento: Coluna L (11)=Total | M (12)=Lucro | O (14)=Pagto | U (20)=Saldo
-            df_fin['VALOR_NUM'] = df_fin.iloc[:, 11].apply(limpar_v)
-            df_fin['LUCRO_NUM'] = df_fin.iloc[:, 12].apply(limpar_v)
-            df_fin['FORMA_PG'] = df_fin.iloc[:, 14]
-            df_fin['SALDO_NUM'] = df_fin.iloc[:, 20].apply(limpar_v)
+            df_fin_total['VALOR_NUM'] = df_fin_total.iloc[:, 11].apply(limpar_v)
+            df_fin_total['LUCRO_NUM'] = df_fin_total.iloc[:, 12].apply(limpar_v)
+            df_fin_total['FORMA_PG'] = df_fin_total.iloc[:, 14]
+            df_fin_total['SALDO_NUM'] = df_fin_total.iloc[:, 20].apply(limpar_v)
+            
+            # ========================================================
+            # 🛑 O GRANDE FILTRO (PRINCÍPIO DA ENTIDADE)
+            # ========================================================
+            NOME_CEO = "Beatriz Anselmo" # Coloque o nome EXATAMENTE como está cadastrado
+            
+            # Pega as vendas reais (Exclui a CEO)
+            df_fin = df_fin_total[~df_fin_total.iloc[:, 3].astype(str).str.contains(NOME_CEO, case=False, na=False)]
+            
+            # Guarda as movimentações da CEO para o Banco Sweet
+            df_ceo = df_fin_total[df_fin_total.iloc[:, 3].astype(str).str.contains(NOME_CEO, case=False, na=False)]
+            # ========================================================
             
             vendas_brutas = df_fin['VALOR_NUM'].sum()
             lucro_bruto = df_fin['LUCRO_NUM'].sum()
@@ -846,7 +858,7 @@ elif menu_selecionado == "💰 Financeiro":
             receita_imediata = df_fin[df_fin['FORMA_PG'] != 'Sweet Flex']['VALOR_NUM'].sum()
             indice_liquidez = (receita_imediata / vendas_brutas * 100) if vendas_brutas > 0 else 0
             
-            # 2. MÉTRICAS PRINCIPAIS
+            # 2. MÉTRICAS PRINCIPAIS (AGORA 100% REAIS DA LOJA)
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Vendas Totais", f"R$ {vendas_brutas:,.2f}")
             c2.metric("Lucro Bruto", f"R$ {lucro_bruto:,.2f}")
@@ -1289,6 +1301,96 @@ elif menu_selecionado == "💰 Financeiro":
                 
         except Exception as e:
             st.error(f"⚠️ Erro no núcleo de processamento gerencial: {e}")
+
+    # ====================================================
+    # 🏦 BANCO SWEET & TESOURARIA CORPORATIVA
+    # ====================================================
+    st.markdown("---")
+    with st.expander("🏦 Banco Sweet (Capital, Investimentos e Tesouraria)", expanded=False):
+        st.write("Controle exclusivo de aportes da sócia, reinvestimentos e retiradas de estoque (Marketing/Brindes).")
+        
+        try:
+            # 1. Mapeamento das saídas (Compras feitas no nome da Bia)
+            total_retirado_estoque = df_ceo['VALOR_NUM'].sum()
+            lucro_abdicao = df_ceo['LUCRO_NUM'].sum() # O lucro que a loja deixou de ter nessas peças
+            custo_real_marketing = total_retirado_estoque - lucro_abdicao # O preço de custo das peças retiradas
+            
+            # 2. Mapeamento de Entradas (Busca na aba FINANCEIRO aportes da Bia)
+            df_fin_aba = df_financeiro.copy()
+            if not df_fin_aba.empty:
+                # Vamos considerar como Aporte tudo que tiver "APORTE" ou "INVESTIMENTO" na observação
+                # E que o status não seja "PAGO" (que é o das clientes), usaremos "APORTE CAPITAL"
+                mask_aporte = df_fin_aba.iloc[:, 6].astype(str).str.upper() == "APORTE CAPITAL"
+                aportes_df = df_fin_aba[mask_aporte]
+                total_aportado = sum(limpar_v(v) for v in aportes_df.iloc[:, 5])
+            else:
+                total_aportado = 0.0
+                aportes_df = pd.DataFrame()
+            
+            # Saldo do Banco = (Dinheiro que ela injetou) - (Valor das peças que ela tirou)
+            saldo_banco_sweet = total_aportado - custo_real_marketing
+            
+            # 3. Exibição Premium do Banco
+            b1, b2, b3 = st.columns(3)
+            b1.metric("📥 Total Aportado (Investimento)", f"R$ {total_aportado:,.2f}", help="Dinheiro vivo injetado na loja pela CEO.")
+            b2.metric("📤 Retiradas (Custo Mkt/Brindes)", f"R$ {custo_real_marketing:,.2f}", delta=f"{len(df_ceo)} itens", delta_color="inverse", help="Custo real de fábrica dos produtos retirados no nome da CEO.")
+            
+            if saldo_banco_sweet >= 0:
+                b3.metric("💼 Balanço de Capital", f"R$ {saldo_banco_sweet:,.2f}", delta="Superávit", help="Aportes superam as retiradas.")
+            else:
+                b3.metric("💼 Balanço de Capital", f"R$ {saldo_banco_sweet:,.2f}", delta="Déficit", delta_color="inverse", help="Valor em produtos retirados supera o dinheiro vivo injetado.")
+
+            st.divider()
+
+            # 4. Formulário Integrado de Injeção de Capital
+            st.markdown("#### ➕ Registrar Novo Aporte / Reinvestimento")
+            with st.form("form_aporte_capital", clear_on_submit=True):
+                col_a1, col_a2 = st.columns(2)
+                valor_aporte = col_a1.number_input("Valor Injetado (R$)", min_value=0.01)
+                origem_aporte = col_a2.text_input("Origem / Observação", placeholder="Ex: Lucro reinvestido, Dinheiro pessoal...")
+                
+                if st.form_submit_button("Confirmar Entrada de Capital 💰", type="primary"):
+                    try:
+                        aba_financeiro = planilha_mestre.worksheet("FINANCEIRO")
+                        
+                        # Injeta a linha na aba financeira usando uma formatação de "Sistema"
+                        linha_aporte = [
+                            datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y"),
+                            datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%H:%M"),
+                            "CEO-000",
+                            NOME_CEO,
+                            0, # Sem desconto
+                            valor_aporte,
+                            "APORTE CAPITAL", # Status especial que nosso sistema vai reconhecer
+                            f"Banco Sweet: {origem_aporte}"
+                        ]
+                        
+                        aba_financeiro.append_row(linha_aporte, value_input_option='RAW')
+                        st.success(f"✅ Aporte de R$ {valor_aporte:.2f} registrado com sucesso!")
+                        st.cache_data.clear()
+                        st.cache_resource.clear()
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao registrar aporte: {e}")
+            
+            # 5. Histórico Rápido do Banco Sweet
+            st.markdown("#### 📜 Extrato do Banco Sweet")
+            t_inv, t_ret = st.tabs(["Injeções de Dinheiro", "Peças Retiradas"])
+            
+            with t_inv:
+                if not aportes_df.empty:
+                    st.dataframe(aportes_df.iloc[:, [0, 5, 7]], use_container_width=True, hide_index=True)
+                else:
+                    st.info("Nenhum aporte financeiro registrado ainda.")
+            
+            with t_ret:
+                if not df_ceo.empty:
+                    st.dataframe(df_ceo[['DATA DA VENDA', 'PRODUTO', 'VALOR_NUM', 'FORMA_PG']], use_container_width=True, hide_index=True)
+                else:
+                    st.info("Nenhuma retirada de produto registrada.")
+
+        except Exception as e:
+            st.error(f"Erro ao processar o Banco Sweet: {e}")
             
     st.markdown("### 🔍 Ficha de Cliente (Extrato Dinâmico)")
     opcoes_ficha = sorted([f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
