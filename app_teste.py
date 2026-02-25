@@ -420,7 +420,7 @@ if menu_selecionado == "🛒 Vendas":
                     telefone_sugerido = banco_de_clientes[id_cliente].get('fone', "")
             
             c_nome_novo = st.text_input("Nome Completo (se novo)", key="venda_nome_novo")
-            c_zap = st.text_input("WhatsApp", value=telefone_sugerido, key="zap_venda_input")
+            c_zap = st.text_input("WhatsApp", value=telefone_sugerido, key=f"zap_venda_input_{c_sel}")
             vendedor = st.text_input("Vendedor(a)", value="Bia", key="venda_vendedor_input")
 
         with col_v2:
@@ -612,7 +612,20 @@ if menu_selecionado == "🛒 Vendas":
                         st.success("✅ Venda registrada com sucesso!")
                         st.code(recibo_texto, language="text")
                         
-                        zap_limpo = c_zap.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+                        # 1. Inteligência: Puxa do Banco de Dados se for cliente antigo, ou da tela se for novo
+                        if c_sel == "*** NOVO CLIENTE ***":
+                            telefone_final = c_zap
+                        else:
+                            id_cli_final = c_sel.split(" - ")[0]
+                            telefone_final = banco_de_clientes[id_cli_final].get('fone', "")
+
+                        # 2. Limpeza pesada igual ao CRM
+                        zap_limpo = str(telefone_final).replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+
+                        # 3. Proteção extra (Se já tiver 55 no banco de dados, ele não duplica)
+                        if zap_limpo.startswith("55") and len(zap_limpo) > 11:
+                            zap_limpo = zap_limpo[2:]
+
                         st.link_button("📲 Enviar Recibo Único para o WhatsApp", f"https://wa.me/55{zap_limpo}?text={urllib.parse.quote(recibo_texto)}", use_container_width=True, type="primary")
 
                         # Limpeza Final (AGORA SIM, BEM GUARDADA NO LUGAR CERTO)
