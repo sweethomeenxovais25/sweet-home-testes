@@ -1319,50 +1319,48 @@ elif menu_selecionado == "💰 Financeiro":
                 tel_c = "55" + tel_c
 
             # ---------------------------------------------------------
-            # 2. CONSTRUÇÃO DO RECIBO FINANCEIRO (TEXTO PURO PARA O WPP)
+            # 2. CONSTRUÇÃO DO RECIBO FINANCEIRO (VERSÃO PREMIUM MOBILE)
             # ---------------------------------------------------------
             lista_extrato = ""
             
-            # Varre TODO o histórico com visual de Ticket (Sem Emojis para o WPP)
+            # Varre TODO o histórico com visual de Ticket e Emojis
             for _, row in v_hist.iterrows():
                 status_atual = str(row['STATUS']).strip()
                 
-                # Farol em Texto Puro
                 if status_atual.lower() in ['pago', 'quitado', 'ok']:
-                    icone = "[ PAGO ]"
+                    icone = "✅ *PAGO*"
                 else:
-                    icone = "[ PENDENTE ]"
+                    icone = "⏳ *PENDENTE*"
                 
-                # Estrutura visual textual para o WhatsApp
-                lista_extrato += f"*{row['PRODUTO']}*\n ├ Data: {row['DATA DA VENDA']}\n └ Status: {icone}\n\n"
+                lista_extrato += f"🛍️ *{row['PRODUTO']}*\n ├ 📅 Data: {row['DATA DA VENDA']}\n └ 🏷️ Status: {icone}\n\n"
             
             saldo_formatado = f"R$ {saldo_devedor_real:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             
-            # MENSAGEM 1: COBRANÇA (Texto Puro, Sem Emojis)
+            # MENSAGEM 1: COBRANÇA (Design Sweet Home)
             msg_cobranca = (
-                f"Olá, *{nome_c_ficha}*! Tudo bem?\n\n"
+                f"Olá, *{nome_c_ficha}*! Tudo bem? 🌸\n\n"
                 f"Aqui é do *Setor Financeiro da Sweet Home Enxovais*.\n"
-                f"Criamos esse departamento recentemente para melhorar a nossa organização e estarmos ainda mais próximos de você!\n\n"
+                f"Criamos esse departamento recentemente para melhorar a nossa organização e estarmos ainda mais próximos de você! ✨\n\n"
                 f"Passando para deixar o resumo atualizado da sua ficha conosco:\n\n"
-                f"*HISTÓRICO DE COMPRAS:*\n"
-                f"-----------------------------------\n"
+                f"📑 *SEU HISTÓRICO DE COMPRAS:*\n"
+                f"━━━━━━━━━━━━━━━━━━━\n"
                 f"{lista_extrato}"
-                f"-----------------------------------\n"
-                f"*Total Pendente Atual: {saldo_formatado}*\n\n"
-                f"Qualquer dúvida sobre os itens ou se precisar da nossa chave PIX para regularizar, estou à disposição!"
+                f"━━━━━━━━━━━━━━━━━━━\n"
+                f"💰 *Total Pendente Atual: {saldo_formatado}*\n\n"
+                f"Qualquer dúvida sobre os itens ou se precisar da nossa chave PIX para regularizar, estou à disposição! 🥰"
             )
 
-            # MENSAGEM 2: LEMBRETE PREVENTIVO (Texto Puro, Sem Emojis)
+            # MENSAGEM 2: LEMBRETE PREVENTIVO (Design Sweet Home)
             msg_lembrete = (
-                f"Olá, *{nome_c_ficha}*! Tudo bem?\n\n"
+                f"Olá, *{nome_c_ficha}*! Tudo bem? 🌸\n\n"
                 f"Aqui é do *Setor Financeiro da Sweet Home Enxovais*.\n\n"
-                f"Passando apenas para te enviar um lembrete super amigável de que você tem itens com vencimento se aproximando.\n\n"
-                f"*RESUMO DA SUA FICHA:*\n"
-                f"-----------------------------------\n"
+                f"Passando apenas para te enviar um lembrete super amigável de que você tem itens com vencimento se aproximando. ✨\n\n"
+                f"📑 *RESUMO DA SUA FICHA:*\n"
+                f"━━━━━━━━━━━━━━━━━━━\n"
                 f"{lista_extrato}"
-                f"-----------------------------------\n"
-                f"*Valor programado para acerto: {saldo_formatado}*\n\n"
-                f"Se precisar da nossa chave PIX para já deixar agendado, é só me avisar. Tenha um excelente dia!"
+                f"━━━━━━━━━━━━━━━━━━━\n"
+                f"💰 *Valor programado para acerto: {saldo_formatado}*\n\n"
+                f"Se precisar da nossa chave PIX para já deixar agendado, é só me avisar. Tenha um excelente dia! 🥰"
             )
             
             # ---------------------------------------------------------
