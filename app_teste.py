@@ -623,7 +623,7 @@ if menu_selecionado == "🛒 Vendas":
 
                         # Limpeza Final (AGORA SIM, BEM GUARDADA NO LUGAR CERTO)
                         st.session_state['carrinho'] = []
-                        st.cache_resource.clear()
+                        st.cache_data.clear()
                         
                     except Exception as e:
                         st.error(f"Erro ao processar venda: {e}")
