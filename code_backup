@@ -1,6 +1,7 @@
 
 
 
+
 import streamlit as st
 import pandas as pd
 import gspread
@@ -187,15 +188,20 @@ ESPECIFICACOES = [
     "https://www.googleapis.com/auth/drive.file"
 ]
 
-# 👇 1. PRIMEIRO: O SISTEMA SE CONECTA AO GOOGLE E ABRE A PLANILHA
-try:
-    # Atenção: Esta parte puxa as credenciais e cria a variável "planilha_mestre"
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], ESPECIFICACOES)
-    client = gspread.authorize(creds)
-    planilha_mestre = client.open_by_key(ID_PLANILHA)
-except Exception as e:
-    st.error(f"Erro na conexão com o Google Sheets: {e}")
-    st.stop() # Se não conectar, ele para aqui e avisa.
+# 👇 1. PRIMEIRO: O SISTEMA SE CONECTA AO GOOGLE E ABRE A PLANILHA (AGORA COM ESCUDO!)
+@st.cache_resource
+def conectar_google():
+    try:
+        if "gcp_service_account" in st.secrets:
+            creds_info = st.secrets["gcp_service_account"]
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_info, ESPECIFICACOES)
+            return gspread.authorize(creds).open_by_key(ID_PLANILHA)
+        return None
+    except Exception as e:
+        st.error(f"Erro de conexão: {e}")
+        st.stop()
+
+planilha_mestre = conectar_google()
 
 # 👇 2. DEPOIS: O GATILHO RODA (Agora que a planilha_mestre já existe!)
 # ====================================================
@@ -252,21 +258,7 @@ def upload_para_cloudinary(file_bytes, file_name, pasta_destino):
         st.error(f"Erro no servidor de arquivos: {e}")
         return None, None
 
-@st.cache_resource
-def conectar_google():
-    try:
-        if "gcp_service_account" in st.secrets:
-            creds_info = st.secrets["gcp_service_account"]
-            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_info, ESPECIFICACOES)
-            return gspread.authorize(creds).open_by_key(ID_PLANILHA)
-        return None
-    except Exception as e:
-        st.error(f"Erro de conexão: {e}")
-        return None
-
-planilha_mestre = conectar_google()
-
-@st.cache_resource(ttl=600)
+@st.cache_data(ttl=60)
 def carregar_dados():
     if not planilha_mestre: 
         return {}, {}, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
@@ -321,7 +313,8 @@ with st.sidebar:
     modo_teste = st.toggle("🔬 Modo de Teste", value=False, key="toggle_teste")
     
     if st.button("🔄 Sincronizar Planilha", key="btn_sincronizar"):
-        st.cache_resource.clear()
+        st.cache_data.clear()
+        st.cache_resource.clear() # Deixe os dois para garantir uma limpeza profunda!
         st.rerun()
 
     st.divider()
@@ -345,8 +338,11 @@ with st.sidebar:
 
         try:
             # Carrega a aba USUARIO fresca da planilha
-            aba_usuario = planilha_mestre.worksheet("USUARIO")
-            dados_usuarios = aba_usuario.get_all_values()
+            @st.cache_data(ttl=60)
+            def ler_usuarios_com_cache():
+                return planilha_mestre.worksheet("USUARIO").get_all_values()
+            
+            dados_usuarios = ler_usuarios_com_cache()
 
             if len(dados_usuarios) > 1:
                 # Transforma os dados em uma tabela (DataFrame)
@@ -425,7 +421,7 @@ if menu_selecionado == "🛒 Vendas":
                     telefone_sugerido = banco_de_clientes[id_cliente].get('fone', "")
             
             c_nome_novo = st.text_input("Nome Completo (se novo)", key="venda_nome_novo")
-            c_zap = st.text_input("WhatsApp", value=telefone_sugerido, key="zap_venda_input")
+            c_zap = st.text_input("WhatsApp", value=telefone_sugerido, key=f"zap_venda_input_{c_sel}")
             vendedor = st.text_input("Vendedor(a)", value="Bia", key="venda_vendedor_input")
 
         with col_v2:
@@ -580,40 +576,62 @@ if menu_selecionado == "🛒 Vendas":
                                 aba_v.insert_row(linha, index=idx_ins, value_input_option='USER_ENTERED')
 
                         # 3. Geração do Recibo Único e Elegante
+                        nome_primeiro = nome_cli.split(' ')[0]
                         recibo_texto = (
-                            f"🌸 *DOCE LAR - RECIBO DE COMPRA* 🌸\n"
-                            f"━━━━━━━━━━━━━━━━━━━\n"
-                            f"Olá, eu sou a Bia! ✨ É um prazer atender você, *{nome_cli.split(' ')[0]}*.\n"
-                            f"Aqui está o resumo detalhado da sua felicidade:\n\n"
+                            f"👩‍💼 *Vendedora:* {vendedor}\n\n"
+                            f"✨ *Muito obrigada pela preferência!*\n"
+                            f"É um prazer atender você, {nome_primeiro}.\n"
+                            f"Aqui está o resumo detalhado da sua compra 🥰\n\n"
                         )
+                        
+                        # Loop dos produtos no carrinho
                         for item in st.session_state['carrinho']:
-                            recibo_texto += f"🛍️ {item['qtd']}x {item['nome']} - R$ {item['subtotal']:,.2f}\n"
-                        
-                        recibo_texto += f"━━━━━━━━━━━━━━━━━━━\n"
-                        recibo_texto += f"💰 *Subtotal:* R$ {subtotal_venda:,.2f}\n"
-                        if desc_v > 0:
-                            recibo_texto += f"📉 *Desconto:* - R$ {desc_v:,.2f}\n"
-                        recibo_texto += f"✅ *TOTAL FINAL:* *R$ {total_com_desconto:,.2f}*\n\n"
-                        recibo_texto += f"💳 *Forma de Pagto:* {metodo}\n"
-                        recibo_texto += f"🗓️ *Data:* {datetime.now().strftime('%d/%m/%Y')}\n"
-                        
-                        if metodo == "Sweet Flex":
-                            recibo_texto += f"\n📝 *Plano de Pagamento ({n_p}x):*\n"
-                            for i, data_p in enumerate(detalhes_p):
-                                recibo_texto += f"🔹 {i+1}ª Parcela: {data_p} - R$ {total_com_desconto/n_p:,.2f}\n"
+                            recibo_texto += f"🛍️ {item['qtd']}x {item['nome']} — R$ {item['subtotal']:,.2f}\n".replace(",", "X").replace(".", ",").replace("X", ".")
                         
                         recibo_texto += f"\n━━━━━━━━━━━━━━━━━━━\n"
-                        recibo_texto += f"👤 *Vendedor(a):* {vendedor}\n"
-                        recibo_texto += f"✨ *Obrigada pela preferência!*"
+                        recibo_texto += f"💰 Subtotal: R$ {subtotal_venda:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + "\n"
+                        
+                        if desc_v > 0:
+                            recibo_texto += f"📉 Desconto: R$ {desc_v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + "\n"
+                            
+                        recibo_texto += f"✅ TOTAL FINAL: R$ {total_com_desconto:,.2f}\n\n".replace(",", "X").replace(".", ",").replace("X", ".")
+                        
+                        recibo_texto += f"💳 Forma de pagamento: {metodo}\n"
+                        recibo_texto += f"🗓️ Data da compra: {datetime.now().strftime('%d/%m/%Y')}\n"
+                        
+                        # Bloco do Sweet Flex (Parcelamento)
+                        if metodo == "Sweet Flex":
+                            recibo_texto += f"\n📝 Plano de pagamento ({n_p}x):\n"
+                            for i, data_p in enumerate(detalhes_p):
+                                val_parc = total_com_desconto / n_p
+                                recibo_texto += f"🔹 {data_p} — R$ {val_parc:,.2f}\n".replace(",", "X").replace(".", ",").replace("X", ".")
+                        
+                        recibo_texto += f"\n━━━━━━━━━━━━━━━━━━━\n"
+                        recibo_texto += f"👩‍💼 Vendedora: {vendedor}\n"
+                        recibo_texto += f"✨ Muito obrigada pela preferência!"
 
                         st.success("✅ Venda registrada com sucesso!")
                         st.code(recibo_texto, language="text")
                         
-                        zap_limpo = c_zap.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+                        # 1. Inteligência: Puxa do Banco de Dados se for cliente antigo, ou da tela se for novo
+                        if c_sel == "*** NOVO CLIENTE ***":
+                            telefone_final = c_zap
+                        else:
+                            id_cli_final = c_sel.split(" - ")[0]
+                            telefone_final = banco_de_clientes[id_cli_final].get('fone', "")
+
+                        # 2. Limpeza pesada igual ao CRM
+                        zap_limpo = str(telefone_final).replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+
+                        # 3. Proteção extra (Se já tiver 55 no banco de dados, ele não duplica)
+                        if zap_limpo.startswith("55") and len(zap_limpo) > 11:
+                            zap_limpo = zap_limpo[2:]
+
                         st.link_button("📲 Enviar Recibo Único para o WhatsApp", f"https://wa.me/55{zap_limpo}?text={urllib.parse.quote(recibo_texto)}", use_container_width=True, type="primary")
 
                         # Limpeza Final (AGORA SIM, BEM GUARDADA NO LUGAR CERTO)
                         st.session_state['carrinho'] = []
+                        st.cache_data.clear()
                         st.cache_resource.clear()
                         
                     except Exception as e:
@@ -755,6 +773,7 @@ if menu_selecionado == "🛒 Vendas":
                                     "total": n_t_liq,
                                     "metodo": novo_metodo
                                 }
+                                st.cache_data.clear()
                                 st.cache_resource.clear()
                                 st.rerun()
                             except Exception as e:
@@ -765,6 +784,7 @@ if menu_selecionado == "🛒 Vendas":
                                 try:
                                     aba_vendas.delete_rows(linha_real)
                                     st.session_state['recibo_correcao'] = {"tipo": "excluido", "linha": linha_real}
+                                    st.cache_data.clear()
                                     st.cache_resource.clear()
                                     st.rerun()
                                 except Exception as e:
@@ -950,6 +970,7 @@ elif menu_selecionado == "💰 Financeiro":
                         aba_f = planilha_mestre.worksheet("FINANCEIRO")
                         aba_f.append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), c_pg.split(" - ")[0], nome_c_alvo, 0, v_pg, "PAGO", f"{meio}: {obs}"], value_input_option='RAW')
                         st.success(f"✅ Recebido de {nome_c_alvo} processado!")
+                        st.cache_data.clear()
                         st.cache_resource.clear(); st.rerun()
                     except Exception as e: st.error(f"Erro no FIFO: {e}")
 
@@ -1299,50 +1320,48 @@ elif menu_selecionado == "💰 Financeiro":
                 tel_c = "55" + tel_c
 
             # ---------------------------------------------------------
-            # 2. CONSTRUÇÃO DO RECIBO FINANCEIRO (TEXTO PURO PARA O WPP)
+            # 2. CONSTRUÇÃO DO RECIBO FINANCEIRO (VERSÃO PREMIUM MOBILE)
             # ---------------------------------------------------------
             lista_extrato = ""
             
-            # Varre TODO o histórico com visual de Ticket (Sem Emojis para o WPP)
+            # Varre TODO o histórico com visual de Ticket e Emojis
             for _, row in v_hist.iterrows():
                 status_atual = str(row['STATUS']).strip()
                 
-                # Farol em Texto Puro
                 if status_atual.lower() in ['pago', 'quitado', 'ok']:
-                    icone = "[ PAGO ]"
+                    icone = "✅ *PAGO*"
                 else:
-                    icone = "[ PENDENTE ]"
+                    icone = "⏳ *PENDENTE*"
                 
-                # Estrutura visual textual para o WhatsApp
-                lista_extrato += f"*{row['PRODUTO']}*\n ├ Data: {row['DATA DA VENDA']}\n └ Status: {icone}\n\n"
+                lista_extrato += f"🛍️ *{row['PRODUTO']}*\n ├ 📅 Data: {row['DATA DA VENDA']}\n └ 🏷️ Status: {icone}\n\n"
             
             saldo_formatado = f"R$ {saldo_devedor_real:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             
-            # MENSAGEM 1: COBRANÇA (Texto Puro, Sem Emojis)
+            # MENSAGEM 1: COBRANÇA (Design Sweet Home)
             msg_cobranca = (
-                f"Olá, *{nome_c_ficha}*! Tudo bem?\n\n"
+                f"Olá, *{nome_c_ficha}*! Tudo bem? 🌸\n\n"
                 f"Aqui é do *Setor Financeiro da Sweet Home Enxovais*.\n"
-                f"Criamos esse departamento recentemente para melhorar a nossa organização e estarmos ainda mais próximos de você!\n\n"
+                f"Criamos esse departamento recentemente para melhorar a nossa organização e estarmos ainda mais próximos de você! ✨\n\n"
                 f"Passando para deixar o resumo atualizado da sua ficha conosco:\n\n"
-                f"*HISTÓRICO DE COMPRAS:*\n"
-                f"-----------------------------------\n"
+                f"📑 *SEU HISTÓRICO DE COMPRAS:*\n"
+                f"━━━━━━━━━━━━━━━━━━━\n"
                 f"{lista_extrato}"
-                f"-----------------------------------\n"
-                f"*Total Pendente Atual: {saldo_formatado}*\n\n"
-                f"Qualquer dúvida sobre os itens ou se precisar da nossa chave PIX para regularizar, estou à disposição!"
+                f"━━━━━━━━━━━━━━━━━━━\n"
+                f"💰 *Total Pendente Atual: {saldo_formatado}*\n\n"
+                f"Qualquer dúvida sobre os itens ou se precisar da nossa chave PIX para regularizar, estou à disposição! 🥰"
             )
 
-            # MENSAGEM 2: LEMBRETE PREVENTIVO (Texto Puro, Sem Emojis)
+            # MENSAGEM 2: LEMBRETE PREVENTIVO (Design Sweet Home)
             msg_lembrete = (
-                f"Olá, *{nome_c_ficha}*! Tudo bem?\n\n"
+                f"Olá, *{nome_c_ficha}*! Tudo bem? 🌸\n\n"
                 f"Aqui é do *Setor Financeiro da Sweet Home Enxovais*.\n\n"
-                f"Passando apenas para te enviar um lembrete super amigável de que você tem itens com vencimento se aproximando.\n\n"
-                f"*RESUMO DA SUA FICHA:*\n"
-                f"-----------------------------------\n"
+                f"Passando apenas para te enviar um lembrete super amigável de que você tem itens com vencimento se aproximando. ✨\n\n"
+                f"📑 *RESUMO DA SUA FICHA:*\n"
+                f"━━━━━━━━━━━━━━━━━━━\n"
                 f"{lista_extrato}"
-                f"-----------------------------------\n"
-                f"*Valor programado para acerto: {saldo_formatado}*\n\n"
-                f"Se precisar da nossa chave PIX para já deixar agendado, é só me avisar. Tenha um excelente dia!"
+                f"━━━━━━━━━━━━━━━━━━━\n"
+                f"💰 *Valor programado para acerto: {saldo_formatado}*\n\n"
+                f"Se precisar da nossa chave PIX para já deixar agendado, é só me avisar. Tenha um excelente dia! 🥰"
             )
             
             # ---------------------------------------------------------
@@ -1578,7 +1597,7 @@ elif menu_selecionado == "📦 Estoque":
                                 aba.update_acell(f"C{lin_p}", comp_c + q_nova)
                                 aba.update_acell(f"J{lin_p}", datetime.now().strftime("%d/%m/%Y"))
                                 planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "REPOSIÇÃO", nome_e, f"+{q_nova} un.", st.session_state.get('usuario_logado', 'Bia')], value_input_option='RAW')
-                                st.success("Estoque Atualizado!"); st.cache_resource.clear(); st.rerun()
+                                st.success("Estoque Atualizado!"); st.cache_data.clear(); st.cache_resource.clear(); st.rerun()
 
                 elif acao == "2. Novo Lote (Preço Novo)":
                     with st.form("f_lote"):
@@ -1600,7 +1619,7 @@ elif menu_selecionado == "📦 Estoque":
                                 if cel_tot: aba.insert_row(nova_linha, index=cel_tot.row, value_input_option='RAW')
                                 else: aba.append_row(nova_linha, value_input_option='RAW')
                                 planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "NOVO LOTE", nome_e, f"Lote {n_cod}", st.session_state.get('usuario_logado', 'Bia')], value_input_option='RAW')
-                                st.success(f"Lote {n_cod} criado!"); st.cache_resource.clear(); st.rerun()
+                                st.success(f"Lote {n_cod} criado!"); st.cache_data.clear(); st.cache_resource.clear(); st.rerun()
 
                 elif acao == "3. Correção":
                     with st.form("f_cor"):
@@ -1610,7 +1629,7 @@ elif menu_selecionado == "📦 Estoque":
                                 aba = planilha_mestre.worksheet("INVENTÁRIO")
                                 aba.update_acell(f"C{lin_p}", real + vend_g)
                                 planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "CORREÇÃO", nome_e, f"Ajustado para {real}", st.session_state.get('usuario_logado', 'Bia')], value_input_option='RAW')
-                                st.success("Corrigido!"); st.cache_resource.clear(); st.rerun()
+                                st.success("Corrigido!"); st.cache_data.clear(); st.cache_resource.clear(); st.rerun()
 
     st.divider()
     with st.expander("➕ Cadastrar Novo Produto"):
@@ -1627,7 +1646,7 @@ elif menu_selecionado == "📦 Estoque":
                     if cel_tot: aba.insert_row(linha_manual, index=cel_tot.row, value_input_option='RAW')
                     else: aba.append_row(linha_manual, value_input_option='RAW')
                     planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "CADASTRO", n_n, f"Cód: {n_c}", st.session_state.get('usuario_logado', 'Bia')], value_input_option='RAW')
-                    st.success("✅ Cadastrado!"); st.cache_resource.clear(); st.rerun()
+                    st.success("✅ Cadastrado!"); st.cache_data.clear(); st.cache_resource.clear(); st.rerun()
 
     st.divider()
     st.write("### 📜 Histórico de Movimentações (Banco de Dados)")
@@ -1701,6 +1720,7 @@ elif menu_selecionado == "👥 Clientes":
                         codigo = f"CLI-{len(aba_cli_sheet.get_all_values()):03d}"
                         aba_cli_sheet.append_row([codigo, n_nome.strip(), n_zap.strip(), n_end.strip(), datetime.now().strftime("%d/%m/%Y"), n_vale, "", "Completo" if n_end else "Incompleto"], value_input_option='USER_ENTERED')
                         st.success(f"✅ {n_nome} cadastrada!")
+                        st.cache_data.clear()
                         st.cache_resource.clear()
                     except Exception as e:
                         st.error(f"Erro: {e}")
@@ -1759,6 +1779,7 @@ elif menu_selecionado == "👥 Clientes":
                         aba_cli_sheet.update_cell(num_linha, 8, novo_status)
 
                         st.success(f"✅ Dados de {novo_nome} atualizados!")
+                        st.cache_data.clear()
                         st.cache_resource.clear()
                         st.rerun()
                     except Exception as e:
@@ -2016,7 +2037,7 @@ elif menu_selecionado == "📂 Documentos":
                                 datetime.now().strftime("%d/%m/%Y %H:%M"),
                                 cat_escolhida, nome_limpo, f_id, f_link, vinculo_final, status_odoo
                             ], value_input_option='USER_ENTERED')
-                            st.success(f"✅ Arquivado com sucesso!"); st.cache_resource.clear(); st.rerun()
+                            st.success(f"✅ Arquivado com sucesso!"); st.cache_data.clear(); st.cache_resource.clear(); st.rerun()
                         except Exception as e: 
                             st.error(f"Erro na planilha: {e}")
 
