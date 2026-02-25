@@ -257,20 +257,6 @@ def upload_para_cloudinary(file_bytes, file_name, pasta_destino):
         st.error(f"Erro no servidor de arquivos: {e}")
         return None, None
 
-@st.cache_resource
-def conectar_google():
-    try:
-        if "gcp_service_account" in st.secrets:
-            creds_info = st.secrets["gcp_service_account"]
-            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_info, ESPECIFICACOES)
-            return gspread.authorize(creds).open_by_key(ID_PLANILHA)
-        return None
-    except Exception as e:
-        st.error(f"Erro de conexão: {e}")
-        return None
-
-planilha_mestre = conectar_google()
-
 @st.cache_data(ttl=60)
 def carregar_dados():
     if not planilha_mestre: 
