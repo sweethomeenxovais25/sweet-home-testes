@@ -580,31 +580,39 @@ if menu_selecionado == "🛒 Vendas":
                                 aba_v.insert_row(linha, index=idx_ins, value_input_option='USER_ENTERED')
 
                         # 3. Geração do Recibo Único e Elegante
+                        nome_primeiro = nome_cli.split(' ')[0]
                         recibo_texto = (
-                            f"🌸 *DOCE LAR - RECIBO DE COMPRA* 🌸\n"
-                            f"━━━━━━━━━━━━━━━━━━━\n"
-                            f"Olá, eu sou a Bia! ✨ É um prazer atender você, *{nome_cli.split(' ')[0]}*.\n"
-                            f"Aqui está o resumo detalhado da sua felicidade:\n\n"
+                            f"👩‍💼 *Vendedora:* {vendedor}\n\n"
+                            f"✨ *Muito obrigada pela preferência!*\n"
+                            f"É um prazer atender você, {nome_primeiro}.\n"
+                            f"Aqui está o resumo detalhado da sua compra 🥰\n\n"
                         )
+                        
+                        # Loop dos produtos no carrinho
                         for item in st.session_state['carrinho']:
-                            recibo_texto += f"🛍️ {item['qtd']}x {item['nome']} - R$ {item['subtotal']:,.2f}\n"
-                        
-                        recibo_texto += f"━━━━━━━━━━━━━━━━━━━\n"
-                        recibo_texto += f"💰 *Subtotal:* R$ {subtotal_venda:,.2f}\n"
-                        if desc_v > 0:
-                            recibo_texto += f"📉 *Desconto:* - R$ {desc_v:,.2f}\n"
-                        recibo_texto += f"✅ *TOTAL FINAL:* *R$ {total_com_desconto:,.2f}*\n\n"
-                        recibo_texto += f"💳 *Forma de Pagto:* {metodo}\n"
-                        recibo_texto += f"🗓️ *Data:* {datetime.now().strftime('%d/%m/%Y')}\n"
-                        
-                        if metodo == "Sweet Flex":
-                            recibo_texto += f"\n📝 *Plano de Pagamento ({n_p}x):*\n"
-                            for i, data_p in enumerate(detalhes_p):
-                                recibo_texto += f"🔹 {i+1}ª Parcela: {data_p} - R$ {total_com_desconto/n_p:,.2f}\n"
+                            recibo_texto += f"🛍️ {item['qtd']}x {item['nome']} — R$ {item['subtotal']:,.2f}\n".replace(",", "X").replace(".", ",").replace("X", ".")
                         
                         recibo_texto += f"\n━━━━━━━━━━━━━━━━━━━\n"
-                        recibo_texto += f"👤 *Vendedor(a):* {vendedor}\n"
-                        recibo_texto += f"✨ *Obrigada pela preferência!*"
+                        recibo_texto += f"💰 Subtotal: R$ {subtotal_venda:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + "\n"
+                        
+                        if desc_v > 0:
+                            recibo_texto += f"📉 Desconto: R$ {desc_v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + "\n"
+                            
+                        recibo_texto += f"✅ TOTAL FINAL: R$ {total_com_desconto:,.2f}\n\n".replace(",", "X").replace(".", ",").replace("X", ".")
+                        
+                        recibo_texto += f"💳 Forma de pagamento: {metodo}\n"
+                        recibo_texto += f"🗓️ Data da compra: {datetime.now().strftime('%d/%m/%Y')}\n"
+                        
+                        # Bloco do Sweet Flex (Parcelamento)
+                        if metodo == "Sweet Flex":
+                            recibo_texto += f"\n📝 Plano de pagamento ({n_p}x):\n"
+                            for i, data_p in enumerate(detalhes_p):
+                                val_parc = total_com_desconto / n_p
+                                recibo_texto += f"🔹 {data_p} — R$ {val_parc:,.2f}\n".replace(",", "X").replace(".", ",").replace("X", ".")
+                        
+                        recibo_texto += f"\n━━━━━━━━━━━━━━━━━━━\n"
+                        recibo_texto += f"👩‍💼 Vendedora: {vendedor}\n"
+                        recibo_texto += f"✨ Muito obrigada pela preferência!"
 
                         st.success("✅ Venda registrada com sucesso!")
                         st.code(recibo_texto, language="text")
