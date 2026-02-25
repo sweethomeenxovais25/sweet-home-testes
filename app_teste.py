@@ -266,7 +266,7 @@ def conectar_google():
 
 planilha_mestre = conectar_google()
 
-@st.cache_resource(ttl=600)
+@st.cache_data(ttl=60)
 def carregar_dados():
     if not planilha_mestre: 
         return {}, {}, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
@@ -321,7 +321,8 @@ with st.sidebar:
     modo_teste = st.toggle("🔬 Modo de Teste", value=False, key="toggle_teste")
     
     if st.button("🔄 Sincronizar Planilha", key="btn_sincronizar"):
-        st.cache_resource.clear()
+        st.cache_data.clear()
+        st.cache_resource.clear() # Deixe os dois para garantir uma limpeza profunda!
         st.rerun()
 
     st.divider()
@@ -345,8 +346,11 @@ with st.sidebar:
 
         try:
             # Carrega a aba USUARIO fresca da planilha
-            aba_usuario = planilha_mestre.worksheet("USUARIO")
-            dados_usuarios = aba_usuario.get_all_values()
+            @st.cache_data(ttl=60)
+            def ler_usuarios_com_cache():
+                return planilha_mestre.worksheet("USUARIO").get_all_values()
+            
+            dados_usuarios = ler_usuarios_com_cache()
 
             if len(dados_usuarios) > 1:
                 # Transforma os dados em uma tabela (DataFrame)
