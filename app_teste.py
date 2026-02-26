@@ -2250,24 +2250,32 @@ elif menu_selecionado == "📂 Documentos":
     st.divider()
     st.write("### 📤 Enviar Arquivo")
     
-    lista_categorias = ["Foto de Produto", "Nota Fiscal", "Comprovante", "Recibo / Pgto", "Contrato", "Outros"]
+    # 1. 🆕 Expandimos e organizamos as categorias para o mundo ERP
+    lista_categorias = ["Foto de Produto", "Comprovante Cliente", "Recibo / Pgto Cliente", "Nota Fiscal (Fornecedor)", "Boleto / Despesa", "Contrato", "Outros"]
     cat_escolhida = st.selectbox("1️⃣ Categoria do Documento", lista_categorias)
     
     with st.form("form_upload_cloudinary", clear_on_submit=True):
         st.write("2️⃣ **Detalhes e Arquivo**")
         vinc_cli = "Nenhum"
         vinc_prod = "Nenhum"
+        vinc_forn = "Nenhum" # 🆕 Nova variável para o Fornecedor
         nome_livre = ""
         
-        if cat_escolhida in ["Foto de Produto", "Nota Fiscal"]:
+        if cat_escolhida == "Foto de Produto":
             st.info("📦 O sistema dará o nome do arquivo automaticamente com base no produto.")
             opcoes_prod = ["Nenhum"] + [f"{k} - {v['nome']}" for k, v in banco_de_produtos.items()]
             vinc_prod = st.selectbox("Selecione o Produto:", opcoes_prod)
         
-        elif cat_escolhida in ["Comprovante", "Recibo / Pgto"]:
-            st.info("👤 O sistema dará o nome do arquivo automaticamente com base na cliente.")
+        elif cat_escolhida in ["Comprovante Cliente", "Recibo / Pgto Cliente"]:
+            st.info("👤 O sistema vinculará este documento à cliente correspondente.")
             opcoes_cli = ["Nenhum"] + [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()]
             vinc_cli = st.selectbox("Selecione a Cliente:", opcoes_cli)
+            
+        # 🆕 A GRANDE MÁGICA: Conectando com a base contábil
+        elif cat_escolhida in ["Nota Fiscal (Fornecedor)", "Boleto / Despesa"]:
+            st.info("🏭 O sistema vinculará este documento ao Fornecedor correspondente.")
+            opcoes_forn = ["Nenhum"] + [f"{k} - {v['nome']}" for k, v in banco_de_fornecedores.items()]
+            vinc_forn = st.selectbox("Selecione o Fornecedor:", opcoes_forn)
         
         else:
             nome_livre = st.text_input("Nome ou Descrição Breve", help="Exemplo: Conta de Luz Janeiro")
@@ -2278,20 +2286,26 @@ elif menu_selecionado == "📂 Documentos":
             erro = False
             if not arquivo_subido:
                 st.error("⚠️ Você esqueceu de anexar o arquivo!"); erro = True
-            elif cat_escolhida in ["Foto de Produto", "Nota Fiscal"] and vinc_prod == "Nenhum":
+            elif cat_escolhida == "Foto de Produto" and vinc_prod == "Nenhum":
                 st.error("⚠️ Selecione um produto."); erro = True
-            elif cat_escolhida in ["Comprovante", "Recibo / Pgto"] and vinc_cli == "Nenhum":
+            elif cat_escolhida in ["Comprovante Cliente", "Recibo / Pgto Cliente"] and vinc_cli == "Nenhum":
                 st.error("⚠️ Selecione uma cliente."); erro = True
+            elif cat_escolhida in ["Nota Fiscal (Fornecedor)", "Boleto / Despesa"] and vinc_forn == "Nenhum":
+                st.error("⚠️ Selecione um fornecedor."); erro = True
             elif cat_escolhida in ["Contrato", "Outros"] and not nome_livre:
                 st.error("⚠️ Digite um nome para o documento."); erro = True
 
             if not erro:
+                # ⚙️ Lógica de Nomenclatura Dinâmica
                 if vinc_prod != "Nenhum":
                     nome_gerado = f"[{cat_escolhida.upper()}] {vinc_prod}"
                     vinculo_final = vinc_prod
                 elif vinc_cli != "Nenhum":
                     nome_gerado = f"[{cat_escolhida.upper()}] {vinc_cli}"
                     vinculo_final = vinc_cli
+                elif vinc_forn != "Nenhum": # 🆕 Regra do Fornecedor adicionada
+                    nome_gerado = f"[{cat_escolhida.upper()}] {vinc_forn}"
+                    vinculo_final = vinc_forn
                 else:
                     nome_gerado = f"[{cat_escolhida.upper()}] {nome_livre}"
                     vinculo_final = "-"
