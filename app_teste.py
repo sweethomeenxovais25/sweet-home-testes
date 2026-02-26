@@ -285,6 +285,7 @@ def carregar_dados():
     df_aportes = ler_aba_seguro("APORTES")
     df_fornecedores = ler_aba_seguro("FORNECEDORES")
     df_despesas = ler_aba_seguro("DESPESAS")
+    df_docs = ler_aba_seguro("DOCUMENTOS")
 
     banco_prod = {str(r.iloc[0]): {"nome": r.iloc[1], "custo": float(limpar_v(r.iloc[3])), "estoque": r.iloc[7], "venda": r.iloc[8]} for _, r in df_inv.iterrows()} if not df_inv.empty else {}
     banco_cli = {str(r.iloc[0]): {"nome": str(r.iloc[1]), "fone": str(r.iloc[2])} for _, r in df_cli.iterrows()} if not df_cli.empty else {}
