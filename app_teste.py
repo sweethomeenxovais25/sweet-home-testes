@@ -2362,8 +2362,15 @@ elif menu_selecionado == "📂 Documentos":
                                 status_odoo
                             ]
                             
-                            # 💡 A MÁGICA: 'RAW' obriga o Google Sheets a aceitar como Texto, sem tentar calcular fórmulas
-                            aba_doc.append_row(linha_nova, value_input_option='RAW')
+                            # 💡 A MÁGICA: O robô olha os dados REAIS da Coluna A (Data) e acha a linha exata
+                            valores_coluna_a = aba_doc.col_values(1)
+                            
+                            # Tira os espaços em branco perdidos no meio do caminho
+                            linhas_preenchidas = [v for v in valores_coluna_a if str(v).strip() != ""]
+                            proxima_linha_vazia = len(linhas_preenchidas) + 1
+                            
+                            # Injeta a linha forçadamente no lugar exato, empurrando a planilha
+                            aba_doc.insert_row(linha_nova, index=proxima_linha_vazia, value_input_option='RAW')
                             
                             st.success(f"✅ Arquivado com sucesso no Cofre e na Planilha!")
                             st.cache_data.clear()
