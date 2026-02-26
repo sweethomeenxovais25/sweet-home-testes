@@ -460,9 +460,15 @@ if menu_selecionado == "🛒 Vendas":
         # 1. Seleção do Produto
         p_sel = c_p1.selectbox(
             "Item do Estoque", 
-            sorted(lista_selecao_limpa), # Deixa em ordem alfabética/numérica
+            sorted(lista_selecao_limpa),
             key="venda_produto_sel"
         )
+
+        # 🛡️ CORREÇÃO AQUI: Verifica se p_sel existe e é um texto antes de dar split
+        if p_sel and isinstance(p_sel, str) and " - " in p_sel:
+            cod_p_temp = p_sel.split(" - ")[0]
+        else:
+            cod_p_temp = None
         
         # 2. Recuperação do preço direto da planilha (usando o ID do produto selecionado)
         cod_p_temp = p_sel.split(" - ")[0]
