@@ -2807,7 +2807,7 @@ elif menu_selecionado == "📢 Gestão de Marketing":
     st.divider()
     
     # ABAS DE NAVEGAÇÃO DO MARKETING
-    t_nova_tarefa, t_kanban, t_calendario = st.tabs(["➕ Nova Demanda (Pedir Arte)", "📋 Quadro de Produção (Kanban)", "📅 Agenda de Postagens"])
+    t_nova_tarefa, t_kanban, t_calendario, t_auditoria = st.tabs(["➕ Nova Demanda", "📋 Quadro de Produção", "📅 Agenda", "✅ Vitrine & Auditoria"])
     
     # ==========================================
     # ABA 1: NOVA DEMANDA (ONDE A BIA PEDE)
@@ -3012,3 +3012,84 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                 st.success("🎉 Nenhuma postagem pendente! A agenda está livre.")
         else:
             st.info("Nenhuma demanda cadastrada no sistema.")
+
+    # ==========================================
+    # ABA 4: VITRINE E AUDITORIA (LINKAR O INSTAGRAM)
+    # ==========================================
+    with t_auditoria:
+        st.write("### ✅ Validação de Postagens (Auditoria)")
+        st.write("Postou no Instagram? Cole o link aqui para dar baixa oficial e guardar no histórico!")
+        
+        if not df_mkt.empty:
+            # Filtra o que está em "Falta Postar" ou que já foi "Concluído" mas esqueceu de colocar o link
+            df_pendente_link = df_mkt[
+                (df_mkt['STATUS'].str.contains('Falta Postar', case=False, na=False)) | 
+                ((df_mkt['STATUS'].str.contains('Concluído', case=False, na=False)) & (df_mkt['LINK_ARTE'] == "-"))
+            ].copy()
+            
+            # --- FORMULÁRIO RÁPIDO PARA A BIA DAR BAIXA ---
+            with st.container(border=True):
+                st.markdown("#### 🔗 Vincular Link do Instagram")
+                with st.form("form_link_insta", clear_on_submit=True):
+                    if not df_pendente_link.empty:
+                        opcoes_baixa = [f"📍 {r['ID_TAREFA']} - {r['FORMATO']} ({r['PRODUTO_VINCULADO']})" for _, r in df_pendente_link.iterrows()]
+                        tarefa_selecionada = st.selectbox("Selecione a tarefa que acabou de ser postada:", opcoes_baixa)
+                        link_post = st.text_input("Cole o Link do Instagram aqui 🌐", placeholder="Ex: https://www.instagram.com/p/...")
+                        
+                        if st.form_submit_button("Validar e Concluir 🚀", type="primary"):
+                            if link_post and "http" in link_post:
+                                with st.spinner("Registrando o sucesso..."):
+                                    try:
+                                        aba_mkt = planilha_mestre.worksheet("MARKETING")
+                                        id_alvo = tarefa_selecionada.split(" - ")[0].replace("📍 ", "")
+                                        
+                                        # Acha a linha correta na planilha
+                                        linha_planilha = df_mkt[df_mkt['ID_TAREFA'] == id_alvo].index[0] + 2
+                                        
+                                        import datetime as dt
+                                        import pytz
+                                        agora = dt.datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y %H:%M")
+                                        
+                                        # Atualiza Status, Link e Data de Conclusão!
+                                        aba_mkt.update_acell(f"G{linha_planilha}", "🚀 Concluído") # Coluna G: Status
+                                        aba_mkt.update_acell(f"H{linha_planilha}", link_post)     # Coluna H: Link
+                                        aba_mkt.update_acell(f"I{linha_planilha}", agora)         # Coluna I: Data Conclusão
+                                        
+                                        st.success("✅ Arte validada! Link salvo e métricas de tempo atualizadas.")
+                                        st.cache_data.clear()
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Erro ao salvar o link: {e}")
+                            else:
+                                st.warning("Por favor, cole um link válido (que comece com http).")
+                    else:
+                        st.success("Tudo em dia! Não há tarefas aguardando link de postagem no momento.")
+            
+            st.divider()
+            
+            # --- TABELA DE HISTÓRICO (A VITRINE DEFINITIVA) ---
+            st.write("#### 🏆 Histórico de Sucesso (Portfólio)")
+            df_concluidos = df_mkt[df_mkt['STATUS'].str.contains('Concluído', case=False, na=False)].copy()
+            
+            if not df_concluidos.empty:
+                # Vamos deixar a tabela elegante
+                colunas_mostrar = ['DATA_CONCLUSAO', 'ID_TAREFA', 'PRODUTO_VINCULADO', 'FORMATO', 'LINK_ARTE']
+                df_view = df_concluidos[colunas_mostrar].copy()
+                
+                # Inverte para ver os mais recentes primeiro
+                df_view = df_view.iloc[::-1]
+                
+                st.dataframe(
+                    df_view,
+                    column_config={
+                        "DATA_CONCLUSAO": "Finalizado em",
+                        "ID_TAREFA": "Código",
+                        "PRODUTO_VINCULADO": "Produto",
+                        "FORMATO": "Formato",
+                        "LINK_ARTE": st.column_config.LinkColumn("Link do Post (Ver)")
+                    },
+                    use_container_width=True,
+                    hide_index=True
+                )
+            else:
+                st.info("O histórico de postagens aparecerá aqui assim que o primeiro link for salvo.")
