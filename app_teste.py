@@ -264,7 +264,7 @@ def carregar_dados():
     
     def ler_aba_seguro(nome):
         try:
-            aba = planilha_mestre.worksheet(nome)
+            aba = planilha_mestre.worksheet(nome_aba)
             dados = aba.get_all_values()
             if len(dados) <= 1: return pd.DataFrame()
             df = pd.DataFrame(dados[1:], columns=dados[0])
