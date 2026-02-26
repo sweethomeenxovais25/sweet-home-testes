@@ -2771,7 +2771,7 @@ elif menu_selecionado == "🏭 Compras e Despesas":
             st.dataframe(df_fornecedores, use_container_width=True, hide_index=True)
         else:
             st.info("Nenhum fornecedor cadastrado no banco de dados.")
-
+            
     # ==========================================================
     # 📢 MÓDULO DE GESTÃO DE MARKETING (O "TRELLO" DA SWEET HOME)
     # ==========================================================
