@@ -1938,14 +1938,28 @@ elif menu_selecionado == "📦 Estoque":
             if st.form_submit_button("Salvar Novo Produto") and n_c and n_n:
                 with st.spinner("Cadastrando..."):
                     aba = planilha_mestre.worksheet("INVENTÁRIO")
+                    
+                    # As fórmulas que você criou
                     f_total_e = '=SE(INDIRETO("C"&LIN())=""; ""; ARRED(INDIRETO("C"&LIN()) * INDIRETO("D"&LIN()); 2))'
                     f_estoque_h = '=SE(INDIRETO("C"&LIN())=""; ""; INDIRETO("C"&LIN()) - INDIRETO("G"&LIN()))'
+                    
                     linha_manual = [n_c, n_n, n_q, n_custo, f_total_e, 3, 0, f_estoque_h, n_v, datetime.now().strftime("%d/%m/%Y"), ""]
+                    
                     cel_tot = aba.find("TOTAIS")
-                    if cel_tot: aba.insert_row(linha_manual, index=cel_tot.row, value_input_option='RAW')
-                    else: aba.append_row(linha_manual, value_input_option='RAW')
+                    
+                    # 💡 A MÁGICA AQUI: Trocamos 'RAW' por 'USER_ENTERED' para ativar as fórmulas!
+                    if cel_tot: 
+                        aba.insert_row(linha_manual, index=cel_tot.row, value_input_option='USER_ENTERED')
+                    else: 
+                        aba.append_row(linha_manual, value_input_option='USER_ENTERED')
+                        
+                    # O Log pode continuar como RAW porque é só texto normal
                     planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "CADASTRO", n_n, f"Cód: {n_c}", st.session_state.get('usuario_logado', 'Bia')], value_input_option='RAW')
-                    st.success("✅ Cadastrado!"); st.cache_data.clear(); st.cache_resource.clear(); st.rerun()
+                    
+                    st.success("✅ Cadastrado!")
+                    st.cache_data.clear()
+                    st.cache_resource.clear()
+                    st.rerun()
 
     st.divider()
     st.write("### 📜 Histórico de Movimentações (Banco de Dados)")
