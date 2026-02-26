@@ -2445,7 +2445,7 @@ elif menu_selecionado == "🏭 Compras e Despesas":
             st.info("Aguardando o primeiro lançamento de despesa para gerar o Dashboard.")
 
     # ------------------------------------------
-    # ABA 2: LANÇAMENTOS E BAIXAS (COM MÓDULO DE EXCLUSÃO)
+    # ABA 2: LANÇAMENTOS E BAIXAS (COM HISTÓRICO E EXCLUSÃO)
     # ------------------------------------------
     with t_despesas:
         col_nova, col_baixa = st.columns(2)
@@ -2551,6 +2551,30 @@ elif menu_selecionado == "🏭 Compras e Despesas":
                 st.write("Nenhuma despesa cadastrada.")
 
         # =======================================================
+        # 📜 O HISTÓRICO VISUAL (PARA CONFERÊNCIA RÁPIDA)
+        # =======================================================
+        st.divider()
+        st.write("#### 📜 Histórico de Despesas e Compras")
+        if not df_desp.empty:
+            # Inverte a ordem para mostrar do mais recente para o mais antigo
+            df_hist_view = df_desp.copy().iloc[::-1]
+            
+            st.dataframe(
+                df_hist_view[['DATA REGISTRO', 'VENCIMENTO', 'FORNECEDOR / DESPESA', 'CATEGORIA', 'VALOR_NUM', 'STATUS_LIMPO']],
+                column_config={
+                    "DATA REGISTRO": "Lançamento",
+                    "VENCIMENTO": "Vencimento",
+                    "FORNECEDOR / DESPESA": "Descrição",
+                    "CATEGORIA": "Categoria",
+                    "VALOR_NUM": st.column_config.NumberColumn("Valor (R$)", format="R$ %.2f"),
+                    "STATUS_LIMPO": "Status"
+                },
+                use_container_width=True, hide_index=True
+            )
+        else:
+            st.info("Nenhum lançamento registrado no momento.")
+
+        # =======================================================
         # 🆕 O MÓDULO DE CORREÇÃO DE ERROS (A BORRACHA MÁGICA)
         # =======================================================
         st.divider()
@@ -2558,11 +2582,8 @@ elif menu_selecionado == "🏭 Compras e Despesas":
         st.info("Lançou algo errado ou duplicado? Escolha o registro abaixo para excluir permanentemente do sistema.")
 
         if not df_desp.empty:
-            # Puxa os últimos 30 lançamentos para não sobrecarregar a tela
             ultimas_desp = df_desp.tail(30).copy()
             ultimas_desp['LINHA_SHEETS'] = ultimas_desp.index + 2
-            
-            # Inverte a ordem para os mais recentes ficarem no topo da lista
             ultimas_desp = ultimas_desp.iloc[::-1]
 
             lista_exclusao = []
@@ -2581,13 +2602,11 @@ elif menu_selecionado == "🏭 Compras e Despesas":
                     linha_alvo_ex = dict_linhas_ex[conta_excluir]
                     try:
                         aba_d_ex = planilha_mestre.worksheet("DESPESAS")
-                        aba_d_ex.delete_rows(linha_alvo_ex) # O robô vai na linha exata e arranca ela de lá
+                        aba_d_ex.delete_rows(linha_alvo_ex)
                         st.success("🗑️ Lançamento apagado com sucesso! Os gráficos já foram atualizados.")
                         st.cache_data.clear(); st.rerun()
                     except Exception as e:
                         st.error(f"Erro ao excluir: {e}")
-        else:
-            st.write("Nenhuma despesa cadastrada para excluir.")
 
     # ------------------------------------------
     # ABA 3: CADASTRO DE FORNECEDORES
