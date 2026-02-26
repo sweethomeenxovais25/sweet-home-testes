@@ -899,7 +899,7 @@ elif menu_selecionado == "💰 Financeiro":
                 progresso = min(indice_liquidez/100, 1.0)
                 st.markdown(
                     f"""
-                    <div style="width: 100%; background-color: #f0f2f6; border-radius: 10px; height: 10px;">
+                    <div style="width: 100%; background-color: #f0f2f6; border-radius: 10px; height: 10px;" title="Porcentagem do Faturamento que já é dinheiro vivo no caixa.">
                         <div style="width: {progresso*100}%; background-color: {cor_barra}; height: 10px; border-radius: 10px;">
                         </div>
                     </div>
@@ -908,10 +908,12 @@ elif menu_selecionado == "💰 Financeiro":
                 )
             
             with col_t2:
-                st.metric("Recebíveis (Futuro)", f"R$ {saldo_devedor:,.2f}")
+                # 💡 O pedaço perdido voltou para cá, dentro do parâmetro 'help'!
+                st.metric("Recebíveis (Futuro)", f"R$ {saldo_devedor:,.2f}", help="Dinheiro que entrará via faturas do Sweet Flex no futuro. É o reflexo do Saldo Devedor visto como promessa de recebimento.")
 
         except Exception as e:
-            st.error(f"⚠️ Erro no processamento inicial: {e}") promessa de recebimento.")
+            # 💡 A linha de erro agora está isolada e com a sintaxe perfeita
+            st.error(f"⚠️ Erro no processamento inicial: {e}")
 
             # 4. DASHBOARD DE ANÁLISE (VERSÃO PREMIUM COM CORES DA MARCA)
             with st.expander("📊 Análise de Desempenho e Tendências", expanded=False):
