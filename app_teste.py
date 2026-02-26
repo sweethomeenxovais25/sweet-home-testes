@@ -2559,13 +2559,21 @@ elif menu_selecionado == "🏭 Compras e Despesas":
             # Inverte a ordem para mostrar do mais recente para o mais antigo
             df_hist_view = df_desp.copy().iloc[::-1]
             
+            # 💡 BLINDAGEM: Puxando as colunas pela posição (0, 1, 2, 3), independente de como foram digitadas na planilha!
+            col_data = df_hist_view.columns[0]
+            col_venc = df_hist_view.columns[1]
+            col_desc = df_hist_view.columns[2]
+            col_cat = df_hist_view.columns[3]
+            
+            colunas_pra_mostrar = [col_data, col_venc, col_desc, col_cat, 'VALOR_NUM', 'STATUS_LIMPO']
+            
             st.dataframe(
-                df_hist_view[['DATA REGISTRO', 'VENCIMENTO', 'FORNECEDOR / DESPESA', 'CATEGORIA', 'VALOR_NUM', 'STATUS_LIMPO']],
+                df_hist_view[colunas_pra_mostrar],
                 column_config={
-                    "DATA REGISTRO": "Lançamento",
-                    "VENCIMENTO": "Vencimento",
-                    "FORNECEDOR / DESPESA": "Descrição",
-                    "CATEGORIA": "Categoria",
+                    col_data: "Lançamento",
+                    col_venc: "Vencimento",
+                    col_desc: "Descrição",
+                    col_cat: "Categoria",
                     "VALOR_NUM": st.column_config.NumberColumn("Valor (R$)", format="R$ %.2f"),
                     "STATUS_LIMPO": "Status"
                 },
