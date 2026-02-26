@@ -1761,14 +1761,15 @@ elif menu_selecionado == "💰 Financeiro":
         else: 
             st.info("Nenhuma compra registrada para esta cliente ainda.")
 
-# ==========================================
+# ==========================================================
 # --- SEÇÃO 3: ESTOQUE (MEMÓRIA ETERNA + IA) ---
-# ==========================================
+# ==========================================================
 elif menu_selecionado == "📦 Estoque":
     st.subheader("📦 Gestão Inteligente de Estoque")
     df_estoque = df_full_inv.copy()
 
     if not df_estoque.empty:
+        # 📊 Processamento de Métricas
         df_estoque['EST_NUM'] = pd.to_numeric(df_estoque['ESTOQUE ATUAL'], errors='coerce').fillna(0)
         df_estoque['VENDAS_NUM'] = pd.to_numeric(df_estoque['QTD VENDIDA'], errors='coerce').fillna(0)
         df_estoque['CUSTO_NUM'] = df_estoque['CUSTO UNITÁRIO R$'].apply(limpar_v)
@@ -1779,29 +1780,12 @@ elif menu_selecionado == "📦 Estoque":
         qtd_baixos = len(df_estoque[(df_estoque['EST_NUM'] > 0) & (df_estoque['EST_NUM'] <= 3)])
 
         c1, c2, c3, c4 = st.columns(4)
-        
-        # 💡 Injeção do parâmetro 'help' para clareza gerencial
-        c1.metric(
-            "📦 Variações (SKUs)", 
-            total_skus, 
-            help="Total de linhas (variações de cor/modelo) cadastradas na planilha. Não é a quantidade de peças físicas, nem a quantidade de famílias de produtos."
-        )
-        c2.metric(
-            "💰 Capital na Prateleira", 
-            f"R$ {capital_parado:,.2f}", 
-            help="Soma financeira de todas as suas peças físicas multiplicadas pelo Custo Unitário de cada uma delas."
-        )
-        c3.metric(
-            "🚨 Esgotados / Furos", 
-            qtd_furos, 
-            help="Quantidade de variações (linhas) que estão com o estoque zerado ou negativo na planilha."
-        )
-        c4.metric(
-            "⚠️ Estoque Baixo (≤3)", 
-            qtd_baixos, 
-            help="Quantidade de variações (linhas) que estão entrando na zona de risco (com 3 ou menos peças físicas disponíveis)."
-        )
+        c1.metric("📦 Variações (SKUs)", total_skus, help="Total de variações cadastradas.")
+        c2.metric("💰 Capital na Prateleira", f"R$ {capital_parado:,.2f}", help="Soma financeira do estoque físico.")
+        c3.metric("🚨 Esgotados / Furos", qtd_furos, help="Produtos com estoque zero ou negativo.")
+        c4.metric("⚠️ Estoque Baixo (≤3)", qtd_baixos, help="Produtos em zona de risco.")
 
+        # 📈 Central de Tendências
         with st.expander("📊 Central de Reposição e Tendências", expanded=False):
             tab1, tab2 = st.tabs(["🚨 Malha Fina", "🏆 Campeões de Venda"])
             with tab1:
@@ -1816,58 +1800,38 @@ elif menu_selecionado == "📦 Estoque":
                     st.dataframe(campeoes_df[['CÓD. PRÓDUTO', 'NOME DO PRODUTO', 'QTD VENDIDA', 'ESTOQUE ATUAL']], use_container_width=True, hide_index=True)
                 else: st.info("Aguardando volume de vendas.")
 
-    # ==========================================
     # 🤖 ENTRADA INTELIGENTE (IA GEMINI)
-    # ==========================================
     st.divider()
     with st.expander("🤖 Entrada Inteligente (Ler Nota Fiscal com IA)", expanded=False):
-        st.write("Tire uma foto da Nota Fiscal ou Recibo do fornecedor e deixe a IA ler os itens para você!")
+        st.write("Tire uma foto da Nota Fiscal e deixe a IA ler os itens!")
         foto_nf = st.file_uploader("Envie a foto da Nota", type=['png', 'jpg', 'jpeg'], key="uploader_ia_estoque")
         
         if foto_nf is not None:
             if st.button("🧠 Ler Documento", use_container_width=True, key="btn_ler_ia"):
-                with st.spinner("A IA está analisando a imagem. Isso leva alguns segundos... ⏳"):
+                with st.spinner("Analisando imagem... ⏳"):
                     try:
-                        # Conecta com a sua chave
+                        import google.generativeai as genai
+                        from PIL import Image
                         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-                        modelo_ia = genai.GenerativeModel('gemini-2.5-flash')
-                        
-                        # Prepara a imagem
+                        modelo_ia = genai.GenerativeModel('gemini-1.5-flash')
                         img = Image.open(foto_nf)
                         
-                        # A "ordem" RIGOROSA que damos para a IA (Engenharia de Prompt de Precisão)
                         prompt = """
-                        Você é um auditor de dados e leitor óptico de extrema precisão da 'Sweet Home Enxovais'. 
-                        Sua única função é ler a imagem desta nota fiscal/recibo e extrair a lista de produtos comprados com 100% de exatidão.
-
-                        Siga estas REGRAS RÍGIDAS E ABSOLUTAS:
-                        1. EXTRAÇÃO LITERAL: Copie os nomes dos produtos, quantidades e valores EXATAMENTE como estão impressos. Não deduza, não adivinhe, não abrevie e não corrija erros de português que estejam no papel.
-                        2. ATENÇÃO AOS NÚMEROS: Revise visualmente os valores de 'Custo Unitário' e 'Valor Total'. Respeite as vírgulas e pontos (ex: 1.500,00). Não tente refazer a matemática se a nota estiver com erro, apenas transcreva o que está lá.
-                        3. IGNORE O "LIXO VISUAL": Ignore totalmente CNPJ, endereço da loja, mensagens de agradecimento, cálculos de impostos (ICMS, IPI) ou troco. Foque APENAS nas linhas dos produtos/itens.
-                        4. FORMATO OBRIGATÓRIO: Retorne o resultado EXATAMENTE no formato de uma tabela Markdown com as seguintes colunas:
+                        Você é um auditor de dados de extrema precisão. 
+                        Extraia os produtos desta imagem em uma tabela Markdown:
                         | Qtd | Descrição do Produto | Custo Unitário (R$) | Valor Total (R$) |
-                        5. SILÊNCIO TOTAL: Retorne APENAS a tabela Markdown. É estritamente proibido escrever "Aqui está a tabela", "Claro, vou ajudar" ou qualquer outra palavra fora da tabela.
-                        6. SEGURANÇA: Se a imagem não for uma nota fiscal, não contiver produtos, ou estiver impossível de ler, retorne APENAS a frase exata: "⚠️ Documento ilegível ou sem itens reconhecidos. Tente uma foto mais nítida."
+                        Regras: 1. Copie LITERALMENTE. 2. Retorne APENAS a tabela. 3. Se não for nota, avise.
                         """
-                        
-                        # A mágica acontece aqui
                         resposta = modelo_ia.generate_content([prompt, img])
-                        
                         st.success("✅ Leitura Concluída!")
-                        st.markdown("#### 📋 Produtos Identificados na Nota:")
-                        
-                        # Exibe a resposta da IA nativamente
                         st.markdown(resposta.text)
-                        st.warning("💡 Dica: Use a lista acima para copiar os nomes e dar a entrada rápida no 'Radar de Entrada' logo abaixo.")
-                        
+                        st.warning("💡 Dica: Use a lista acima para o 'Radar de Entrada' abaixo.")
                     except Exception as e:
-                        st.error(f"⚠️ Ocorreu um erro na IA: {e}")
-                        st.caption("Verifique se a chave do Google está correta nos Secrets.")
+                        st.error(f"⚠️ Erro na IA: {e}")
 
+    # 🔍 RADAR DE ENTRADA (ATUALIZAÇÃO RÁPIDA)
     st.divider()
     st.write("### 🔍 Radar de Entrada")
-    
-    # 🎯 CORREÇÃO AQUI: Atribuindo o valor do input à variável 'busca_radar'
     busca_radar = st.text_input("Pesquisar produto para atualizar", placeholder="Ex: lencol casal ou 800", key="txt_busca_radar")
     
     if busca_radar and not df_estoque.empty:
@@ -1880,62 +1844,68 @@ elif menu_selecionado == "📦 Estoque":
             opcs = ["Nenhum. É um produto 100% NOVO."] + [f"{r['CÓD. PRÓDUTO']} - {r['NOME DO PRODUTO']}" for _, r in res.iterrows()]
             p_alvo = st.radio("Produto encontrado:", opcs, key="res_radar_radio")
             
-            if p_alvo != "Nenhum. É um produto 100% NOVO.":
-                cod_e = p_alvo.split(" - ")[0]
-                idx = df_estoque[df_estoque['CÓD. PRÓDUTO'] == cod_e].index[0]
-                lin_p = int(idx) + 2
-                nome_e = df_estoque.loc[idx, 'NOME DO PRODUTO']
-                est_h = int(pd.to_numeric(df_estoque.loc[idx, 'ESTOQUE ATUAL'], errors='coerce') or 0)
-                vend_g = int(pd.to_numeric(df_estoque.loc[idx, 'QTD VENDIDA'], errors='coerce') or 0)
-                comp_c = int(pd.to_numeric(df_estoque.loc[idx, 'QUANTIDADE'], errors='coerce') or 0)
-                custo_at = limpar_v(df_estoque.loc[idx, 'CUSTO UNITÁRIO R$'])
-                preco_at = limpar_v(df_estoque.loc[idx, 'VALOR DE VENDA'])
+            # 🛡️ PROTEÇÃO CONTRA ATTRIBUTEERROR NO SPLIT
+            if p_alvo and " - " in str(p_alvo):
+                cod_e = str(p_alvo).split(" - ")[0]
+                idx_list = df_estoque[df_estoque['CÓD. PRÓDUTO'] == cod_e].index
+                
+                if not idx_list.empty:
+                    idx = idx_list[0]
+                    lin_p = int(idx) + 2
+                    nome_e = df_estoque.loc[idx, 'NOME DO PRODUTO']
+                    est_h = int(pd.to_numeric(df_estoque.loc[idx, 'ESTOQUE ATUAL'], errors='coerce') or 0)
+                    vend_g = int(pd.to_numeric(df_estoque.loc[idx, 'QTD VENDIDA'], errors='coerce') or 0)
+                    comp_c = int(pd.to_numeric(df_estoque.loc[idx, 'QUANTIDADE'], errors='coerce') or 0)
+                    custo_at = limpar_v(df_estoque.loc[idx, 'CUSTO UNITÁRIO R$'])
+                    preco_at = limpar_v(df_estoque.loc[idx, 'VALOR DE VENDA'])
 
-                acao = st.selectbox("Ação:", ["Selecione...", "1. Reposição", "2. Novo Lote (Preço Novo)", "3. Correção"], key="acao_radar_select")
+                    acao = st.selectbox("Ação:", ["Selecione...", "1. Reposição", "2. Novo Lote (Preço Novo)", "3. Correção"], key="acao_radar_select")
 
-                if acao == "1. Reposição":
-                    with st.form("f_rep"):
-                        q_nova = st.number_input("Quantidade recebida", 1)
-                        if st.form_submit_button("Confirmar Entrada"):
-                            with st.spinner("Atualizando..."):
-                                aba = planilha_mestre.worksheet("INVENTÁRIO")
-                                aba.update_acell(f"C{lin_p}", comp_c + q_nova)
-                                aba.update_acell(f"J{lin_p}", datetime.now().strftime("%d/%m/%Y"))
-                                planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "REPOSIÇÃO", nome_e, f"+{q_nova} un.", st.session_state.get('usuario_logado', 'Bia')], value_input_option='RAW')
-                                st.success("Estoque Atualizado!"); st.cache_data.clear(); st.cache_resource.clear(); st.rerun()
+                    if acao == "1. Reposição":
+                        with st.form("f_rep"):
+                            q_nova = st.number_input("Quantidade recebida", 1)
+                            if st.form_submit_button("Confirmar Entrada"):
+                                with st.spinner("Atualizando..."):
+                                    aba = planilha_mestre.worksheet("INVENTÁRIO")
+                                    aba.update_acell(f"C{lin_p}", comp_c + q_nova)
+                                    aba.update_acell(f"J{lin_p}", datetime.now().strftime("%d/%m/%Y"))
+                                    planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "REPOSIÇÃO", nome_e, f"+{q_nova} un.", st.session_state.get('usuario_logado', 'Bia')], value_input_option='RAW')
+                                    st.success("Estoque Atualizado!"); st.cache_data.clear(); st.rerun()
 
-                elif acao == "2. Novo Lote (Preço Novo)":
-                    with st.form("f_lote"):
-                        c1, c2, c3 = st.columns(3)
-                        q_l = c1.number_input("Qtd nova", 0)
-                        cu_l = c2.number_input("Novo Custo", value=float(custo_at))
-                        pr_l = c3.number_input("Novo Preço", value=float(preco_at))
-                        puxar = st.checkbox(f"Puxar {est_h} itens antigos?", value=True)
-                        if st.form_submit_button("Gerar Lote"):
-                            with st.spinner("Criando lote..."):
-                                aba = planilha_mestre.worksheet("INVENTÁRIO")
-                                f_total_e = '=SE(INDIRETO("C"&LIN())=""; ""; ARRED(INDIRETO("C"&LIN()) * INDIRETO("D"&LIN()); 2))'
-                                f_estoque_h = '=SE(INDIRETO("C"&LIN())=""; ""; INDIRETO("C"&LIN()) - INDIRETO("G"&LIN()))'
-                                base = str(cod_e).split(".")[0]; ext = str(cod_e).split(".")[1] if "." in str(cod_e) else "0"
-                                n_cod = f"{base}.{int(ext)+1}"
-                                if puxar: aba.update_acell(f"C{lin_p}", vend_g)
-                                nova_linha = [n_cod, f"{nome_e} (Lote {int(ext)+1})", q_l + (est_h if puxar else 0), cu_l, f_total_e, 3, 0, f_estoque_h, pr_l, datetime.now().strftime("%d/%m/%Y"), ""]
-                                cel_tot = aba.find("TOTAIS")
-                                if cel_tot: aba.insert_row(nova_linha, index=cel_tot.row, value_input_option='RAW')
-                                else: aba.append_row(nova_linha, value_input_option='RAW')
-                                planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "NOVO LOTE", nome_e, f"Lote {n_cod}", st.session_state.get('usuario_logado', 'Bia')], value_input_option='RAW')
-                                st.success(f"Lote {n_cod} criado!"); st.cache_data.clear(); st.cache_resource.clear(); st.rerun()
+                    elif acao == "2. Novo Lote (Preço Novo)":
+                        with st.form("f_lote"):
+                            c1, c2, c3 = st.columns(3)
+                            q_l = c1.number_input("Qtd nova", 0)
+                            cu_l = c2.number_input("Novo Custo", value=float(custo_at))
+                            pr_l = c3.number_input("Novo Preço", value=float(preco_at))
+                            puxar = st.checkbox(f"Puxar {est_h} itens antigos?", value=True)
+                            if st.form_submit_button("Gerar Lote"):
+                                with st.spinner("Criando lote..."):
+                                    aba = planilha_mestre.worksheet("INVENTÁRIO")
+                                    f_total_e = '=SE(INDIRETO("C"&LIN())=""; ""; ARRED(INDIRETO("C"&LIN()) * INDIRETO("D"&LIN()); 2))'
+                                    f_estoque_h = '=SE(INDIRETO("C"&LIN())=""; ""; INDIRETO("C"&LIN()) - INDIRETO("G"&LIN()))'
+                                    base = str(cod_e).split(".")[0]
+                                    ext = str(cod_e).split(".")[1] if "." in str(cod_e) else "0"
+                                    n_cod = f"{base}.{int(ext)+1}"
+                                    if puxar: aba.update_acell(f"C{lin_p}", vend_g)
+                                    nova_linha = [n_cod, f"{nome_e} (Lote {int(ext)+1})", q_l + (est_h if puxar else 0), cu_l, f_total_e, 3, 0, f_estoque_h, pr_l, datetime.now().strftime("%d/%m/%Y"), ""]
+                                    cel_tot = aba.find("TOTAIS")
+                                    if cel_tot: aba.insert_row(nova_linha, index=cel_tot.row, value_input_option='RAW')
+                                    else: aba.append_row(nova_linha, value_input_option='RAW')
+                                    planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "NOVO LOTE", nome_e, f"Lote {n_cod}", st.session_state.get('usuario_logado', 'Bia')], value_input_option='RAW')
+                                    st.success(f"Lote {n_cod} criado!"); st.cache_data.clear(); st.rerun()
 
-                elif acao == "3. Correção":
-                    with st.form("f_cor"):
-                        real = st.number_input("Qtd real física", value=est_h)
-                        if st.form_submit_button("Corrigir"):
-                            with st.spinner("Sincronizando..."):
-                                aba = planilha_mestre.worksheet("INVENTÁRIO")
-                                aba.update_acell(f"C{lin_p}", real + vend_g)
-                                planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "CORREÇÃO", nome_e, f"Ajustado para {real}", st.session_state.get('usuario_logado', 'Bia')], value_input_option='RAW')
-                                st.success("Corrigido!"); st.cache_data.clear(); st.cache_resource.clear(); st.rerun()
+                    elif acao == "3. Correção":
+                        with st.form("f_cor"):
+                            real = st.number_input("Qtd real física", value=est_h)
+                            if st.form_submit_button("Corrigir"):
+                                with st.spinner("Sincronizando..."):
+                                    aba = planilha_mestre.worksheet("INVENTÁRIO")
+                                    aba.update_acell(f"C{lin_p}", real + vend_g)
+                                    planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "CORREÇÃO", nome_e, f"Ajustado para {real}", st.session_state.get('usuario_logado', 'Bia')], value_input_option='RAW')
+                                    st.success("Corrigido!"); st.cache_data.clear(); st.rerun()
 
+    # ➕ CADASTRO DE NOVO PRODUTO
     st.divider()
     with st.expander("➕ Cadastrar Novo Produto"):
         with st.form("f_est_original", clear_on_submit=True):
@@ -1944,29 +1914,19 @@ elif menu_selecionado == "📦 Estoque":
             if st.form_submit_button("Salvar Novo Produto") and n_c and n_n:
                 with st.spinner("Cadastrando..."):
                     aba = planilha_mestre.worksheet("INVENTÁRIO")
-                    
-                    # As fórmulas que você criou
                     f_total_e = '=SE(INDIRETO("C"&LIN())=""; ""; ARRED(INDIRETO("C"&LIN()) * INDIRETO("D"&LIN()); 2))'
                     f_estoque_h = '=SE(INDIRETO("C"&LIN())=""; ""; INDIRETO("C"&LIN()) - INDIRETO("G"&LIN()))'
-                    
                     linha_manual = [n_c, n_n, n_q, n_custo, f_total_e, 3, 0, f_estoque_h, n_v, datetime.now().strftime("%d/%m/%Y"), ""]
-                    
                     cel_tot = aba.find("TOTAIS")
                     
-                    # 💡 A MÁGICA AQUI: Trocamos 'RAW' por 'USER_ENTERED' para ativar as fórmulas!
-                    if cel_tot: 
-                        aba.insert_row(linha_manual, index=cel_tot.row, value_input_option='USER_ENTERED')
-                    else: 
-                        aba.append_row(linha_manual, value_input_option='USER_ENTERED')
-                        
-                    # O Log pode continuar como RAW porque é só texto normal
-                    planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "CADASTRO", n_n, f"Cód: {n_c}", st.session_state.get('usuario_logado', 'Bia')], value_input_option='RAW')
+                    # 💡 A MÁGICA: USER_ENTERED ativa as fórmulas
+                    if cel_tot: aba.insert_row(linha_manual, index=cel_tot.row, value_input_option='USER_ENTERED')
+                    else: aba.append_row(linha_manual, value_input_option='USER_ENTERED')
                     
-                    st.success("✅ Cadastrado!")
-                    st.cache_data.clear()
-                    st.cache_resource.clear()
-                    st.rerun()
+                    planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "CADASTRO", n_n, f"Cód: {n_c}", st.session_state.get('usuario_logado', 'Bia')], value_input_option='RAW')
+                    st.success("✅ Cadastrado!"); st.cache_data.clear(); st.rerun()
 
+    # 📜 HISTÓRICO E BUSCA FINAL (DENTRO DA ABA ESTOQUE)
     st.divider()
     st.write("### 📜 Histórico de Movimentações (Banco de Dados)")
     try:
@@ -1979,7 +1939,8 @@ elif menu_selecionado == "📦 Estoque":
     st.divider()
     busca_lista = st.text_input("🔍 Buscar na Lista Abaixo", key="txt_busca_lista_estoque")
     df_ver = df_full_inv.copy()
-    if busca_lista: df_ver = df_ver[df_ver.apply(lambda r: busca_lista.lower() in str(r).lower(), axis=1)]
+    if busca_lista: 
+        df_ver = df_ver[df_ver.apply(lambda r: busca_lista.lower() in str(r).lower(), axis=1)]
     st.dataframe(df_ver, use_container_width=True, hide_index=True)
     
 # ==========================================
