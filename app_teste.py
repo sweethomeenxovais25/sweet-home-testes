@@ -279,13 +279,19 @@ def carregar_dados():
     df_fin = ler_aba_seguro("FINANCEIRO")
     df_vendas = ler_aba_seguro("VENDAS")
     df_painel = ler_aba_seguro("PAINEL")
+    
+    # NOVAS ABAS CORPORATIVAS
+    df_socios = ler_aba_seguro("SOCIOS")
+    df_aportes = ler_aba_seguro("APORTES")
 
     banco_prod = {str(r.iloc[0]): {"nome": r.iloc[1], "custo": float(limpar_v(r.iloc[3])), "estoque": r.iloc[7], "venda": r.iloc[8]} for _, r in df_inv.iterrows()} if not df_inv.empty else {}
     banco_cli = {str(r.iloc[0]): {"nome": str(r.iloc[1]), "fone": str(r.iloc[2])} for _, r in df_cli.iterrows()} if not df_cli.empty else {}
 
-    return banco_prod, banco_cli, df_inv, df_fin, df_vendas, df_painel, df_cli
+    # Retornando TUDO
+    return banco_prod, banco_cli, df_inv, df_fin, df_vendas, df_painel, df_cli, df_socios, df_aportes
 
-banco_de_produtos, banco_de_clientes, df_full_inv, df_financeiro, df_vendas_hist, df_painel_resumo, df_clientes_full = carregar_dados()
+# Variáveis que recebem os dados (Atualizado)
+banco_de_produtos, banco_de_clientes, df_full_inv, df_financeiro, df_vendas_hist, df_painel_resumo, df_clientes_full, df_socios, df_aportes = carregar_dados()
 
 with st.sidebar:
     try:
@@ -828,37 +834,42 @@ elif menu_selecionado == "💰 Financeiro":
     st.markdown("### 📈 Resumo Geral Sweet Home")
     if not df_vendas_hist.empty:
         try:
-            # 1. PROCESSAMENTO SEGURO POR POSIÇÃO (ILOC)
             df_fin_total = df_vendas_hist.copy()
             
-            # Mapeamento: Coluna L (11)=Total | M (12)=Lucro | O (14)=Pagto | U (20)=Saldo
-            df_fin_total['VALOR_NUM'] = df_fin_total.iloc[:, 11].apply(limpar_v)
-            df_fin_total['LUCRO_NUM'] = df_fin_total.iloc[:, 12].apply(limpar_v)
-            df_fin_total['FORMA_PG'] = df_fin_total.iloc[:, 14]
-            df_fin_total['SALDO_NUM'] = df_fin_total.iloc[:, 20].apply(limpar_v)
-            
             # ========================================================
-            # 🛑 O GRANDE FILTRO (PRINCÍPIO DA ENTIDADE)
+            # 🛑 O FILTRO DE GOVERNANÇA (SEPARAÇÃO SÓCIOS vs CLIENTES)
             # ========================================================
-            NOME_CEO = "Beatriz Anselmo" # Coloque o nome EXATAMENTE como está cadastrado
+            if not df_socios.empty:
+                nomes_socios = df_socios['NOME'].astype(str).str.strip().tolist()
+            else:
+                nomes_socios = ["Beatriz Anselmo"] # Fallback de segurança
             
-            # Pega as vendas reais (Exclui a CEO)
-            df_fin = df_fin_total[~df_fin_total.iloc[:, 3].astype(str).str.contains(NOME_CEO, case=False, na=False)]
+            # Cria a máscara: É sócio? (True/False) baseado na Coluna D (3)
+            mascara_socios = df_fin_total.iloc[:, 3].astype(str).str.strip().isin(nomes_socios)
             
-            # Guarda as movimentações da CEO para o Banco Sweet
-            df_ceo = df_fin_total[df_fin_total.iloc[:, 3].astype(str).str.contains(NOME_CEO, case=False, na=False)]
+            # df_fin = VENDAS REAIS (Para Clientes)
+            df_fin = df_fin_total[~mascara_socios].copy()
+            
+            # df_retiradas = PRODUTOS RETIRADOS PELOS SÓCIOS
+            df_retiradas = df_fin_total[mascara_socios].copy()
             # ========================================================
+            
+            # Mapeamento: L(11)=Total, M(12)=Lucro, O(14)=Forma Pg, U(20)=Saldo
+            df_fin['VALOR_NUM'] = df_fin.iloc[:, 11].apply(limpar_v)
+            df_fin['LUCRO_NUM'] = df_fin.iloc[:, 12].apply(limpar_v)
+            df_fin['FORMA_PG'] = df_fin.iloc[:, 14]
+            df_fin['SALDO_NUM'] = df_fin.iloc[:, 20].apply(limpar_v)
             
             vendas_brutas = df_fin['VALOR_NUM'].sum()
             lucro_bruto = df_fin['LUCRO_NUM'].sum()
             saldo_devedor = df_fin['SALDO_NUM'].sum()
             total_recebido = vendas_brutas - saldo_devedor
             
-            # Cálculo de Liquidez (O que já é dinheiro vivo vs. o que é Flex)
+            # Cálculo de Liquidez
             receita_imediata = df_fin[df_fin['FORMA_PG'] != 'Sweet Flex']['VALOR_NUM'].sum()
             indice_liquidez = (receita_imediata / vendas_brutas * 100) if vendas_brutas > 0 else 0
             
-            # 2. MÉTRICAS PRINCIPAIS (AGORA 100% REAIS DA LOJA)
+            # MÉTRICAS PRINCIPAIS
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Vendas Totais", f"R$ {vendas_brutas:,.2f}")
             c2.metric("Lucro Bruto", f"R$ {lucro_bruto:,.2f}")
@@ -1391,6 +1402,127 @@ elif menu_selecionado == "💰 Financeiro":
 
         except Exception as e:
             st.error(f"Erro ao processar o Banco Sweet: {e}")
+
+    # ====================================================
+    # 🏦 BANCO SWEET & GOVERNANÇA CORPORATIVA
+    # ====================================================
+    st.markdown("---")
+    with st.expander("🏦 Banco Sweet (Equity, Aportes e Retiradas)", expanded=False):
+        st.write("Módulo de gestão de sócios, injeção de capital e monitoramento de retiradas (Marketing/Uso Pessoal).")
+        
+        # --- 1. CADASTRO DE NOVOS SÓCIOS ---
+        with st.form("form_novo_socio", clear_on_submit=True):
+            st.markdown("##### 🤝 Cadastrar Novo Sócio / Investidor")
+            c_s1, c_s2 = st.columns(2)
+            nome_s = c_s1.text_input("Nome Completo (Exato como sairá nas vendas)")
+            tel_s = c_s2.text_input("WhatsApp")
+            
+            if st.form_submit_button("Adicionar ao Quadro Societário", type="secondary"):
+                if nome_s:
+                    try:
+                        aba_soc = planilha_mestre.worksheet("SOCIOS")
+                        novo_cod = f"SOC-{(len(aba_soc.get_all_values())):03d}"
+                        aba_soc.append_row([novo_cod, nome_s.strip(), tel_s.strip(), datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y")], value_input_option='RAW')
+                        st.success(f"✅ {nome_s} adicionado ao quadro societário!")
+                        st.cache_data.clear()
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao cadastrar: {e}")
+
+        st.divider()
+
+        # --- 2. APORTES DE CAPITAL (INJEÇÃO DE DINHEIRO) ---
+        st.markdown("##### 💰 Injeção de Capital (Aportes)")
+        
+        # Prepara a lista de sócios para o selectbox
+        lista_socios_select = ["---"]
+        if not df_socios.empty:
+            lista_socios_select += [f"{row['COD_SOCIO']} - {row['NOME']}" for _, row in df_socios.iterrows()]
+            
+        with st.form("form_aporte_capital", clear_on_submit=True):
+            c_a1, c_a2, c_a3 = st.columns([1.5, 1, 1.5])
+            socio_aporte = c_a1.selectbox("Quem está investindo?", lista_socios_select)
+            valor_aporte = c_a2.number_input("Valor (R$)", min_value=0.01)
+            tipo_aporte = c_a3.selectbox("Destinação", ["Caixa Geral", "Marketing", "Infraestrutura", "Reinvestimento de Lucro"])
+            obs_aporte = st.text_input("Observações do Aporte")
+            
+            if st.form_submit_button("Registrar Aporte 🚀", type="primary"):
+                if socio_aporte != "---":
+                    try:
+                        aba_ap = planilha_mestre.worksheet("APORTES")
+                        cod_soc, nome_soc = socio_aporte.split(" - ")[0], socio_aporte.split(" - ")[1]
+                        aba_ap.append_row([
+                            datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y %H:%M"),
+                            cod_soc, nome_soc, valor_aporte, tipo_aporte, obs_aporte
+                        ], value_input_option='RAW')
+                        st.success("✅ Capital injetado com sucesso!")
+                        st.cache_data.clear()
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro no aporte: {e}")
+                else:
+                    st.warning("Selecione um sócio.")
+
+        st.divider()
+
+        # --- 3. CAP TABLE (QUADRO SOCIETÁRIO E MÉTRICAS) ---
+        st.markdown("##### 📊 Cap Table e Balanço dos Sócios")
+        
+        if not df_socios.empty:
+            # Processa Aportes (Entradas)
+            if not df_aportes.empty:
+                df_aportes['VALOR_NUM'] = df_aportes['VALOR_R$'].apply(limpar_v)
+                aportes_por_socio = df_aportes.groupby('NOME_SOCIO')['VALOR_NUM'].sum().to_dict()
+                aporte_total_empresa = df_aportes['VALOR_NUM'].sum()
+            else:
+                aportes_por_socio = {}
+                aporte_total_empresa = 0.0
+
+            # Processa Retiradas (Saídas - Focando na Coluna L = TOTAL R$)
+            if not df_retiradas.empty:
+                # O índice 11 é a Coluna L (TOTAL R$), que respeita Qtd e Desconto
+                df_retiradas['RETIRADA_NUM'] = df_retiradas.iloc[:, 11].apply(limpar_v)
+                retiradas_por_socio = df_retiradas.groupby('CLIENTE')['RETIRADA_NUM'].sum().to_dict()
+                total_retirado_global = df_retiradas['RETIRADA_NUM'].sum()
+            else:
+                retiradas_por_socio = {}
+                total_retirado_global = 0.0
+
+            # Montando a Tabela de Sócios
+            dados_cap_table = []
+            for _, row in df_socios.iterrows():
+                n_socio = str(row['NOME']).strip()
+                t_aporte = aportes_por_socio.get(n_socio, 0.0)
+                t_retirada = retiradas_por_socio.get(n_socio, 0.0)
+                balanco = t_aporte - t_retirada
+                
+                # Participação baseada no montante injetado
+                participacao = (t_aporte / aporte_total_empresa * 100) if aporte_total_empresa > 0 else 0.0
+                
+                dados_cap_table.append({
+                    "Sócio": n_socio,
+                    "Equity (%)": f"{participacao:.1f}%",
+                    "Capital Injetado": t_aporte,
+                    "Produtos Retirados": t_retirada,
+                    "Balanço Liquido": balanco
+                })
+            
+            df_cap = pd.DataFrame(dados_cap_table)
+            
+            st.dataframe(
+                df_cap,
+                column_config={
+                    "Capital Injetado": st.column_config.NumberColumn(format="R$ %.2f"),
+                    "Produtos Retirados": st.column_config.NumberColumn("Retirado (Col L)", format="R$ %.2f"),
+                    "Balanço Liquido": st.column_config.NumberColumn(format="R$ %.2f")
+                },
+                use_container_width=True, hide_index=True
+            )
+            
+            # Resumo Global do Banco
+            st.info(f"🏦 **Caixa de Investimentos Global:** R$ {aporte_total_empresa:,.2f} injetados | R$ {total_retirado_global:,.2f} consumidos em estoque/marketing.")
+        else:
+            st.warning("Cadastre o primeiro sócio acima para gerar o Cap Table.")
             
     st.markdown("### 🔍 Ficha de Cliente (Extrato Dinâmico)")
     opcoes_ficha = sorted([f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()])
