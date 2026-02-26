@@ -2356,3 +2356,206 @@ elif menu_selecionado == "📂 Documentos":
                 st.divider()
     else:
         st.info("O cofre geral está vazio.")
+
+# ==========================================
+# --- SEÇÃO 3: COMPRAS E DESPESAS (CONTÁBIL) ---
+# ==========================================
+elif menu_selecionado == "🛒 Compras e Despesas":
+    st.markdown("### 🛒 Gestão de Compras e Contas a Pagar")
+    st.write("Controle de fornecedores, pagamentos de estoque e despesas fixas da loja.")
+
+    # 1. Preparação dos Dados
+    df_desp = df_despesas.copy()
+    if not df_desp.empty:
+        df_desp.columns = [c.strip().upper() for c in df_desp.columns]
+        # Garante que vai achar a coluna de valor
+        col_valor = 'VALOR R$' if 'VALOR R$' in df_desp.columns else df_desp.columns[4]
+        df_desp['VALOR_NUM'] = df_desp[col_valor].apply(limpar_v)
+        df_desp['STATUS_LIMPO'] = df_desp.get('STATUS', pd.Series(dtype=str)).astype(str).str.strip().str.upper()
+    else:
+        df_desp['VALOR_NUM'] = 0.0
+        df_desp['STATUS_LIMPO'] = ""
+
+    t_dash, t_despesas, t_fornecedores = st.tabs(["📊 Dashboard Contábil", "💸 Lançar e Pagar Contas", "🏭 Fornecedores"])
+
+    # ------------------------------------------
+    # ABA 1: DASHBOARD
+    # ------------------------------------------
+    with t_dash:
+        if not df_desp.empty:
+            pendentes = df_desp[df_desp['STATUS_LIMPO'] == 'PENDENTE']
+            pagos = df_desp[df_desp['STATUS_LIMPO'] == 'PAGO']
+
+            total_pendente = pendentes['VALOR_NUM'].sum() if not pendentes.empty else 0.0
+            total_pago = pagos['VALOR_NUM'].sum() if not pagos.empty else 0.0
+
+            c1, c2 = st.columns(2)
+            c1.metric("🔴 Contas a Pagar (Pendentes)", f"R$ {total_pendente:,.2f}", help="Tudo que já foi registrado mas ainda não foi pago.")
+            c2.metric("🟢 Despesas Pagas (Histórico)", f"R$ {total_pago:,.2f}", help="Total de saídas de caixa já quitadas.")
+
+            st.divider()
+            
+            col_graf, col_lista = st.columns([1.5, 1])
+            with col_graf:
+                st.write("#### Onde o dinheiro está sendo investido?")
+                if not pagos.empty:
+                    import plotly.express as px
+                    gastos_cat = pagos.groupby('CATEGORIA')['VALOR_NUM'].sum().reset_index()
+                    fig_desp = px.pie(gastos_cat, values='VALOR_NUM', names='CATEGORIA', hole=0.4, 
+                                      color_discrete_sequence=['#ff9999', '#66b3ff', '#99ff99', '#ffcc99', '#c2c2f0'])
+                    fig_desp.update_traces(textposition='inside', textinfo='percent+label')
+                    fig_desp.update_layout(margin=dict(t=0, b=0, l=0, r=0), showlegend=False)
+                    st.plotly_chart(fig_desp, use_container_width=True)
+                else:
+                    st.info("Nenhuma despesa paga registrada ainda para gerar o gráfico.")
+
+            with col_lista:
+                st.write("#### 🚨 Próximos Vencimentos")
+                if not pendentes.empty:
+                    # Ordena pelos vencimentos mais próximos
+                    pend_show = pendentes.copy()
+                    pend_show['VENC_DT'] = pd.to_datetime(pend_show['VENCIMENTO'], format='%d/%m/%Y', errors='coerce')
+                    pend_show = pend_show.sort_values('VENC_DT')
+                    
+                    for _, row in pend_show.head(5).iterrows():
+                        st.error(f"📅 **{row['VENCIMENTO']}**\n\n🏭 {row['FORNECEDOR / DESPESA']}\n\n💰 R$ {row['VALOR_NUM']:,.2f}")
+                else:
+                    st.success("Tudo em dia! Nenhuma conta pendente no momento.")
+        else:
+            st.info("Aguardando o primeiro lançamento de despesa para gerar o Dashboard.")
+
+    # ------------------------------------------
+    # ABA 2: LANÇAMENTOS E BAIXAS
+    # ------------------------------------------
+    with t_despesas:
+        col_nova, col_baixa = st.columns(2)
+        
+        with col_nova:
+            st.write("#### ➕ Nova Despesa / Compra")
+            with st.form("form_nova_despesa", clear_on_submit=True):
+                # Puxa os fornecedores ou permite avulso
+                opcoes_forn = ["Avulso (Sem Fornecedor)"] + [f"{k} - {v['nome']}" for k,v in banco_de_fornecedores.items()]
+                f_forn = st.selectbox("Quem estamos pagando?", opcoes_forn)
+                
+                f_desc = st.text_input("Descrição da Conta", placeholder="Ex: Fatura Tecidos, Conta de Luz...")
+                f_cat = st.selectbox("Categoria", ["Estoque / Mercadorias", "Logística / Fretes", "Insumos / Embalagens", "Despesas Fixas", "Marketing", "Outros"])
+                
+                c_v, c_d = st.columns(2)
+                f_val = c_v.number_input("Valor (R$)", min_value=0.0, format="%.2f")
+                f_venc = c_d.date_input("Vencimento")
+                
+                f_status = st.radio("Já foi pago?", ["Não (Pendente)", "Sim (Pago)"], horizontal=True)
+
+                if st.form_submit_button("Registrar Conta 💾", type="primary"):
+                    if f_val > 0 and f_desc:
+                        try:
+                            aba_d = planilha_mestre.worksheet("DESPESAS")
+                            nome_registro = f"[{f_forn.split(' - ')[0]}] {f_desc}" if f_forn != "Avulso (Sem Fornecedor)" else f_desc
+                            
+                            status_final = "Pago" if f_status == "Sim (Pago)" else "Pendente"
+                            dt_pago = datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y") if status_final == "Pago" else "-"
+                            
+                            aba_d.append_row([
+                                datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y"),
+                                f_venc.strftime("%d/%m/%Y"),
+                                nome_registro,
+                                f_cat,
+                                f_val,
+                                status_final,
+                                dt_pago,
+                                "-" # Espaço para o Comprovante futuro
+                            ], value_input_option='RAW')
+                            st.success("✅ Despesa registrada no cofre!")
+                            st.cache_data.clear(); st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro ao salvar: {e}")
+                    else:
+                        st.warning("Preencha a descrição e um valor maior que zero.")
+
+        with col_baixa:
+            st.write("#### ✅ Quitar Conta (Dar Baixa)")
+            st.info("Aqui você marca como 'Pagas' as contas que estavam pendentes.")
+            
+            if not df_desp.empty:
+                pendentes_baixa = df_desp[df_desp['STATUS_LIMPO'] == 'PENDENTE'].copy()
+                if not pendentes_baixa.empty:
+                    # Mapeia a linha real da planilha (A primeira linha de dados é a 2 no Sheets)
+                    pendentes_baixa['LINHA_SHEETS'] = pendentes_baixa.index + 2 
+                    
+                    # Cria a lista de exibição "R$ Valor - Descrição"
+                    lista_baixas = []
+                    dict_linhas = {}
+                    for _, r in pendentes_baixa.iterrows():
+                        texto_item = f"📅 Venc: {r['VENCIMENTO']} | 💰 R$ {r['VALOR_NUM']:,.2f} | 🏭 {r['FORNECEDOR / DESPESA']}"
+                        lista_baixas.append(texto_item)
+                        dict_linhas[texto_item] = r['LINHA_SHEETS']
+                        
+                    conta_selecionada = st.selectbox("Selecione a conta para pagar agora:", ["---"] + lista_baixas)
+                    
+                    if conta_selecionada != "---":
+                        if st.button("Confirmar Pagamento 💵", type="secondary"):
+                            linha_alvo = dict_linhas[conta_selecionada]
+                            try:
+                                aba_d_baixa = planilha_mestre.worksheet("DESPESAS")
+                                # Coluna F (6) = STATUS | Coluna G (7) = DATA PAGAMENTO
+                                aba_d_baixa.update_acell(f"F{linha_alvo}", "Pago")
+                                aba_d_baixa.update_acell(f"G{linha_alvo}", datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y"))
+                                st.success("🎉 Baixa realizada com sucesso!")
+                                st.cache_data.clear(); st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro ao dar baixa: {e}")
+                else:
+                    st.write("Nenhuma conta pendente para dar baixa.")
+            else:
+                st.write("Nenhuma despesa cadastrada.")
+
+    # ------------------------------------------
+    # ABA 3: CADASTRO DE FORNECEDORES
+    # ------------------------------------------
+    with t_fornecedores:
+        with st.form("form_novo_forn", clear_on_submit=True):
+            st.write("#### 🤝 Cadastrar Novo Fornecedor / Fábrica")
+            
+            c_f1, c_f2 = st.columns(2)
+            nome_f = c_f1.text_input("Nome / Razão Social")
+            cat_f = c_f2.text_input("Categoria Principal", placeholder="Ex: Roupas, Embalagens, Sistema...")
+            
+            c_f3, c_f4 = st.columns(2)
+            tel_f = c_f3.text_input("WhatsApp de Contato")
+            pix_f = c_f4.text_input("Chave PIX")
+            
+            obs_f = st.text_input("Observações (Endereço, CNPJ, etc)")
+            
+            if st.form_submit_button("Criar Fornecedor"):
+                if nome_f:
+                    try:
+                        aba_forn = planilha_mestre.worksheet("FORNECEDORES")
+                        dados_forn = aba_forn.get_all_values()
+                        
+                        # Gera o código FORN-001, FORN-002 inteligente
+                        if len(dados_forn) > 1:
+                            ultimo_cod = str(dados_forn[-1][0])
+                            try: prox_num = int(ultimo_cod.replace("FORN-", "")) + 1
+                            except: prox_num = len(dados_forn)
+                        else:
+                            prox_num = 1
+                            
+                        novo_cod_forn = f"FORN-{prox_num:03d}"
+                        
+                        aba_forn.append_row([
+                            novo_cod_forn, nome_f.strip(), cat_f, tel_f, pix_f, obs_f
+                        ], value_input_option='RAW')
+                        
+                        st.success(f"Fábrica cadastrada! Código: {novo_cod_forn}")
+                        st.cache_data.clear(); st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao cadastrar: {e}")
+                else:
+                    st.warning("O Nome do Fornecedor é obrigatório.")
+        
+        st.divider()
+        st.write("#### 🗂️ Lista de Fornecedores Ativos")
+        if not df_fornecedores.empty:
+            st.dataframe(df_fornecedores, use_container_width=True, hide_index=True)
+        else:
+            st.info("Nenhum fornecedor cadastrado no banco de dados.")
