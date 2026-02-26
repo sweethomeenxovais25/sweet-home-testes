@@ -1454,8 +1454,6 @@ elif menu_selecionado == "💰 Financeiro":
                             st.rerun()
                         except Exception as e:
                             st.error(f"Erro ao salvar na aba APORTES: {e}")
-                    else:
-                        st.warning("Selecione um sócio.")
         except Exception as e:
             st.error(f"Aba SOCIOS não configurada. {e}")
 
