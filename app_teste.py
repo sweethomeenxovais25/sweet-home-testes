@@ -2334,23 +2334,47 @@ elif menu_selecionado == "📂 Documentos":
                 nome_limpo = nome_gerado.replace("/", "-").replace(":", "")
 
                 with st.spinner(f"Subindo para o servidor seguro... ⏳"):
+                    # 1. Tenta fazer o upload para o Cloudinary
                     f_id, f_link = upload_para_cloudinary(arquivo_subido.getvalue(), nome_limpo, cat_escolhida)
                     
+                    # 2. Só grava na planilha SE o upload realmente funcionou
                     if f_id:
                         try:
+                            import pytz
+                            from datetime import datetime
+                            
                             aba_doc = planilha_mestre.worksheet("DOCUMENTOS")
+                            
+                            # Se a aba estiver totalmente limpa (sem cabeçalho), ele cria na hora
                             if len(aba_doc.get_all_values()) == 0:
                                 aba_doc.append_row(["DATA", "TIPO", "NOME", "ID_ARQUIVO", "LINK_DRIVE", "VINCULO", "STATUS_ODOO"])
                             
                             status_odoo = "Pronto para Site" if cat_escolhida == "Foto de Produto" else "-"
                             
-                            aba_doc.append_row([
-                                datetime.now().strftime("%d/%m/%Y %H:%M"),
-                                cat_escolhida, nome_limpo, f_id, f_link, vinculo_final, status_odoo
-                            ], value_input_option='USER_ENTERED')
-                            st.success(f"✅ Arquivado com sucesso!"); st.cache_data.clear(); st.cache_resource.clear(); st.rerun()
+                            # Monta a linha exata (A até G)
+                            linha_nova = [
+                                datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y %H:%M"),
+                                cat_escolhida, 
+                                nome_limpo, 
+                                f_id, 
+                                f_link, 
+                                vinculo_final, 
+                                status_odoo
+                            ]
+                            
+                            # 💡 A MÁGICA: 'RAW' obriga o Google Sheets a aceitar como Texto, sem tentar calcular fórmulas
+                            aba_doc.append_row(linha_nova, value_input_option='RAW')
+                            
+                            st.success(f"✅ Arquivado com sucesso no Cofre e na Planilha!")
+                            st.cache_data.clear()
+                            st.cache_resource.clear()
+                            st.rerun()
+                            
                         except Exception as e: 
-                            st.error(f"Erro na planilha: {e}")
+                            st.error(f"❌ Erro ao escrever na planilha do Google: {e}")
+                    else:
+                        # 💡 ALERTA NOVO: Se o Cloudinary falhar, agora ele te avisa e não deixa você no escuro!
+                        st.error("❌ Falha no upload da imagem/PDF. O sistema cancelou o registro para não gerar dados órfãos na planilha.")
 
     st.divider()
     st.write("### 🗂️ Histórico Geral de Documentos")
