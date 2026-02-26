@@ -2772,12 +2772,12 @@ elif menu_selecionado == "🏭 Compras e Despesas":
         else:
             st.info("Nenhum fornecedor cadastrado no banco de dados.")
             
-    # ==========================================================
-    # 📢 MÓDULO DE GESTÃO DE MARKETING (O "TRELLO" DA SWEET HOME)
-    # ==========================================================
-    elif menu_selecionado == "📢 Gestão de Marketing":
-        st.title("📢 Gestão de Marketing e Conteúdo")
-        st.write("A sua central de comando para alinhar ideias, aprovar artes e dominar as redes sociais.")
+# ==========================================================
+# 📢 MÓDULO DE GESTÃO DE MARKETING (O "TRELLO" DA SWEET HOME)
+# ==========================================================
+elif menu_selecionado == "📢 Gestão de Marketing":
+    st.title("📢 Gestão de Marketing e Conteúdo")
+    st.write("A sua central de comando para alinhar ideias, aprovar artes e dominar as redes sociais.")
         
         # Preparação dos Dados
         df_mkt = df_marketing.copy()
