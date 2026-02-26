@@ -1824,13 +1824,28 @@ elif menu_selecionado == "📦 Estoque":
                         6. SEGURANÇA: Se a imagem não for uma nota fiscal, não contiver produtos, ou estiver impossível de ler, retorne APENAS a frase exata: "⚠️ Documento ilegível ou sem itens reconhecidos. Tente uma foto mais nítida."
                         """
                         
-                        # A mágica acontece aqui
-                        resposta = modelo_ia.generate_content([prompt, img])
-                        st.success("✅ Leitura Concluída!")
-                        st.markdown(resposta.text)
-                        st.warning("💡 Dica: Use a lista acima para o 'Radar de Entrada' abaixo.")
+                        # 💡 A MÁGICA DA CONTINGÊNCIA: Tenta do mais novo para o mais antigo
+                        modelos_para_testar = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro-vision"]
+                        resposta_ia = None
+                        
+                        for m in modelos_para_testar:
+                            try:
+                                modelo_ia = genai.GenerativeModel(m)
+                                resposta_ia = modelo_ia.generate_content([prompt, img])
+                                if resposta_ia:
+                                    break # Se o modelo funcionar, ele quebra o loop e segue a vida
+                            except:
+                                continue # Se falhar, pula silenciosamente para tentar o próximo
+                                
+                        if resposta_ia:
+                            st.success("✅ Leitura Concluída!")
+                            st.markdown(resposta_ia.text)
+                            st.warning("💡 Dica: Use a lista acima para o 'Radar de Entrada' abaixo.")
+                        else:
+                            st.error("⚠️ Nenhum modelo de IA da Google está respondendo no momento. Tente novamente em alguns minutos.")
+                            
                     except Exception as e:
-                        st.error(f"⚠️ Erro na IA: {e}")
+                        st.error(f"⚠️ Erro no sistema de IA: {e}")
 
     # 🔍 RADAR DE ENTRADA (ATUALIZAÇÃO RÁPIDA)
     st.divider()
