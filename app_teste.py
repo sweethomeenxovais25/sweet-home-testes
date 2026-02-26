@@ -259,12 +259,14 @@ def upload_para_cloudinary(file_bytes, file_name, pasta_destino):
 
 @st.cache_data(ttl=60)
 def carregar_dados():
+    # 💡 CORREÇÃO 1: Se falhar, agora ele retorna as 14 variáveis certinhas para não quebrar o app
     if not planilha_mestre: 
-        return {}, {}, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+        return {}, {}, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     
     def ler_aba_seguro(nome):
         try:
-            aba = planilha_mestre.worksheet(nome_aba)
+            # 💡 CORREÇÃO 2: A variável certa é 'nome' e não 'nome_aba'
+            aba = planilha_mestre.worksheet(nome)
             dados = aba.get_all_values()
             if len(dados) <= 1: return pd.DataFrame()
             df = pd.DataFrame(dados[1:], columns=dados[0])
@@ -272,7 +274,9 @@ def carregar_dados():
                 df = df[~df.iloc[:, 0].astype(str).str.contains("TOTAIS", case=False, na=False)]
                 df = df[df.iloc[:, 1].astype(str).str.strip() != ""]
             return df
-        except: return pd.DataFrame()
+        except Exception as e: 
+            print(f"Erro ao ler {nome}: {e}") # Isso ajuda a avisar se a aba não existir
+            return pd.DataFrame()
 
     df_inv = ler_aba_seguro("INVENTÁRIO")
     df_cli = ler_aba_seguro("CARTEIRA DE CLIENTES")
