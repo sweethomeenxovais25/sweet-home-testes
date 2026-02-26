@@ -2799,7 +2799,7 @@ elif menu_selecionado == "📢 Gestão de Marketing":
         em_producao = falta_postar = concluidos = 0
         
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Fila & Produção", f"{em_producao}", help="Tarefas que o Jean precisa criar/editar.")
+    m1.metric("Fila & Produção", f"{em_producao}", help="Tarefas que o Gestor de Marketing precisa criar/editar.")
     m2.metric("Aguardando Postagem", f"{falta_postar}", delta="Atenção", delta_color="inverse", help="Artes prontas! Só falta aprovar e colocar no Instagram.")
     m3.metric("Postados (Sucesso)", f"{concluidos}", delta="Missão Cumprida")
     m4.metric("Total de Demandas", f"{total_pedidos}")
@@ -2865,7 +2865,7 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                             ]
                             
                             aba_mkt.append_row(linha_mkt, value_input_option='RAW')
-                            st.success(f"✅ Tarefa {novo_id} registada com sucesso! O Jean já foi notificado (virtualmente)!")
+                            st.success(f"✅ Tarefa {novo_id} registada com sucesso! O Gestor de Marketing já foi notificado (virtualmente)!")
                             st.cache_data.clear()
                             st.rerun()
                             
