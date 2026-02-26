@@ -468,7 +468,7 @@ if menu_selecionado == "🛒 Vendas":
         if p_sel and isinstance(p_sel, str) and " - " in p_sel:
             cod_p_temp = p_sel.split(" - ")[0]
         else:
-            cod_p_temp = None
+            cod_p_temp = ""
         
         # 2. Recuperação do preço direto da planilha (usando o ID do produto selecionado)
         cod_p_temp = p_sel.split(" - ")[0]
