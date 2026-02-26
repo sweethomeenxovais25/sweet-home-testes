@@ -838,23 +838,35 @@ elif menu_selecionado == "💰 Financeiro":
             df_fin_total = df_vendas_hist.copy()
             
             # ========================================================
-            # 🛑 O FILTRO DE GOVERNANÇA (SEPARAÇÃO SÓCIOS vs CLIENTES)
+            # 🛑 O FILTRO DE GOVERNANÇA DINÂMICO (SEM NOMES FIXOS)
             # ========================================================
             try:
+                # 1. Puxa todos os nomes da aba SOCIOS, convertendo para minúsculo e sem espaços
                 if not df_socios.empty:
-                    nomes_socios = df_socios['NOME'].astype(str).str.strip().tolist()
+                    nomes_socios_limpos = df_socios['NOME'].astype(str).str.strip().str.lower().tolist()
                 else:
-                    nomes_socios = ["Beatriz Anselmo"] # Fallback de segurança se a aba estiver vazia
+                    nomes_socios_limpos = []
             except:
-                nomes_socios = ["Beatriz Anselmo"]
-            
-            # Cria a máscara: É sócio? (Verifica se o nome na Coluna D (3) está na lista de sócios)
-            mascara_socios = df_fin_total.iloc[:, 3].astype(str).str.strip().isin(nomes_socios)
-            
-            # df_fin = VENDAS REAIS (Exclui os sócios)
+                nomes_socios_limpos = []
+
+            # 2. Puxa do Banco de Clientes (CRM) os Códigos (CLI-XXX) que pertencem a esses sócios
+            codigos_dos_socios = []
+            if nomes_socios_limpos:
+                for cod, dados in banco_de_clientes.items():
+                    if str(dados['nome']).strip().lower() in nomes_socios_limpos:
+                        codigos_dos_socios.append(str(cod).strip().lower())
+
+            # 3. Limpa as colunas de Vendas para comparar com precisão (evitar erro de digitação/espaço)
+            nomes_vendas = df_fin_total.iloc[:, 3].astype(str).str.strip().str.lower()
+            codigos_vendas = df_fin_total.iloc[:, 2].astype(str).str.split('.').str[0].str.strip().str.lower()
+
+            # 4. A MÁSCARA: É sócio se o NOME bater OU se o CÓDIGO bater. Totalmente automático!
+            mascara_socios = nomes_vendas.isin(nomes_socios_limpos) | codigos_vendas.isin(codigos_dos_socios)
+
+            # df_fin = VENDAS REAIS (Exclui os sócios para os Gráficos e Saldo Geral)
             df_fin = df_fin_total[~mascara_socios].copy()
-            
-            # df_retiradas = PRODUTOS RETIRADOS PELOS SÓCIOS
+
+            # df_retiradas = PRODUTOS RETIRADOS (Vai direto para o Banco Sweet)
             df_retiradas = df_fin_total[mascara_socios].copy()
             # ========================================================
             
@@ -1080,7 +1092,8 @@ elif menu_selecionado == "💰 Financeiro":
                 DATA_CORTE_LEGADO = pd.to_datetime("2026-02-01")
                 
                 # --- 1. HIGIENIZAÇÃO DE DADOS ---
-                df_cobranca = df_vendas_hist.copy()
+                # A MÁGICA AQUI: Puxa o df_fin (sem sócios) no lugar do histórico bruto
+                df_cobranca = df_fin.copy()
                 df_cobranca['SALDO_NUM'] = df_cobranca['SALDO DEVEDOR'].apply(limpar_v)
                 
                 # 🛑 Trava de Status para não cobrar quem já pagou
