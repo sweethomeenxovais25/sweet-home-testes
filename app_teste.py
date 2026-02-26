@@ -1816,12 +1816,13 @@ elif menu_selecionado == "📦 Estoque":
 
                         Siga estas REGRAS RÍGIDAS E ABSOLUTAS:
                         1. EXTRAÇÃO LITERAL: Copie os nomes dos produtos, quantidades e valores EXATAMENTE como estão impressos. Não deduza, não adivinhe, não abrevie e não corrija erros de português que estejam no papel.
-                        2. ATENÇÃO AOS NÚMEROS: Revise visualmente os valores de 'Custo Unitário' e 'Valor Total'. Respeite as vírgulas e pontos (ex: 1.500,00). Não tente refazer a matemática se a nota estiver com erro, apenas transcreva o que está lá.
-                        3. IGNORE O "LIXO VISUAL": Ignore totalmente CNPJ, endereço da loja, mensagens de agradecimento, cálculos de impostos (ICMS, IPI) ou troco. Foque APENAS nas linhas dos produtos/itens.
-                        4. FORMATO OBRIGATÓRIO: Retorne o resultado EXATAMENTE no formato de uma tabela Markdown com as seguintes colunas:
-                        | Qtd | Descrição do Produto | Custo Unitário (R$) | Valor Total (R$) |
-                        5. SILÊNCIO TOTAL: Retorne APENAS a tabela Markdown. É estritamente proibido escrever "Aqui está a tabela", "Claro, vou ajudar" ou qualquer outra palavra fora da tabela.
-                        6. SEGURANÇA: Se a imagem não for uma nota fiscal, não contiver produtos, ou estiver impossível de ler, retorne APENAS a frase exata: "⚠️ Documento ilegível ou sem itens reconhecidos. Tente uma foto mais nítida."
+                        2. CÓDIGO DO PRODUTO: Procure atentamente por números de referência, códigos EAN, ou códigos de fábrica que costumam ficar no início da linha, antes ou depois do nome do produto. Se não encontrar nenhum código, escreva "S/N".
+                        3. ATENÇÃO AOS NÚMEROS: Revise visualmente os valores de 'Custo Unitário' e 'Valor Total'. Respeite as vírgulas e pontos (ex: 1.500,00). Não tente refazer a matemática se a nota estiver com erro, apenas transcreva o que está lá.
+                        4. IGNORE O "LIXO VISUAL": Ignore totalmente CNPJ, endereço da loja, mensagens de agradecimento, cálculos de impostos (ICMS, IPI) ou troco. Foque APENAS nas linhas dos produtos/itens.
+                        5. FORMATO OBRIGATÓRIO: Retorne o resultado EXATAMENTE no formato de uma tabela Markdown com as seguintes colunas:
+                        | Cód. Fábrica | Qtd | Descrição do Produto | Custo Unitário (R$) | Valor Total (R$) |
+                        6. SILÊNCIO TOTAL: Retorne APENAS a tabela Markdown. É estritamente proibido escrever "Aqui está a tabela", "Claro, vou ajudar" ou qualquer outra palavra fora da tabela.
+                        7. SEGURANÇA: Se a imagem não for uma nota fiscal, não contiver produtos, ou estiver impossível de ler, retorne APENAS a frase exata: "⚠️ Documento ilegível ou sem itens reconhecidos. Tente uma foto mais nítida."
                         """
                         
                         # 💡 A MÁGICA DA CONTINGÊNCIA: Tenta do mais novo para o mais antigo
