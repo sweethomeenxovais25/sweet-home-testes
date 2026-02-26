@@ -1428,12 +1428,20 @@ elif menu_selecionado == "💰 Financeiro":
             with st.form("form_aporte_capital", clear_on_submit=True):
                 c_a1, c_a2, c_a3 = st.columns([1.5, 1, 1.5])
                 socio_aporte = c_a1.selectbox("Quem está investindo?", lista_socios_select, help="Selecione o sócio que está transferindo o dinheiro para o caixa da loja.")
-                valor_aporte = c_a2.number_input("Valor (R$)", min_value=0.01)
+                
+                # 💡 AJUSTE AQUI: Começa em 0.00 limpo e formata com duas casas decimais
+                valor_aporte = c_a2.number_input("Valor (R$)", min_value=0.00, value=0.00, step=0.01, format="%.2f")
+                
                 tipo_aporte = c_a3.selectbox("Destinação", ["Caixa Geral", "Marketing", "Infraestrutura", "Reinvestimento de Lucro"])
                 obs_aporte = st.text_input("Observações do Aporte")
                 
                 if st.form_submit_button("Registrar Aporte 🚀", type="primary"):
-                    if socio_aporte != "---":
+                    # 🛡️ Travas de segurança antes de salvar
+                    if socio_aporte == "---":
+                        st.warning("⚠️ Selecione um sócio.")
+                    elif valor_aporte <= 0:
+                        st.warning("⚠️ O valor do aporte deve ser maior que zero.")
+                    else:
                         try:
                             aba_ap = planilha_mestre.worksheet("APORTES")
                             cod_soc, nome_soc = socio_aporte.split(" - ")[0], socio_aporte.split(" - ")[1]
