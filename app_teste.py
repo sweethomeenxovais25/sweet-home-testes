@@ -1374,21 +1374,46 @@ elif menu_selecionado == "💰 Financeiro":
         # --- 1. CADASTRO DE NOVOS SÓCIOS ---
         with st.form("form_novo_socio", clear_on_submit=True):
             st.markdown("##### 🤝 Cadastrar Novo Sócio / Investidor")
+            st.caption("O código único (Ex: SOC-001) será gerado e vinculado automaticamente ao salvar.")
+            
             c_s1, c_s2 = st.columns(2)
-            nome_s = c_s1.text_input("Nome Completo (Exato como sairá nas vendas)", help="⚠️ IMPORTANTE: Digite exatamente o mesmo nome que a pessoa usará quando for cadastrada no sistema de Vendas.")
+            nome_s = c_s1.text_input("Nome Completo", help="Digite exatamente como a pessoa sairá nas vendas, caso ela faça retiradas de estoque.")
             tel_s = c_s2.text_input("WhatsApp")
             
             if st.form_submit_button("Adicionar ao Quadro Societário", type="secondary"):
                 if nome_s:
                     try:
                         aba_soc = planilha_mestre.worksheet("SOCIOS")
-                        novo_cod = f"SOC-{(len(aba_soc.get_all_values())):03d}"
-                        aba_soc.append_row([novo_cod, nome_s.strip(), tel_s.strip(), datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y")], value_input_option='RAW')
-                        st.success(f"✅ {nome_s} adicionado ao quadro societário!")
+                        dados_soc = aba_soc.get_all_values()
+                        
+                        # 💡 Geração Inteligente de Código (À prova de falhas/exclusões)
+                        if len(dados_soc) > 1:
+                            ultimo_cod = str(dados_soc[-1][0]) # Pega o ID da última linha da planilha
+                            try:
+                                prox_num = int(ultimo_cod.replace("SOC-", "")) + 1
+                            except:
+                                prox_num = len(dados_soc)
+                        else:
+                            prox_num = 1 # Se a planilha só tiver o cabeçalho, ele será o número 1
+                            
+                        novo_cod = f"SOC-{prox_num:03d}" # Monta no formato SOC-001, SOC-002...
+                        
+                        # Salvando no Google Sheets
+                        aba_soc.append_row([
+                            novo_cod, 
+                            nome_s.strip(), 
+                            tel_s.strip(), 
+                            datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y")
+                        ], value_input_option='RAW')
+                        
+                        st.success(f"✅ {nome_s} cadastrado com sucesso! Código gerado: **{novo_cod}**")
                         st.cache_data.clear()
+                        st.cache_resource.clear()
                         st.rerun()
                     except Exception as e:
                         st.error(f"Erro ao cadastrar na aba SOCIOS: {e}")
+                else:
+                    st.warning("⚠️ O Nome Completo é obrigatório para gerar o cadastro.")
 
         st.divider()
 
