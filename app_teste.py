@@ -2360,8 +2360,8 @@ elif menu_selecionado == "📂 Documentos":
 # ==========================================
 # --- SEÇÃO 3: COMPRAS E DESPESAS (CONTÁBIL) ---
 # ==========================================
-elif menu_selecionado == "🛒 Compras e Despesas":
-    st.markdown("### 🛒 Gestão de Compras e Contas a Pagar")
+elif menu_selecionado == "🏭 Compras e Despesas":
+    st.markdown("### 🏭 Gestão de Compras e Contas a Pagar")
     st.write("Controle de fornecedores, pagamentos de estoque e despesas fixas da loja.")
 
     # 1. Preparação dos Dados
