@@ -2413,6 +2413,53 @@ elif menu_selecionado == "📂 Documentos":
     else:
         st.info("O cofre geral está vazio.")
 
+    # =======================================================
+    # 🆕 O MÓDULO DE CORREÇÃO DE ERROS (A BORRACHA MÁGICA DO COFRE)
+    # =======================================================
+    st.divider()
+    st.write("#### ✏️ / 🗑️ Gerenciar Arquivos (Correção de Erros)")
+    st.info("Subiu o arquivo errado ou duplicado? Escolha o documento abaixo para excluir o registro do sistema.")
+
+    if not df_docs.empty:
+        # Pega os 30 últimos envios para não travar a tela
+        ultimos_docs = df_docs.tail(30).copy()
+        
+        # 💡 A MÁGICA DO MAPEAMENTO: Acha a linha real do Google Sheets
+        ultimos_docs['LINHA_SHEETS'] = ultimos_docs.index + 2
+        
+        # Inverte para mostrar o erro mais recente logo de cara no topo da lista
+        ultimos_docs = ultimos_docs.iloc[::-1]
+
+        lista_exclusao_doc = []
+        dict_linhas_ex_doc = {}
+        
+        for _, r in ultimos_docs.iterrows():
+            # Puxa os dados com segurança
+            data_doc = str(r.get('DATA', '')).split(' ')[0]
+            tipo_doc = str(r.get('TIPO', ''))
+            nome_doc = str(r.get('NOME', ''))
+            
+            # Monta o visual que vai aparecer na caixinha de seleção
+            texto_item = f"📅 {data_doc} | 📂 {tipo_doc} | 📄 {nome_doc}"
+            lista_exclusao_doc.append(texto_item)
+            dict_linhas_ex_doc[texto_item] = r['LINHA_SHEETS']
+
+        doc_excluir = st.selectbox("Selecione o documento que deseja EXCLUIR:", ["---"] + lista_exclusao_doc, help="Atenção: Isso apagará o registro de leitura da sua planilha.")
+
+        if doc_excluir != "---":
+            st.error("⚠️ Atenção: Esta ação apagará a linha deste documento da planilha permanentemente.")
+            if st.button("🗑️ Excluir Registro do Documento"):
+                linha_alvo_ex = dict_linhas_ex_doc[doc_excluir]
+                try:
+                    aba_doc_ex = planilha_mestre.worksheet("DOCUMENTOS")
+                    aba_doc_ex.delete_rows(linha_alvo_ex) # Vai na linha exata e deleta
+                    st.success("🗑️ Documento apagado com sucesso da base de dados!")
+                    st.cache_data.clear()
+                    st.cache_resource.clear()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao excluir o documento: {e}")
+
 # ==========================================
 # --- SEÇÃO 3: COMPRAS E DESPESAS (CONTÁBIL) ---
 # ==========================================
