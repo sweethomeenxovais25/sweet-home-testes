@@ -2772,7 +2772,7 @@ elif menu_selecionado == "🏭 Compras e Despesas":
         else:
             st.info("Nenhum fornecedor cadastrado no banco de dados.")
 
-            # ==========================================================
+    # ==========================================================
     # 📢 MÓDULO DE GESTÃO DE MARKETING (O "TRELLO" DA SWEET HOME)
     # ==========================================================
     elif menu_selecionado == "📢 Gestão de Marketing":
