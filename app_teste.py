@@ -906,18 +906,38 @@ elif menu_selecionado == "💰 Financeiro":
                 saldo_devedor = df_fin['SALDO_NUM'].sum()
                 total_recebido = vendas_brutas - saldo_devedor
                 
-                # Cálculo de Liquidez (Garante que letras maiusculas no flex não enganem o caixa)
+                # Cálculo de Liquidez
                 receita_imediata = df_fin[~df_fin['FORMA_PG'].astype(str).str.upper().str.contains('FLEX')]['VALOR_NUM'].sum()
                 indice_liquidez = (receita_imediata / vendas_brutas * 100) if vendas_brutas > 0 else 0
+                
+                # ========================================================
+                # 🆕 INTEGRAÇÃO ERP: Calculando as saídas reais para o Lucro Líquido (DRE)
+                # ========================================================
+                if not df_despesas.empty:
+                    # Busca segura das colunas da aba de Despesas
+                    col_status_d = 'STATUS' if 'STATUS' in df_despesas.columns else df_despesas.columns[5]
+                    col_valor_d = 'VALOR R$' if 'VALOR R$' in df_despesas.columns else df_despesas.columns[4]
+                    
+                    # Filtra apenas o que já saiu do caixa de verdade (PAGO)
+                    df_desp_pagas = df_despesas[df_despesas[col_status_d].astype(str).str.strip().str.upper() == 'PAGO'].copy()
+                    total_despesas_pagas = df_desp_pagas[col_valor_d].apply(limpar_v).sum() if not df_desp_pagas.empty else 0.0
+                else:
+                    total_despesas_pagas = 0.0
+                
+                # A mágica final: Lucro Bruto menos as Despesas Fixas/Operacionais
+                lucro_liquido = lucro_bruto - total_despesas_pagas
+                # ========================================================
+
             else:
-                vendas_brutas = lucro_bruto = saldo_devedor = total_recebido = indice_liquidez = 0.0
+                vendas_brutas = lucro_bruto = saldo_devedor = total_recebido = indice_liquidez = total_despesas_pagas = lucro_liquido = 0.0
             
-            # 2. MÉTRICAS PRINCIPAIS (AGORA SÓ COM VENDAS REAIS)
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Vendas Totais", f"R$ {vendas_brutas:,.2f}", help="Soma de todas as vendas reais registradas para clientes (já excluindo as retiradas dos sócios).")
-            c2.metric("Lucro Bruto", f"R$ {lucro_bruto:,.2f}", help="Lucro projetado dessas vendas (Valor Total de Venda cobrado menos o Custo de Fábrica dos produtos).")
-            c3.metric("Total Recebido", f"R$ {total_recebido:,.2f}", delta="Dinheiro em Caixa", help="Capital que já entrou de fato no caixa da loja (Pix, Dinheiro, Cartão ou parcelas do Flex que já foram pagas).")
-            c4.metric("Saldo Devedor", f"R$ {saldo_devedor:,.2f}", delta=f"{(saldo_devedor/vendas_brutas*100):.1f}% pendente" if vendas_brutas > 0 else "0%", delta_color="inverse", help="Montante que está 'na rua', aguardando o pagamento das faturas em aberto pelas clientes.")
+            # 2. MÉTRICAS PRINCIPAIS (AGORA SÃO 5 COLUNAS COM DRE INTEGRADO)
+            c1, c2, c3, c4, c5 = st.columns(5)
+            c1.metric("Vendas Totais", f"R$ {vendas_brutas:,.2f}", help="Soma de todas as vendas reais registradas para clientes.")
+            c2.metric("Lucro Bruto", f"R$ {lucro_bruto:,.2f}", help="Valor Total cobrado menos o Custo de Fábrica dos produtos.")
+            c3.metric("Total Recebido", f"R$ {total_recebido:,.2f}", delta="Dinheiro em Caixa")
+            c4.metric("Saídas (Despesas)", f"R$ {total_despesas_pagas:,.2f}", delta="Contas Pagas", delta_color="inverse", help="Total de despesas, insumos e contas fixas já quitadas no módulo de Compras.")
+            c5.metric("Lucro Líquido", f"R$ {lucro_liquido:,.2f}", delta="Resultado Real", help="O que sobrou de fato para a empresa: Lucro Bruto menos as Saídas (Despesas).")
 
             # 3. TERMÔMETRO DE SAÚDE FINANCEIRA
             st.markdown("---")
