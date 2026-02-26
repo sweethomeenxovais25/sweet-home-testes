@@ -832,12 +832,6 @@ if menu_selecionado == "🛒 Vendas":
 # ==========================================
 elif menu_selecionado == "💰 Financeiro":
     st.markdown("### 📈 Resumo Geral Sweet Home")
-    
-    # Botão para você forçar a atualização e testar se está puxando o tempo real
-    if st.button("🔄 Forçar Atualização dos Dados", use_container_width=True):
-        st.cache_data.clear()
-        st.cache_resource.clear()
-        st.rerun()
 
     if not df_vendas_hist.empty:
         try:
