@@ -2356,24 +2356,36 @@ elif menu_selecionado == "📂 Documentos":
     st.write("### 🗂️ Histórico Geral de Documentos")
     
     if not df_docs.empty:
-        categorias_existentes = ["Tudo"] + sorted(df_docs['TIPO'].unique().tolist())
-        filtro_cat = st.selectbox("Filtrar por Categoria:", categorias_existentes)
-        
-        df_filtrado = df_docs.copy()
-        if filtro_cat != "Tudo":
-            df_filtrado = df_filtrado[df_filtrado['TIPO'] == filtro_cat]
-            
-        busca_doc = st.text_input("🔍 Pesquisar por Nome ou Código...")
-        if busca_doc:
-            df_filtrado = df_filtrado[df_filtrado.apply(lambda r: busca_doc.lower() in str(r).lower(), axis=1)]
+        # 💡 CORREÇÃO 1: Limpeza profunda (Extermina a "categoria fantasma" em branco)
+        df_docs['TIPO'] = df_docs['TIPO'].astype(str).str.strip() # Remove espaços acidentais
+        df_docs_limpo = df_docs[(df_docs['TIPO'] != "") & (df_docs['TIPO'].str.lower() != "nan")].copy()
 
-        for _, r in df_filtrado.sort_index(ascending=False).head(10).iterrows():
-            with st.container():
-                col_a, col_b, col_c = st.columns([1, 3, 1])
-                col_a.write(f"📅 {str(r['DATA']).split(' ')[0]}")
-                col_b.write(f"**{r['TIPO']}**\n\n<small>{r['NOME']}</small>", unsafe_allow_html=True)
-                col_c.link_button("👁️ Abrir", r['LINK_DRIVE'], use_container_width=True)
-                st.divider()
+        if not df_docs_limpo.empty:
+            categorias_existentes = ["Tudo"] + sorted(df_docs_limpo['TIPO'].unique().tolist())
+            filtro_cat = st.selectbox("Filtrar por Categoria:", categorias_existentes)
+            
+            df_filtrado = df_docs_limpo.copy()
+            if filtro_cat != "Tudo":
+                df_filtrado = df_filtrado[df_filtrado['TIPO'] == filtro_cat]
+                
+            busca_doc = st.text_input("🔍 Pesquisar por Nome ou Código...")
+            if busca_doc:
+                df_filtrado = df_filtrado[df_filtrado.apply(lambda r: busca_doc.lower() in str(r).lower(), axis=1)]
+
+            # 💡 CORREÇÃO 2: Removendo o gargalo! Aumentei de 10 para 50 arquivos (ou o número que quiser)
+            docs_para_mostrar = df_filtrado.sort_index(ascending=False).head(50)
+            
+            st.caption(f"Mostrando {len(docs_para_mostrar)} documento(s) encontrados.")
+
+            for _, r in docs_para_mostrar.iterrows():
+                with st.container():
+                    col_a, col_b, col_c = st.columns([1, 3, 1])
+                    col_a.write(f"📅 {str(r['DATA']).split(' ')[0]}")
+                    col_b.write(f"**{r['TIPO']}**\n\n<small>{r['NOME']}</small>", unsafe_allow_html=True)
+                    col_c.link_button("👁️ Abrir", str(r.get('LINK_DRIVE', '')), use_container_width=True)
+                    st.divider()
+        else:
+            st.info("Nenhum documento válido encontrado na base.")
     else:
         st.info("O cofre geral está vazio.")
 
