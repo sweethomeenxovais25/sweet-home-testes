@@ -2414,8 +2414,8 @@ elif menu_selecionado == "📂 Documentos":
         st.info("O cofre geral está vazio.")
 
     # =======================================================
-        # 🆕 O MÓDULO DE CORREÇÃO DE ERROS (DESTRUIÇÃO TOTAL: PLANILHA + CLOUDINARY)
-        # =======================================================
+    # 🆕 O MÓDULO DE CORREÇÃO DE ERROS (DESTRUIÇÃO TOTAL: PLANILHA + CLOUDINARY)
+    # =======================================================
         st.divider()
         st.write("#### ✏️ / 🗑️ Gerenciar Arquivos (Correção de Erros)")
         st.info("Subiu o arquivo errado ou duplicado? Escolha o documento abaixo para excluí-lo definitivamente do sistema e da nuvem.")
