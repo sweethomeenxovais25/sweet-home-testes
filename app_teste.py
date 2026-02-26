@@ -2800,7 +2800,7 @@ elif menu_selecionado == "📢 Gestão de Marketing":
         
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Fila & Produção", f"{em_producao}", help="Tarefas que o Jean precisa criar/editar.")
-    m2.metric("Aguardando Postagem", f"{falta_postar}", delta="Atenção Bia", delta_color="inverse", help="Artes prontas! Só falta aprovar e colocar no Instagram.")
+    m2.metric("Aguardando Postagem", f"{falta_postar}", delta="Atenção", delta_color="inverse", help="Artes prontas! Só falta aprovar e colocar no Instagram.")
     m3.metric("Postados (Sucesso)", f"{concluidos}", delta="Missão Cumprida")
     m4.metric("Total de Demandas", f"{total_pedidos}")
     
