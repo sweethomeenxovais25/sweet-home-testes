@@ -1794,8 +1794,15 @@ elif menu_selecionado == "📦 Estoque":
                     st.dataframe(campeoes_df[['CÓD. PRÓDUTO', 'NOME DO PRODUTO', 'QTD VENDIDA', 'ESTOQUE ATUAL']], use_container_width=True, hide_index=True)
                 else: st.info("Aguardando volume de vendas.")
 
+    # ==========================================
     # 🤖 ENTRADA INTELIGENTE (IA GEMINI)
+    # ==========================================
     st.divider()
+    
+    # 💡 Memória Âncora: Protege a tabela da IA de desaparecer quando você salva um produto
+    if 'resultado_ia_nota' not in st.session_state:
+        st.session_state['resultado_ia_nota'] = None
+
     with st.expander("🤖 Entrada Inteligente (Ler Nota Fiscal com IA)", expanded=False):
         st.write("Tire uma foto da Nota Fiscal e deixe a IA ler os itens!")
         foto_nf = st.file_uploader("Envie a foto da Nota", type=['png', 'jpg', 'jpeg'], key="uploader_ia_estoque")
@@ -1807,7 +1814,6 @@ elif menu_selecionado == "📦 Estoque":
                         import google.generativeai as genai
                         from PIL import Image
                         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-                        modelo_ia = genai.GenerativeModel('gemini-1.5-flash')
                         img = Image.open(foto_nf)
                         
                         prompt = """
@@ -1825,7 +1831,7 @@ elif menu_selecionado == "📦 Estoque":
                         7. SEGURANÇA: Se a imagem não for uma nota fiscal, não contiver produtos, ou estiver impossível de ler, retorne APENAS a frase exata: "⚠️ Documento ilegível ou sem itens reconhecidos. Tente uma foto mais nítida."
                         """
                         
-                        # 💡 A MÁGICA DA CONTINGÊNCIA: Tenta do mais novo para o mais antigo
+                        # Loop de Sobrevivência (Contingência de Modelos)
                         modelos_para_testar = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro-vision"]
                         resposta_ia = None
                         
@@ -1834,19 +1840,29 @@ elif menu_selecionado == "📦 Estoque":
                                 modelo_ia = genai.GenerativeModel(m)
                                 resposta_ia = modelo_ia.generate_content([prompt, img])
                                 if resposta_ia:
-                                    break # Se o modelo funcionar, ele quebra o loop e segue a vida
+                                    break # Sucesso, quebra o loop
                             except:
-                                continue # Se falhar, pula silenciosamente para tentar o próximo
+                                continue # Falhou, tenta o próximo
                                 
                         if resposta_ia:
-                            st.success("✅ Leitura Concluída!")
-                            st.markdown(resposta_ia.text)
-                            st.warning("💡 Dica: Use a lista acima para o 'Radar de Entrada' abaixo.")
+                            # 💡 Guarda na memória em vez de apenas imprimir
+                            st.session_state['resultado_ia_nota'] = resposta_ia.text
                         else:
                             st.error("⚠️ Nenhum modelo de IA da Google está respondendo no momento. Tente novamente em alguns minutos.")
                             
                     except Exception as e:
                         st.error(f"⚠️ Erro no sistema de IA: {e}")
+
+        # 💡 Se a IA leu algo, a tabela fica fixada aqui fora do botão, imune ao recarregamento
+        if st.session_state['resultado_ia_nota']:
+            st.success("✅ Leitura Fixada na Tela!")
+            st.markdown(st.session_state['resultado_ia_nota'])
+            st.warning("💡 Dica: A tabela acima não vai sumir quando você cadastrar o produto! Copie as informações em lote.")
+            
+            # Botão para limpar a tela quando terminar de cadastrar aquela nota fiscal
+            if st.button("🧹 Limpar Leitura (Próxima Nota Fiscal)"):
+                st.session_state['resultado_ia_nota'] = None
+                st.rerun()
 
     # 🔍 RADAR DE ENTRADA (ATUALIZAÇÃO RÁPIDA)
     st.divider()
