@@ -1339,27 +1339,36 @@ elif menu_selecionado == "💰 Financeiro":
             else:
                 aporte_total_empresa = 0.0
 
-            # Processa Retiradas (Saídas) focando na Coluna L = TOTAL R$
+            # Processa Retiradas (Saídas) focando na Coluna L = TOTAL R$ e Coluna H = QUANTIDADE
             if not df_retiradas.empty:
+                # Puxa a Coluna L (Índice 11) para somar os valores financeiros
                 df_retiradas['RETIRADA_NUM'] = df_retiradas.iloc[:, 11].apply(limpar_v)
+                
+                # Puxa a Coluna H (Índice 7) para somar as peças físicas reais
+                df_retiradas['QTD_PECAS'] = pd.to_numeric(df_retiradas.iloc[:, 7], errors='coerce').fillna(0)
+                
                 total_retirado_global = df_retiradas['RETIRADA_NUM'].sum()
+                qtd_total_pecas = int(df_retiradas['QTD_PECAS'].sum())
             else:
                 total_retirado_global = 0.0
+                qtd_total_pecas = 0
 
             # Saldo do Banco (Injeções - Retiradas)
             saldo_banco_sweet = aporte_total_empresa - total_retirado_global
             
             b1, b2, b3 = st.columns(3)
             b1.metric("📥 Capital Injetado", f"R$ {aporte_total_empresa:,.2f}", help="Soma de todo o dinheiro vivo (aportes) colocado na empresa pelos sócios.")
-            b2.metric("📤 Estoque Retirado", f"R$ {total_retirado_global:,.2f}", delta=f"{len(df_retiradas)} registros", delta_color="inverse", help="Valor total (com desconto e quantidade) dos produtos retirados para marketing ou uso pessoal da sócia.")
+            
+            # 💡 AQUI ESTÁ A MÁGICA: O delta agora mostra a quantidade exata de itens retirados
+            b2.metric("📤 Estoque Retirado", f"R$ {total_retirado_global:,.2f}", delta=f"{qtd_total_pecas} itens físicos", delta_color="inverse", help="Valor financeiro total consumido em produtos (respeitando descontos) e a quantidade exata de peças físicas retiradas da loja.")
             
             if saldo_banco_sweet >= 0:
                 b3.metric("💼 Balanço Corporativo", f"R$ {saldo_banco_sweet:,.2f}", delta="Superávit", help="Calculado: Capital Injetado menos Estoque Retirado. Se verde, a empresa tem caixa positivo frente às retiradas.")
             else:
                 b3.metric("💼 Balanço Corporativo", f"R$ {saldo_banco_sweet:,.2f}", delta="Déficit", delta_color="inverse", help="Atenção: O valor dos produtos retirados do estoque já superou o dinheiro injetado pelos sócios.")
         except Exception as e:
-            st.error("Erro ao carregar o resumo corporativo.")
-
+            st.error(f"Erro ao carregar o resumo corporativo: {e}")
+            
         st.divider()
 
         # --- 1. CADASTRO DE NOVOS SÓCIOS ---
