@@ -832,47 +832,88 @@ if menu_selecionado == "🛒 Vendas":
 # ==========================================
 elif menu_selecionado == "💰 Financeiro":
     st.markdown("### 📈 Resumo Geral Sweet Home")
-
     if not df_vendas_hist.empty:
         try:
-            # 1. PROCESSAMENTO BRUTO (Sem nenhum filtro de sócio, espelhando a planilha)
-            df_fin = df_vendas_hist.copy()
-            
-            # Limpeza preventiva nos cabeçalhos da planilha (garante que ele ache o nome da coluna)
-            df_fin.columns = df_fin.columns.str.strip().str.upper()
+            # 1. PROCESSAMENTO SEGURO
+            df_fin_total = df_vendas_hist.copy()
             
             # ========================================================
-            # 💡 BUSCA SEGURA: Puxando pelo NOME da coluna, para nunca "parar no tempo"
+            # 🛑 O FILTRO DE GOVERNANÇA DINÂMICO (CORREÇÃO DE MATCH PARCIAL)
             # ========================================================
-            df_fin['VALOR_NUM'] = df_fin.get('TOTAL R$', df_fin.iloc[:, 11]).apply(limpar_v)
-            df_fin['FORMA_PG'] = df_fin.get('FORMA DE PAGAMENTO', df_fin.iloc[:, 14]).astype(str)
-            df_fin['SALDO_NUM'] = df_fin.get('SALDO DEVEDOR', df_fin.iloc[:, 20]).apply(limpar_v)
-            
-            # Buscando o Lucro com redundância (pode variar o nome no Google Sheets)
-            if 'LUCRO' in df_fin.columns:
-                df_fin['LUCRO_NUM'] = df_fin['LUCRO'].apply(limpar_v)
-            elif 'LUCRO R$' in df_fin.columns:
-                df_fin['LUCRO_NUM'] = df_fin['LUCRO R$'].apply(limpar_v)
-            else:
-                df_fin['LUCRO_NUM'] = df_fin.iloc[:, 12].apply(limpar_v)
-            # ========================================================
+            try:
+                # 1. Puxa todos os nomes da aba SOCIOS, convertendo para minúsculo e sem espaços
+                if not df_socios.empty:
+                    nomes_socios_limpos = df_socios['NOME'].astype(str).str.strip().str.lower().tolist()
+                else:
+                    nomes_socios_limpos = []
+            except:
+                nomes_socios_limpos = []
 
-            # Fazendo as contas com o dado bruto (Aqui o Saldo Devedor TEM que dar 8.829,64)
-            vendas_brutas = df_fin['VALOR_NUM'].sum()
-            lucro_bruto = df_fin['LUCRO_NUM'].sum()
-            saldo_devedor = df_fin['SALDO_NUM'].sum()
-            total_recebido = vendas_brutas - saldo_devedor
+            # 2. Puxa do Banco de Clientes (CRM) os Códigos (CLI-XXX) que pertencem a esses sócios
+            codigos_dos_socios = []
+            if nomes_socios_limpos:
+                for cod, dados in banco_de_clientes.items():
+                    if str(dados['nome']).strip().lower() in nomes_socios_limpos:
+                        codigos_dos_socios.append(str(cod).strip().lower())
+
+            # 3. Limpa as colunas de Vendas pelo NOME DA COLUNA
+            col_cliente = 'CLIENTE' if 'CLIENTE' in df_fin_total.columns else df_fin_total.columns[3]
+            nomes_vendas = df_fin_total[col_cliente].astype(str).str.strip().str.lower()
             
-            # Cálculo de Liquidez
-            receita_imediata = df_fin[df_fin['FORMA_PG'] != 'Sweet Flex']['VALOR_NUM'].sum()
-            indice_liquidez = (receita_imediata / vendas_brutas * 100) if vendas_brutas > 0 else 0
+            if 'CÓD. CLIENTE' in df_fin_total.columns:
+                codigos_vendas = df_fin_total['CÓD. CLIENTE'].astype(str).str.split('.').str[0].str.strip().str.lower()
+            else:
+                codigos_vendas = df_fin_total.iloc[:, 2].astype(str).str.split('.').str[0].str.strip().str.lower()
+
+            # 4. A MÁSCARA INTELIGENTE (O CORAÇÃO DO AJUSTE): 
+            # Em vez de exigir nome 100% igual, checa se o nome da Bia está *dentro* do texto da venda!
+            def checar_socio(nome_venda):
+                for socio in nomes_socios_limpos:
+                    if socio != "" and socio in nome_venda:
+                        return True
+                return False
+                
+            mascara_nomes = nomes_vendas.apply(checar_socio)
+            mascara_socios = mascara_nomes | codigos_vendas.isin(codigos_dos_socios)
+
+            # df_fin = VENDAS REAIS (Exclui os sócios para os Gráficos e Saldo Geral)
+            df_fin = df_fin_total[~mascara_socios].copy()
+
+            # df_retiradas = PRODUTOS RETIRADOS (Vai direto para o Banco Sweet, agora com os R$ 3.197,38 integrais)
+            df_retiradas = df_fin_total[mascara_socios].copy()
+            # ========================================================
             
-            # 2. MÉTRICAS PRINCIPAIS (100% Brutas)
+            if not df_fin.empty:
+                # 💡 A MÁGICA DOS VALORES: Busca a coluna com get() para não errar a posição e perder o cálculo
+                df_fin['VALOR_NUM'] = df_fin.get('TOTAL R$', df_fin.iloc[:, 11]).apply(limpar_v)
+                df_fin['FORMA_PG'] = df_fin.get('FORMA DE PAGAMENTO', df_fin.iloc[:, 14])
+                df_fin['SALDO_NUM'] = df_fin.get('SALDO DEVEDOR', df_fin.iloc[:, 20]).apply(limpar_v)
+                
+                # Para o lucro, vamos garantir que ele ache a coluna certa também
+                if 'LUCRO' in df_fin.columns:
+                    df_fin['LUCRO_NUM'] = df_fin['LUCRO'].apply(limpar_v)
+                elif 'LUCRO R$' in df_fin.columns:
+                    df_fin['LUCRO_NUM'] = df_fin['LUCRO R$'].apply(limpar_v)
+                else:
+                    df_fin['LUCRO_NUM'] = df_fin.iloc[:, 12].apply(limpar_v) # Fallback
+                
+                vendas_brutas = df_fin['VALOR_NUM'].sum()
+                lucro_bruto = df_fin['LUCRO_NUM'].sum()
+                saldo_devedor = df_fin['SALDO_NUM'].sum()
+                total_recebido = vendas_brutas - saldo_devedor
+                
+                # Cálculo de Liquidez (Garante que letras maiusculas no flex não enganem o caixa)
+                receita_imediata = df_fin[~df_fin['FORMA_PG'].astype(str).str.upper().str.contains('FLEX')]['VALOR_NUM'].sum()
+                indice_liquidez = (receita_imediata / vendas_brutas * 100) if vendas_brutas > 0 else 0
+            else:
+                vendas_brutas = lucro_bruto = saldo_devedor = total_recebido = indice_liquidez = 0.0
+            
+            # 2. MÉTRICAS PRINCIPAIS (AGORA SÓ COM VENDAS REAIS)
             c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Vendas Totais", f"R$ {vendas_brutas:,.2f}")
-            c2.metric("Lucro Bruto", f"R$ {lucro_bruto:,.2f}")
-            c3.metric("Total Recebido", f"R$ {total_recebido:,.2f}", delta="Dinheiro em Caixa")
-            c4.metric("Saldo Devedor", f"R$ {saldo_devedor:,.2f}", delta=f"{(saldo_devedor/vendas_brutas*100):.1f}% pendente" if vendas_brutas > 0 else "0%", delta_color="inverse")
+            c1.metric("Vendas Totais", f"R$ {vendas_brutas:,.2f}", help="Soma de todas as vendas reais registradas para clientes (já excluindo as retiradas dos sócios).")
+            c2.metric("Lucro Bruto", f"R$ {lucro_bruto:,.2f}", help="Lucro projetado dessas vendas (Valor Total de Venda cobrado menos o Custo de Fábrica dos produtos).")
+            c3.metric("Total Recebido", f"R$ {total_recebido:,.2f}", delta="Dinheiro em Caixa", help="Capital que já entrou de fato no caixa da loja (Pix, Dinheiro, Cartão ou parcelas do Flex que já foram pagas).")
+            c4.metric("Saldo Devedor", f"R$ {saldo_devedor:,.2f}", delta=f"{(saldo_devedor/vendas_brutas*100):.1f}% pendente" if vendas_brutas > 0 else "0%", delta_color="inverse", help="Montante que está 'na rua', aguardando o pagamento das faturas em aberto pelas clientes.")
 
             # 3. TERMÔMETRO DE SAÚDE FINANCEIRA
             st.markdown("---")
@@ -889,7 +930,7 @@ elif menu_selecionado == "💰 Financeiro":
                     cor_barra = "#ff4b4b" # Vermelho
                     st.error(f"🔴 **Saúde de Caixa: CRÍTICA** (Apenas {indice_liquidez:.1f}% à vista)")
                 
-                # --- Barra de Progresso Customizada ---
+                # --- Barra de Progresso Customizada (Acompanha a cor e ganhou Tooltip HTML) ---
                 progresso = min(indice_liquidez/100, 1.0)
                 st.markdown(
                     f"""
@@ -902,12 +943,7 @@ elif menu_selecionado == "💰 Financeiro":
                 )
             
             with col_t2:
-                # 💡 O pedaço perdido voltou para cá, dentro do parâmetro 'help'!
                 st.metric("Recebíveis (Futuro)", f"R$ {saldo_devedor:,.2f}", help="Dinheiro que entrará via faturas do Sweet Flex no futuro. É o reflexo do Saldo Devedor visto como promessa de recebimento.")
-
-        except Exception as e:
-            # 💡 A linha de erro agora está isolada e com a sintaxe perfeita
-            st.error(f"⚠️ Erro no processamento inicial: {e}")
 
             # 4. DASHBOARD DE ANÁLISE (VERSÃO PREMIUM COM CORES DA MARCA)
             with st.expander("📊 Análise de Desempenho e Tendências", expanded=False):
