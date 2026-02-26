@@ -3030,8 +3030,10 @@ elif menu_selecionado == "📢 Gestão de Marketing":
             # --- FORMULÁRIO RÁPIDO PARA A BIA DAR BAIXA ---
             with st.container(border=True):
                 st.markdown("#### 🔗 Vincular Link do Instagram")
-                with st.form("form_link_insta", clear_on_submit=True):
-                    if not df_pendente_link.empty:
+                
+                # 💡 A CORREÇÃO: Só abrimos o form se houver algo pendente!
+                if not df_pendente_link.empty:
+                    with st.form("form_link_insta", clear_on_submit=True):
                         opcoes_baixa = [f"📍 {r['ID_TAREFA']} - {r['FORMATO']} ({r['PRODUTO_VINCULADO']})" for _, r in df_pendente_link.iterrows()]
                         tarefa_selecionada = st.selectbox("Selecione a tarefa que acabou de ser postada:", opcoes_baixa)
                         link_post = st.text_input("Cole o Link do Instagram aqui 🌐", placeholder="Ex: https://www.instagram.com/p/...")
@@ -3062,8 +3064,9 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                                         st.error(f"Erro ao salvar o link: {e}")
                             else:
                                 st.warning("Por favor, cole um link válido (que comece com http).")
-                    else:
-                        st.success("Tudo em dia! Não há tarefas aguardando link de postagem no momento.")
+                else:
+                    # 💡 MENSAGEM MOVIDA PARA FORA DO FORM
+                    st.success("Tudo em dia! Não há tarefas aguardando link de postagem no momento.")
             
             st.divider()
             
@@ -3072,11 +3075,8 @@ elif menu_selecionado == "📢 Gestão de Marketing":
             df_concluidos = df_mkt[df_mkt['STATUS'].str.contains('Concluído', case=False, na=False)].copy()
             
             if not df_concluidos.empty:
-                # Vamos deixar a tabela elegante
                 colunas_mostrar = ['DATA_CONCLUSAO', 'ID_TAREFA', 'PRODUTO_VINCULADO', 'FORMATO', 'LINK_ARTE']
                 df_view = df_concluidos[colunas_mostrar].copy()
-                
-                # Inverte para ver os mais recentes primeiro
                 df_view = df_view.iloc[::-1]
                 
                 st.dataframe(
