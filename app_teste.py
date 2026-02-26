@@ -382,11 +382,6 @@ with st.sidebar:
 # --- SEÇÃO 1: VENDAS (SISTEMA DE CARRINHO MULTI-ITENS) ---
 # ==========================================
 if menu_selecionado == "🛒 Vendas":
-    
-    # 💡 A FECHADURA DA MEMÓRIA ENTRA EXATAMENTE AQUI:
-    if 'carrinho' not in st.session_state:
-        st.session_state['carrinho'] = []
-
     # --- FILTRO INTELIGENTE DE VERSÕES (LATEST VERSION) ---
     produtos_filtrados_venda = {}
     for cod_completo, info in banco_de_produtos.items():
@@ -460,15 +455,9 @@ if menu_selecionado == "🛒 Vendas":
         # 1. Seleção do Produto
         p_sel = c_p1.selectbox(
             "Item do Estoque", 
-            sorted(lista_selecao_limpa),
+            sorted(lista_selecao_limpa), # Deixa em ordem alfabética/numérica
             key="venda_produto_sel"
         )
-
-        # 🛡️ CORREÇÃO AQUI: Verifica se p_sel existe e é um texto antes de dar split
-        if p_sel and isinstance(p_sel, str) and " - " in p_sel:
-            cod_p_temp = p_sel.split(" - ")[0]
-        else:
-            cod_p_temp = ""
         
         # 2. Recuperação do preço direto da planilha (usando o ID do produto selecionado)
         cod_p_temp = p_sel.split(" - ")[0]
@@ -500,15 +489,11 @@ if menu_selecionado == "🛒 Vendas":
                 }
                 
                 # --- A MÁGICA ENTRA AQUI ---
-                # 1. Copia a lista atual, adiciona o item e salva por cima (força a memória)
                 cesta_temporaria = st.session_state['carrinho']
                 cesta_temporaria.append(item_carrinho)
                 st.session_state['carrinho'] = cesta_temporaria
                 
-                # 2. Mostra a mensagem de sucesso
                 st.toast(f"✅ {nome_p} no carrinho!")
-                
-                # 3. Recarrega a tela instantaneamente para mostrar a tabela atualizada!
                 st.rerun()
 
     # --- 3. EXIBIÇÃO DO CARRINHO E FINALIZAÇÃO ---
