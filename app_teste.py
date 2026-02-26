@@ -2445,7 +2445,7 @@ elif menu_selecionado == "🏭 Compras e Despesas":
             st.info("Aguardando o primeiro lançamento de despesa para gerar o Dashboard.")
 
     # ------------------------------------------
-    # ABA 2: LANÇAMENTOS E BAIXAS
+    # ABA 2: LANÇAMENTOS E BAIXAS (COM MÓDULO DE EXCLUSÃO)
     # ------------------------------------------
     with t_despesas:
         col_nova, col_baixa = st.columns(2)
@@ -2461,11 +2461,10 @@ elif menu_selecionado == "🏭 Compras e Despesas":
                 f_cat = st.selectbox("Categoria", ["Estoque / Mercadorias", "Logística / Fretes", "Insumos / Embalagens", "Despesas Fixas", "Marketing", "Outros"])
                 
                 c_v, c_d = st.columns(2)
-                # 💡 Agora pedimos o valor TOTAL da nota/compra
                 f_val_total = c_v.number_input("Valor TOTAL (R$)", min_value=0.0, format="%.2f")
                 f_venc_ini = c_d.date_input("Vencimento da 1ª Parcela")
                 
-                # 🆕 MOTOR DE PARCELAMENTO
+                # MOTOR DE PARCELAMENTO
                 c_p1, c_p2 = st.columns(2)
                 f_parcelas = c_p1.number_input("Qtd. de Parcelas", min_value=1, value=1, step=1, help="Deixe 1 para contas à vista/únicas.")
                 f_freq = c_p2.selectbox("Frequência", ["Mensal (30 dias)", "Quinzenal (15 dias)", "Semanal (7 dias)"])
@@ -2478,33 +2477,22 @@ elif menu_selecionado == "🏭 Compras e Despesas":
                             import datetime as dt
                             aba_d = planilha_mestre.worksheet("DESPESAS")
                             
-                            # Calcula o valor base da parcela (arredondado para 2 casas)
                             valor_parcela_base = round(f_val_total / f_parcelas, 2)
-                            
                             novas_linhas = []
                             
                             for i in range(f_parcelas):
                                 num_parc = i + 1
                                 
-                                # 📅 Calcula a data da próxima parcela
-                                if f_freq == "Mensal (30 dias)":
-                                    data_v = f_venc_ini + dt.timedelta(days=30 * i)
-                                elif f_freq == "Quinzenal (15 dias)":
-                                    data_v = f_venc_ini + dt.timedelta(days=15 * i)
-                                else:
-                                    data_v = f_venc_ini + dt.timedelta(days=7 * i)
+                                if f_freq == "Mensal (30 dias)": data_v = f_venc_ini + dt.timedelta(days=30 * i)
+                                elif f_freq == "Quinzenal (15 dias)": data_v = f_venc_ini + dt.timedelta(days=15 * i)
+                                else: data_v = f_venc_ini + dt.timedelta(days=7 * i)
                                 
-                                # 📝 Adiciona o aviso (1/3), (2/3) se for parcelado
                                 sufixo_parc = f" ({num_parc}/{f_parcelas})" if f_parcelas > 1 else ""
                                 nome_registro = f"[{f_forn.split(' - ')[0]}] {f_desc}{sufixo_parc}" if f_forn != "Avulso (Sem Fornecedor)" else f"{f_desc}{sufixo_parc}"
                                 
-                                # 💰 Inteligência de Centavos: A última parcela absorve a diferença de dízimas
-                                if num_parc == f_parcelas:
-                                    valor_final_parc = f_val_total - (valor_parcela_base * (f_parcelas - 1))
-                                else:
-                                    valor_final_parc = valor_parcela_base
+                                if num_parc == f_parcelas: valor_final_parc = f_val_total - (valor_parcela_base * (f_parcelas - 1))
+                                else: valor_final_parc = valor_parcela_base
                                 
-                                # 🛡️ Lógica do Status: Só a 1ª parcela pode nascer "Paga". As outras nascem pendentes!
                                 if num_parc == 1 and f_status == "Sim (Pago)":
                                     status_final = "Pago"
                                     dt_pago = datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y")
@@ -2512,19 +2500,11 @@ elif menu_selecionado == "🏭 Compras e Despesas":
                                     status_final = "Pendente"
                                     dt_pago = "-"
                                 
-                                # Prepara a linha para a planilha
                                 novas_linhas.append([
                                     datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y"),
-                                    data_v.strftime("%d/%m/%Y"),
-                                    nome_registro,
-                                    f_cat,
-                                    valor_final_parc,
-                                    status_final,
-                                    dt_pago,
-                                    "-" # Espaço do Comprovante
+                                    data_v.strftime("%d/%m/%Y"), nome_registro, f_cat, valor_final_parc, status_final, dt_pago, "-"
                                 ])
                             
-                            # Injeta todas as parcelas na planilha de uma vez só (super rápido)
                             for linha in novas_linhas:
                                 aba_d.append_row(linha, value_input_option='RAW')
                                 
@@ -2543,10 +2523,8 @@ elif menu_selecionado == "🏭 Compras e Despesas":
             if not df_desp.empty:
                 pendentes_baixa = df_desp[df_desp['STATUS_LIMPO'] == 'PENDENTE'].copy()
                 if not pendentes_baixa.empty:
-                    # Mapeia a linha real da planilha (A primeira linha de dados é a 2 no Sheets)
                     pendentes_baixa['LINHA_SHEETS'] = pendentes_baixa.index + 2 
                     
-                    # Cria a lista de exibição "R$ Valor - Descrição"
                     lista_baixas = []
                     dict_linhas = {}
                     for _, r in pendentes_baixa.iterrows():
@@ -2561,7 +2539,6 @@ elif menu_selecionado == "🏭 Compras e Despesas":
                             linha_alvo = dict_linhas[conta_selecionada]
                             try:
                                 aba_d_baixa = planilha_mestre.worksheet("DESPESAS")
-                                # Coluna F (6) = STATUS | Coluna G (7) = DATA PAGAMENTO
                                 aba_d_baixa.update_acell(f"F{linha_alvo}", "Pago")
                                 aba_d_baixa.update_acell(f"G{linha_alvo}", datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y"))
                                 st.success("🎉 Baixa realizada com sucesso!")
@@ -2572,6 +2549,45 @@ elif menu_selecionado == "🏭 Compras e Despesas":
                     st.write("Nenhuma conta pendente para dar baixa.")
             else:
                 st.write("Nenhuma despesa cadastrada.")
+
+        # =======================================================
+        # 🆕 O MÓDULO DE CORREÇÃO DE ERROS (A BORRACHA MÁGICA)
+        # =======================================================
+        st.divider()
+        st.write("#### ✏️ / 🗑️ Gerenciar Lançamentos (Correção de Erros)")
+        st.info("Lançou algo errado ou duplicado? Escolha o registro abaixo para excluir permanentemente do sistema.")
+
+        if not df_desp.empty:
+            # Puxa os últimos 30 lançamentos para não sobrecarregar a tela
+            ultimas_desp = df_desp.tail(30).copy()
+            ultimas_desp['LINHA_SHEETS'] = ultimas_desp.index + 2
+            
+            # Inverte a ordem para os mais recentes ficarem no topo da lista
+            ultimas_desp = ultimas_desp.iloc[::-1]
+
+            lista_exclusao = []
+            dict_linhas_ex = {}
+            for _, r in ultimas_desp.iterrows():
+                status_icone = "🟢 PAGO" if r['STATUS_LIMPO'] == 'PAGO' else "🔴 PENDENTE"
+                texto_item = f"[{status_icone}] Registrado em: {r['DATA REGISTRO']} | Venc: {r['VENCIMENTO']} | R$ {r['VALOR_NUM']:,.2f} | {r['FORNECEDOR / DESPESA']}"
+                lista_exclusao.append(texto_item)
+                dict_linhas_ex[texto_item] = r['LINHA_SHEETS']
+
+            conta_excluir = st.selectbox("Selecione o lançamento que deseja EXCLUIR:", ["---"] + lista_exclusao, help="Cuidado! O registro será apagado direto do banco de dados.")
+
+            if conta_excluir != "---":
+                st.error("⚠️ Atenção: Esta ação apagará o registro da planilha e não pode ser desfeita.")
+                if st.button("🗑️ Excluir Registro Permanentemente"):
+                    linha_alvo_ex = dict_linhas_ex[conta_excluir]
+                    try:
+                        aba_d_ex = planilha_mestre.worksheet("DESPESAS")
+                        aba_d_ex.delete_rows(linha_alvo_ex) # O robô vai na linha exata e arranca ela de lá
+                        st.success("🗑️ Lançamento apagado com sucesso! Os gráficos já foram atualizados.")
+                        st.cache_data.clear(); st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao excluir: {e}")
+        else:
+            st.write("Nenhuma despesa cadastrada para excluir.")
 
     # ------------------------------------------
     # ABA 3: CADASTRO DE FORNECEDORES
