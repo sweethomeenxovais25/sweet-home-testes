@@ -1324,17 +1324,49 @@ elif menu_selecionado == "💰 Financeiro":
             st.error(f"⚠️ Erro no núcleo de processamento gerencial: {e}")
 
     # ====================================================
-    # 🏦 BANCO SWEET & GOVERNANÇA CORPORATIVA
+    # 🏦 BANCO SWEET & GOVERNANÇA CORPORATIVA (NOVO)
     # ====================================================
     st.markdown("---")
     with st.expander("🏦 Banco Sweet (Equity, Aportes e Retiradas)", expanded=False):
         st.write("Módulo de gestão de sócios, injeção de capital e monitoramento de retiradas (Marketing/Uso Pessoal).")
         
+        # --- 0. MINI DASHBOARD DO BANCO (RESUMO RÁPIDO) ---
+        try:
+            # Processa Aportes (Entradas)
+            if not df_aportes.empty:
+                df_aportes['VALOR_NUM'] = df_aportes['VALOR_R$'].apply(limpar_v)
+                aporte_total_empresa = df_aportes['VALOR_NUM'].sum()
+            else:
+                aporte_total_empresa = 0.0
+
+            # Processa Retiradas (Saídas) focando na Coluna L = TOTAL R$
+            if not df_retiradas.empty:
+                df_retiradas['RETIRADA_NUM'] = df_retiradas.iloc[:, 11].apply(limpar_v)
+                total_retirado_global = df_retiradas['RETIRADA_NUM'].sum()
+            else:
+                total_retirado_global = 0.0
+
+            # Saldo do Banco (Injeções - Retiradas)
+            saldo_banco_sweet = aporte_total_empresa - total_retirado_global
+            
+            b1, b2, b3 = st.columns(3)
+            b1.metric("📥 Capital Injetado", f"R$ {aporte_total_empresa:,.2f}", help="Soma de todo o dinheiro vivo (aportes) colocado na empresa pelos sócios.")
+            b2.metric("📤 Estoque Retirado", f"R$ {total_retirado_global:,.2f}", delta=f"{len(df_retiradas)} registros", delta_color="inverse", help="Valor total (com desconto e quantidade) dos produtos retirados para marketing ou uso pessoal da sócia.")
+            
+            if saldo_banco_sweet >= 0:
+                b3.metric("💼 Balanço Corporativo", f"R$ {saldo_banco_sweet:,.2f}", delta="Superávit", help="Calculado: Capital Injetado menos Estoque Retirado. Se verde, a empresa tem caixa positivo frente às retiradas.")
+            else:
+                b3.metric("💼 Balanço Corporativo", f"R$ {saldo_banco_sweet:,.2f}", delta="Déficit", delta_color="inverse", help="Atenção: O valor dos produtos retirados do estoque já superou o dinheiro injetado pelos sócios.")
+        except Exception as e:
+            st.error("Erro ao carregar o resumo corporativo.")
+
+        st.divider()
+
         # --- 1. CADASTRO DE NOVOS SÓCIOS ---
         with st.form("form_novo_socio", clear_on_submit=True):
             st.markdown("##### 🤝 Cadastrar Novo Sócio / Investidor")
             c_s1, c_s2 = st.columns(2)
-            nome_s = c_s1.text_input("Nome Completo (Exato como sairá nas vendas)")
+            nome_s = c_s1.text_input("Nome Completo (Exato como sairá nas vendas)", help="⚠️ IMPORTANTE: Digite exatamente o mesmo nome que a pessoa usará quando for cadastrada no sistema de Vendas.")
             tel_s = c_s2.text_input("WhatsApp")
             
             if st.form_submit_button("Adicionar ao Quadro Societário", type="secondary"):
@@ -1361,7 +1393,7 @@ elif menu_selecionado == "💰 Financeiro":
                 
             with st.form("form_aporte_capital", clear_on_submit=True):
                 c_a1, c_a2, c_a3 = st.columns([1.5, 1, 1.5])
-                socio_aporte = c_a1.selectbox("Quem está investindo?", lista_socios_select)
+                socio_aporte = c_a1.selectbox("Quem está investindo?", lista_socios_select, help="Selecione o sócio que está transferindo o dinheiro para o caixa da loja.")
                 valor_aporte = c_a2.number_input("Valor (R$)", min_value=0.01)
                 tipo_aporte = c_a3.selectbox("Destinação", ["Caixa Geral", "Marketing", "Infraestrutura", "Reinvestimento de Lucro"])
                 obs_aporte = st.text_input("Observações do Aporte")
@@ -1389,27 +1421,20 @@ elif menu_selecionado == "💰 Financeiro":
 
         # --- 3. CAP TABLE (QUADRO SOCIETÁRIO E MÉTRICAS) ---
         st.markdown("##### 📊 Cap Table e Balanço dos Sócios")
+        st.caption("Distribuição de Equity calculada automaticamente pelo volume financeiro aportado por cada sócio.")
         
         try:
             if not df_socios.empty:
-                # Processa Aportes (Entradas)
+                # O processamento numérico já foi feito lá em cima no Mini Dashboard
                 if not df_aportes.empty:
-                    df_aportes['VALOR_NUM'] = df_aportes['VALOR_R$'].apply(limpar_v)
                     aportes_por_socio = df_aportes.groupby('NOME_SOCIO')['VALOR_NUM'].sum().to_dict()
-                    aporte_total_empresa = df_aportes['VALOR_NUM'].sum()
                 else:
                     aportes_por_socio = {}
-                    aporte_total_empresa = 0.0
 
-                # Processa Retiradas (Saídas - Focando na Coluna L = TOTAL R$)
                 if not df_retiradas.empty:
-                    # O índice 11 é a Coluna L (TOTAL R$), que respeita Qtd e Desconto
-                    df_retiradas['RETIRADA_NUM'] = df_retiradas.iloc[:, 11].apply(limpar_v)
                     retiradas_por_socio = df_retiradas.groupby('CLIENTE')['RETIRADA_NUM'].sum().to_dict()
-                    total_retirado_global = df_retiradas['RETIRADA_NUM'].sum()
                 else:
                     retiradas_por_socio = {}
-                    total_retirado_global = 0.0
 
                 # Montando a Tabela de Sócios
                 dados_cap_table = []
@@ -1435,15 +1460,12 @@ elif menu_selecionado == "💰 Financeiro":
                 st.dataframe(
                     df_cap,
                     column_config={
-                        "Capital Injetado": st.column_config.NumberColumn(format="R$ %.2f"),
-                        "Produtos Retirados": st.column_config.NumberColumn("Retirado (Col L)", format="R$ %.2f"),
-                        "Balanço Liquido": st.column_config.NumberColumn(format="R$ %.2f")
+                        "Capital Injetado": st.column_config.NumberColumn(help="Total em dinheiro que este sócio investiu.", format="R$ %.2f"),
+                        "Produtos Retirados": st.column_config.NumberColumn("Retirado (Col L)", help="Valor consumido da loja em produtos.", format="R$ %.2f"),
+                        "Balanço Liquido": st.column_config.NumberColumn(help="Capital Injetado - Produtos Retirados.", format="R$ %.2f")
                     },
                     use_container_width=True, hide_index=True
                 )
-                
-                # Resumo Global do Banco
-                st.info(f"🏦 **Caixa de Investimentos Global:** R$ {aporte_total_empresa:,.2f} injetados | R$ {total_retirado_global:,.2f} consumidos em estoque/marketing.")
                 
                 # --- 4. HISTÓRICO RÁPIDO DO BANCO SWEET (INJEÇÕES E RETIRADAS) ---
                 st.divider()
