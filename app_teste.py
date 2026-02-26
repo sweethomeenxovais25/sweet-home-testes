@@ -2416,64 +2416,63 @@ elif menu_selecionado == "📂 Documentos":
     # =======================================================
     # 🆕 O MÓDULO DE CORREÇÃO DE ERROS (DESTRUIÇÃO TOTAL: PLANILHA + CLOUDINARY)
     # =======================================================
-        st.divider()
-        st.write("#### ✏️ / 🗑️ Gerenciar Arquivos (Correção de Erros)")
-        st.info("Subiu o arquivo errado ou duplicado? Escolha o documento abaixo para excluí-lo definitivamente do sistema e da nuvem.")
+    st.divider()
+    st.write("#### ✏️ / 🗑️ Gerenciar Arquivos (Correção de Erros)")
+    st.info("Subiu o arquivo errado ou duplicado? Escolha o documento abaixo para excluí-lo definitivamente do sistema e da nuvem.")
 
-        if not df_docs.empty:
-            ultimos_docs = df_docs.tail(30).copy()
-            ultimos_docs['LINHA_SHEETS'] = ultimos_docs.index + 2
-            ultimos_docs = ultimos_docs.iloc[::-1]
+    if not df_docs.empty:
+        ultimos_docs = df_docs.tail(30).copy()
+        ultimos_docs['LINHA_SHEETS'] = ultimos_docs.index + 2
+        ultimos_docs = ultimos_docs.iloc[::-1]
 
-            lista_exclusao_doc = []
-            dict_dados_ex_doc = {}
+        lista_exclusao_doc = []
+        dict_dados_ex_doc = {}
+        
+        for _, r in ultimos_docs.iterrows():
+            data_doc = str(r.get('DATA', '')).split(' ')[0]
+            tipo_doc = str(r.get('TIPO', ''))
+            nome_doc = str(r.get('NOME', ''))
+            id_cloud_doc = str(r.get('ID_ARQUIVO', '')) 
             
-            for _, r in ultimos_docs.iterrows():
-                data_doc = str(r.get('DATA', '')).split(' ')[0]
-                tipo_doc = str(r.get('TIPO', ''))
-                nome_doc = str(r.get('NOME', ''))
-                id_cloud_doc = str(r.get('ID_ARQUIVO', '')) # 💡 Pegando o ID do Cloudinary!
+            texto_item = f"📅 {data_doc} | 📂 {tipo_doc} | 📄 {nome_doc}"
+            lista_exclusao_doc.append(texto_item)
+            
+            dict_dados_ex_doc[texto_item] = {
+                'linha': r['LINHA_SHEETS'],
+                'id_cloud': id_cloud_doc
+            }
+
+        doc_excluir = st.selectbox("Selecione o documento que deseja EXCLUIR:", ["---"] + lista_exclusao_doc)
+
+        if doc_excluir != "---":
+            st.error("⚠️ Atenção: Esta ação apagará o arquivo físico da nuvem e a linha da planilha permanentemente.")
+            if st.button("🗑️ Destruir Documento Totalmente"):
                 
-                texto_item = f"📅 {data_doc} | 📂 {tipo_doc} | 📄 {nome_doc}"
-                lista_exclusao_doc.append(texto_item)
+                dados_alvo = dict_dados_ex_doc[doc_excluir]
+                linha_alvo_ex = dados_alvo['linha']
+                id_alvo_ex = dados_alvo['id_cloud']
                 
-                # Guardamos a linha da planilha E o ID do Cloudinary
-                dict_dados_ex_doc[texto_item] = {
-                    'linha': r['LINHA_SHEETS'],
-                    'id_cloud': id_cloud_doc
-                }
+                with st.spinner("Apagando da nuvem e do sistema... ⏳"):
+                    try:
+                        # 1️⃣ PRIMEIRO: Manda o Cloudinary destruir o arquivo físico
+                        if id_alvo_ex and str(id_alvo_ex).lower() not in ["nan", "", "none"]:
+                            import cloudinary.uploader
+                            try:
+                                cloudinary.uploader.destroy(id_alvo_ex)
+                            except Exception as cloud_err:
+                                st.warning(f"O arquivo já não estava no Cloudinary ou houve falha na nuvem: {cloud_err}")
 
-            doc_excluir = st.selectbox("Selecione o documento que deseja EXCLUIR:", ["---"] + lista_exclusao_doc)
-
-            if doc_excluir != "---":
-                st.error("⚠️ Atenção: Esta ação apagará o arquivo físico da nuvem e a linha da planilha permanentemente.")
-                if st.button("🗑️ Destruir Documento Totalmente"):
-                    
-                    dados_alvo = dict_dados_ex_doc[doc_excluir]
-                    linha_alvo_ex = dados_alvo['linha']
-                    id_alvo_ex = dados_alvo['id_cloud']
-                    
-                    with st.spinner("Apagando da nuvem e do sistema... ⏳"):
-                        try:
-                            # 1️⃣ PRIMEIRO: Manda o Cloudinary destruir o arquivo físico
-                            if id_alvo_ex and id_alvo_ex.lower() != "nan":
-                                import cloudinary.uploader
-                                try:
-                                    cloudinary.uploader.destroy(id_alvo_ex)
-                                except Exception as cloud_err:
-                                    st.warning(f"O arquivo já não estava no Cloudinary ou houve falha na nuvem: {cloud_err}")
-
-                            # 2️⃣ SEGUNDO: Apaga a linha do Google Sheets
-                            aba_doc_ex = planilha_mestre.worksheet("DOCUMENTOS")
-                            aba_doc_ex.delete_rows(linha_alvo_ex)
-                            
-                            st.success("🗑️ Documento apagado com sucesso do Cloudinary E da base de dados!")
-                            st.cache_data.clear()
-                            st.cache_resource.clear()
-                            st.rerun()
-                            
-                        except Exception as e:
-                            st.error(f"Erro ao excluir o documento: {e}")
+                        # 2️⃣ SEGUNDO: Apaga a linha do Google Sheets
+                        aba_doc_ex = planilha_mestre.worksheet("DOCUMENTOS")
+                        aba_doc_ex.delete_rows(linha_alvo_ex)
+                        
+                        st.success("🗑️ Documento apagado com sucesso do Cloudinary E da base de dados!")
+                        st.cache_data.clear()
+                        st.cache_resource.clear()
+                        st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"Erro ao excluir o documento: {e}")
 
 # ==========================================
 # --- SEÇÃO 3: COMPRAS E DESPESAS (CONTÁBIL) ---
