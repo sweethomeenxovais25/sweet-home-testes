@@ -2807,7 +2807,7 @@ elif menu_selecionado == "📢 Gestão de Marketing":
     st.divider()
     
     # ABAS DE NAVEGAÇÃO DO MARKETING
-    t_nova_tarefa, t_kanban = st.tabs(["➕ Nova Demanda (Pedir Arte)", "📋 Quadro de Produção (Kanban)"])
+    t_nova_tarefa, t_kanban, t_calendario = st.tabs(["➕ Nova Demanda (Pedir Arte)", "📋 Quadro de Produção (Kanban)", "📅 Agenda de Postagens"])
     
     # ==========================================
     # ABA 1: NOVA DEMANDA (ONDE A BIA PEDE)
@@ -2936,3 +2936,57 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                                         st.error(f"Erro ao mover card: {e}")
         else:
             st.info("Ainda não há demandas de marketing registradas.")
+
+    # ==========================================
+    # ABA 3: CALENDÁRIO / AGENDA DE POSTAGENS
+    # ==========================================
+    with t_calendario:
+        st.write("### 📅 Cronograma de Conteúdo")
+        st.write("Veja o que está programado para ir ao ar nos próximos dias.")
+        
+        if not df_mkt.empty:
+            df_agenda = df_mkt.copy()
+            # 💡 Converte a data de texto (DD/MM/YYYY) para data real do Python
+            df_agenda['DATA_DATETIME'] = pd.to_datetime(df_agenda['DATA_AGENDADA'], format='%d/%m/%Y', errors='coerce')
+            df_agenda = df_agenda.dropna(subset=['DATA_DATETIME']).sort_values('DATA_DATETIME')
+            
+            import pytz
+            from datetime import datetime
+            hoje_real = pd.to_datetime(datetime.now(pytz.timezone('America/Sao_Paulo')).strftime('%Y-%m-%d'))
+            
+            # Filtra apenas o que AINDA NÃO FOI POSTADO (exclui os concluídos)
+            df_agenda_pendente = df_agenda[~df_agenda['STATUS'].str.contains('Concluído', case=False, na=False)]
+            
+            if not df_agenda_pendente.empty:
+                # Classificação temporal
+                atrasados = df_agenda_pendente[df_agenda_pendente['DATA_DATETIME'] < hoje_real]
+                hoje = df_agenda_pendente[df_agenda_pendente['DATA_DATETIME'] == hoje_real]
+                futuro = df_agenda_pendente[df_agenda_pendente['DATA_DATETIME'] > hoje_real]
+                
+                # 🔴 ATRASADOS
+                if not atrasados.empty:
+                    st.error("#### 🔴 Prazos Estourados (Atrasados)")
+                    for _, task in atrasados.iterrows():
+                        st.markdown(f"**{task['DATA_AGENDADA']}** | 📍 {task['ID_TAREFA']} - {task['FORMATO']} <br> <small>*{task['DESCRIÇÃO']}*</small> | Status: **{task['STATUS']}**", unsafe_allow_html=True)
+                        st.divider()
+                
+                # 🟢 HOJE
+                if not hoje.empty:
+                    st.success("#### 🟢 Vai para o ar HOJE!")
+                    for _, task in hoje.iterrows():
+                        st.markdown(f"**HOJE** | 📍 {task['ID_TAREFA']} - {task['FORMATO']} <br> <small>*{task['DESCRIÇÃO']}*</small> | Status: **{task['STATUS']}**", unsafe_allow_html=True)
+                        st.divider()
+                
+                # 🔵 PRÓXIMOS DIAS
+                if not futuro.empty:
+                    st.info("#### 🔵 Próximos Dias")
+                    for _, task in futuro.iterrows():
+                        dias_faltam = (task['DATA_DATETIME'] - hoje_real).days
+                        texto_dias = "Amanhã" if dias_faltam == 1 else f"Daqui a {dias_faltam} dias"
+                        
+                        st.markdown(f"**{task['DATA_AGENDADA']}** ({texto_dias}) | 📍 {task['ID_TAREFA']} - {task['FORMATO']} <br> <small>*{task['DESCRIÇÃO']}*</small> | Status: **{task['STATUS']}**", unsafe_allow_html=True)
+                        st.divider()
+            else:
+                st.success("🎉 Nenhuma postagem pendente! A agenda está livre.")
+        else:
+            st.info("Nenhuma demanda cadastrada no sistema.")
