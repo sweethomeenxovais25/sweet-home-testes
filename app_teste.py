@@ -2895,8 +2895,65 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                 else:
                     st.warning("Por favor, preencha a descrição da ideia!")
                     
-    # ==========================================
-    # ABA 2: KANBAN (QUADRO DE PRODUÇÃO)
-    # ==========================================
     with t_kanban:
-        st.write("*(Na próxima etapa, vamos construir aqui o quadro visual onde você arrasta e atualiza as tarefas!)*")
+        st.write("### 📋 Quadro de Produção (Kanban)")
+        
+        if not df_mkt.empty:
+            # Criamos as 4 colunas visuais do seu fluxo de trabalho
+            col_fila, col_prod, col_postar, col_done = st.columns(4)
+            
+            # Mapeamento de Status e Cores
+            status_map = [
+                ("📥 Fila (Aguardando Início)", col_fila),
+                ("✍️ Em Produção", col_prod),
+                ("✅ Falta Postar", col_postar),
+                ("🚀 Concluído", col_done)
+            ]
+            
+            for status_nome, coluna_gui in status_map:
+                with coluna_gui:
+                    st.markdown(f"**{status_nome}**")
+                    # Filtra apenas as tarefas desse status
+                    tarefas_status = df_mkt[df_mkt['STATUS'] == status_nome]
+                    
+                    if tarefas_status.empty:
+                        st.caption("Vazio")
+                    
+                    for _, task in tarefas_status.iterrows():
+                        # Cada tarefa vira um card (expander)
+                        with st.expander(f"📍 {task['ID_TAREFA']}", expanded=True):
+                            st.write(f"**{task['FORMATO']}**")
+                            st.caption(f"📅 Prazo: {task['DATA_AGENDADA']}")
+                            st.write(f"<small>{task['DESCRIÇÃO']}</small>", unsafe_allow_html=True)
+                            
+                            # 🔄 Botão para Mover para a próxima etapa
+                            if status_nome != "🚀 Concluído":
+                                fluxo = {
+                                    "📥 Fila (Aguardando Início)": "✍️ Em Produção",
+                                    "✍️ Em Produção": "✅ Falta Postar",
+                                    "✅ Falta Postar": "🚀 Concluído"
+                                }
+                                proximo = fluxo[status_nome]
+                                
+                                if st.button(f"Mover ➡️", key=f"btn_{task['ID_TAREFA']}"):
+                                    try:
+                                        aba_mkt = planilha_mestre.worksheet("MARKETING")
+                                        # Localiza a linha correta (+2 por causa do cabeçalho e índice 0)
+                                        linha_planilha = task.name + 2 
+                                        
+                                        # Atualiza Status no Google Sheets (Coluna G)
+                                        aba_mkt.update_acell(f"G{linha_planilha}", proximo)
+                                        
+                                        # Se finalizou, carimba a data de conclusão (Coluna I)
+                                        if proximo == "🚀 Concluído":
+                                            import datetime as dt
+                                            agora = dt.datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y %H:%M")
+                                            aba_mkt.update_acell(f"I{linha_planilha}", agora)
+                                            
+                                        st.toast(f"Tarefa {task['ID_TAREFA']} movida!")
+                                        st.cache_data.clear()
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Erro ao mover card: {e}")
+        else:
+            st.info("Ainda não há demandas de marketing registradas.")
