@@ -2457,38 +2457,82 @@ elif menu_selecionado == "🏭 Compras e Despesas":
                 opcoes_forn = ["Avulso (Sem Fornecedor)"] + [f"{k} - {v['nome']}" for k,v in banco_de_fornecedores.items()]
                 f_forn = st.selectbox("Quem estamos pagando?", opcoes_forn)
                 
-                f_desc = st.text_input("Descrição da Conta", placeholder="Ex: Fatura Tecidos, Conta de Luz...")
+                f_desc = st.text_input("Descrição da Compra", placeholder="Ex: Fatura Tecidos, Conta de Luz...")
                 f_cat = st.selectbox("Categoria", ["Estoque / Mercadorias", "Logística / Fretes", "Insumos / Embalagens", "Despesas Fixas", "Marketing", "Outros"])
                 
                 c_v, c_d = st.columns(2)
-                f_val = c_v.number_input("Valor (R$)", min_value=0.0, format="%.2f")
-                f_venc = c_d.date_input("Vencimento")
+                # 💡 Agora pedimos o valor TOTAL da nota/compra
+                f_val_total = c_v.number_input("Valor TOTAL (R$)", min_value=0.0, format="%.2f")
+                f_venc_ini = c_d.date_input("Vencimento da 1ª Parcela")
                 
-                f_status = st.radio("Já foi pago?", ["Não (Pendente)", "Sim (Pago)"], horizontal=True)
+                # 🆕 MOTOR DE PARCELAMENTO
+                c_p1, c_p2 = st.columns(2)
+                f_parcelas = c_p1.number_input("Qtd. de Parcelas", min_value=1, value=1, step=1, help="Deixe 1 para contas à vista/únicas.")
+                f_freq = c_p2.selectbox("Frequência", ["Mensal (30 dias)", "Quinzenal (15 dias)", "Semanal (7 dias)"])
+                
+                f_status = st.radio("A 1ª parcela já foi paga hoje?", ["Não (Pendente)", "Sim (Pago)"], horizontal=True)
 
                 if st.form_submit_button("Registrar Conta 💾", type="primary"):
-                    if f_val > 0 and f_desc:
+                    if f_val_total > 0 and f_desc:
                         try:
+                            import datetime as dt
                             aba_d = planilha_mestre.worksheet("DESPESAS")
-                            nome_registro = f"[{f_forn.split(' - ')[0]}] {f_desc}" if f_forn != "Avulso (Sem Fornecedor)" else f_desc
                             
-                            status_final = "Pago" if f_status == "Sim (Pago)" else "Pendente"
-                            dt_pago = datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y") if status_final == "Pago" else "-"
+                            # Calcula o valor base da parcela (arredondado para 2 casas)
+                            valor_parcela_base = round(f_val_total / f_parcelas, 2)
                             
-                            aba_d.append_row([
-                                datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y"),
-                                f_venc.strftime("%d/%m/%Y"),
-                                nome_registro,
-                                f_cat,
-                                f_val,
-                                status_final,
-                                dt_pago,
-                                "-" # Espaço para o Comprovante futuro
-                            ], value_input_option='RAW')
-                            st.success("✅ Despesa registrada no cofre!")
+                            novas_linhas = []
+                            
+                            for i in range(f_parcelas):
+                                num_parc = i + 1
+                                
+                                # 📅 Calcula a data da próxima parcela
+                                if f_freq == "Mensal (30 dias)":
+                                    data_v = f_venc_ini + dt.timedelta(days=30 * i)
+                                elif f_freq == "Quinzenal (15 dias)":
+                                    data_v = f_venc_ini + dt.timedelta(days=15 * i)
+                                else:
+                                    data_v = f_venc_ini + dt.timedelta(days=7 * i)
+                                
+                                # 📝 Adiciona o aviso (1/3), (2/3) se for parcelado
+                                sufixo_parc = f" ({num_parc}/{f_parcelas})" if f_parcelas > 1 else ""
+                                nome_registro = f"[{f_forn.split(' - ')[0]}] {f_desc}{sufixo_parc}" if f_forn != "Avulso (Sem Fornecedor)" else f"{f_desc}{sufixo_parc}"
+                                
+                                # 💰 Inteligência de Centavos: A última parcela absorve a diferença de dízimas
+                                if num_parc == f_parcelas:
+                                    valor_final_parc = f_val_total - (valor_parcela_base * (f_parcelas - 1))
+                                else:
+                                    valor_final_parc = valor_parcela_base
+                                
+                                # 🛡️ Lógica do Status: Só a 1ª parcela pode nascer "Paga". As outras nascem pendentes!
+                                if num_parc == 1 and f_status == "Sim (Pago)":
+                                    status_final = "Pago"
+                                    dt_pago = datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y")
+                                else:
+                                    status_final = "Pendente"
+                                    dt_pago = "-"
+                                
+                                # Prepara a linha para a planilha
+                                novas_linhas.append([
+                                    datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y"),
+                                    data_v.strftime("%d/%m/%Y"),
+                                    nome_registro,
+                                    f_cat,
+                                    valor_final_parc,
+                                    status_final,
+                                    dt_pago,
+                                    "-" # Espaço do Comprovante
+                                ])
+                            
+                            # Injeta todas as parcelas na planilha de uma vez só (super rápido)
+                            for linha in novas_linhas:
+                                aba_d.append_row(linha, value_input_option='RAW')
+                                
+                            st.success(f"✅ {f_parcelas} parcela(s) registrada(s) no cofre!")
                             st.cache_data.clear(); st.rerun()
+                            
                         except Exception as e:
-                            st.error(f"Erro ao salvar: {e}")
+                            st.error(f"Erro ao salvar parcelamento: {e}")
                     else:
                         st.warning("Preencha a descrição e um valor maior que zero.")
 
