@@ -2739,7 +2739,7 @@ elif menu_selecionado == "🏭 Compras e Despesas":
                         st.error(f"Erro ao excluir: {e}")
 
     # ------------------------------------------
-    # ABA 3: CADASTRO DE FORNECEDORES
+    # ABA 3: CADASTRO E GESTÃO DE FORNECEDORES
     # ------------------------------------------
     with t_fornecedores:
         with st.form("form_novo_forn", clear_on_submit=True):
@@ -2783,11 +2783,99 @@ elif menu_selecionado == "🏭 Compras e Despesas":
                     st.warning("O Nome do Fornecedor é obrigatório.")
         
         st.divider()
-    st.write("#### 🗂️ Lista de Fornecedores Ativos")
-    if not df_fornecedores.empty:
-        st.dataframe(df_fornecedores, use_container_width=True, hide_index=True)
-    else:
-        st.info("Nenhum fornecedor cadastrado no banco de dados.")
+        st.write("#### 🗂️ Lista de Fornecedores Ativos")
+        
+        if not df_fornecedores.empty:
+            st.dataframe(df_fornecedores, use_container_width=True, hide_index=True)
+            
+            # ==========================================
+            # ✏️ BORRACHA MÁGICA: EDIÇÃO E EXCLUSÃO
+            # ==========================================
+            st.divider()
+            with st.expander("✏️ Corrigir ou Excluir Fornecedor", expanded=False):
+                st.write("Fábrica mudou o Zap? A chave PIX trocou? Escolha abaixo para corrigir ou remover o cadastro do sistema.")
+                
+                lista_opcoes_forn = []
+                dict_linhas_forn = {}
+                dict_dados_forn = {}
+                
+                for idx, r in df_fornecedores.iterrows():
+                    # Descobre a linha real no Sheets (+2 por causa do cabeçalho e índice zero)
+                    linha_real = idx + 2 
+                    
+                    # Puxa pela posição da coluna para evitar erros se o nome da coluna mudar
+                    cod = str(r.iloc[0]) 
+                    nome = str(r.iloc[1])
+                    
+                    texto_item = f"{cod} | {nome}"
+                    lista_opcoes_forn.append(texto_item)
+                    
+                    dict_linhas_forn[texto_item] = linha_real
+                    dict_dados_forn[texto_item] = r
+                
+                forn_selecionado = st.selectbox("Selecione o fornecedor para editar/excluir:", ["---"] + lista_opcoes_forn)
+                
+                if forn_selecionado != "---":
+                    linha_alvo = dict_linhas_forn[forn_selecionado]
+                    dados_atuais = dict_dados_forn[forn_selecionado]
+                    
+                    with st.form("form_edita_forn"):
+                        st.markdown(f"#### 🔄 Atualizar Dados ({dados_atuais.iloc[0]})")
+                        
+                        e_c1, e_c2 = st.columns(2)
+                        # Busca os dados atuais preenchendo os campos (Usa try/except nativo do python caso falte coluna)
+                        novo_nome = e_c1.text_input("Nome / Razão Social", value=str(dados_atuais.iloc[1]))
+                        nova_cat = e_c2.text_input("Categoria Principal", value=str(dados_atuais.iloc[2]) if len(dados_atuais) > 2 else "")
+                        
+                        e_c3, e_c4 = st.columns(2)
+                        novo_tel = e_c3.text_input("WhatsApp de Contato", value=str(dados_atuais.iloc[3]) if len(dados_atuais) > 3 else "")
+                        novo_pix = e_c4.text_input("Chave PIX", value=str(dados_atuais.iloc[4]) if len(dados_atuais) > 4 else "")
+                        
+                        nova_obs = st.text_input("Observações (Endereço, CNPJ, etc)", value=str(dados_atuais.iloc[5]) if len(dados_atuais) > 5 else "")
+                        
+                        st.divider()
+                        col_btn1, col_btn2 = st.columns([2, 1])
+                        salvar = col_btn1.form_submit_button("💾 Salvar Alterações", type="primary", use_container_width=True)
+                        
+                        st.write("---")
+                        confirma_exclusao = st.checkbox("Confirmar que desejo EXCLUIR este fornecedor")
+                        excluir = col_btn2.form_submit_button("🗑️ Excluir", type="secondary", use_container_width=True)
+                        
+                        if salvar:
+                            with st.spinner("Atualizando na planilha..."):
+                                try:
+                                    aba_forn = planilha_mestre.worksheet("FORNECEDORES")
+                                    
+                                    # O código (A) fica intacto. Atualizamos da B até a F.
+                                    atualizacoes = [
+                                        {'range': f'B{linha_alvo}', 'values': [[novo_nome]]},
+                                        {'range': f'C{linha_alvo}', 'values': [[nova_cat]]},
+                                        {'range': f'D{linha_alvo}', 'values': [[novo_tel]]},
+                                        {'range': f'E{linha_alvo}', 'values': [[novo_pix]]},
+                                        {'range': f'F{linha_alvo}', 'values': [[nova_obs]]}
+                                    ]
+                                    aba_forn.batch_update(atualizacoes, value_input_option='USER_ENTERED')
+                                    
+                                    st.success("✅ Dados do fornecedor atualizados com sucesso!")
+                                    st.cache_data.clear(); st.cache_resource.clear(); st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao salvar: {e}")
+                                    
+                        if excluir:
+                            if confirma_exclusao:
+                                with st.spinner("Apagando registro..."):
+                                    try:
+                                        aba_forn = planilha_mestre.worksheet("FORNECEDORES")
+                                        aba_forn.delete_rows(linha_alvo)
+                                        
+                                        st.success("🗑️ Fornecedor excluído do banco de dados!")
+                                        st.cache_data.clear(); st.cache_resource.clear(); st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Erro ao excluir: {e}")
+                            else:
+                                st.warning("⚠️ Você precisa marcar a caixa de confirmação para poder excluir.")
+        else:
+            st.info("Nenhum fornecedor cadastrado no banco de dados.")
 
 # ==========================================================
 # 📢 MÓDULO DE GESTÃO DE MARKETING (O "TRELLO" DA SWEET HOME)
