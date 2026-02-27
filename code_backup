@@ -2810,7 +2810,8 @@ elif menu_selecionado == "📢 Gestão de Marketing":
     total_pedidos = len(df_mkt) if not df_mkt.empty else 0
     
     if not df_mkt.empty:
-        em_producao = len(df_mkt[df_mkt['STATUS'].str.contains('Em Produção', case=False, na=False)])
+        # 💡 A CORREÇÃO: O símbolo '|' atua como 'OU'. Agora ele soma a Fila com a Produção!
+        em_producao = len(df_mkt[df_mkt['STATUS'].str.contains('Em Produção|Fila', case=False, na=False)])
         falta_postar = len(df_mkt[df_mkt['STATUS'].str.contains('Falta Postar', case=False, na=False)])
         concluidos = len(df_mkt[df_mkt['STATUS'].str.contains('Concluído', case=False, na=False)])
     else:
