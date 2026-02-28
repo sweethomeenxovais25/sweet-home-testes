@@ -738,6 +738,10 @@ if menu_selecionado == "🛒 Vendas":
                         try: venc_atual_dt = dt.datetime.strptime(venc_atual_str, "%d/%m/%Y").date()
                         except: venc_atual_dt = dt.datetime.now().date()
 
+                        # 💡 LENDO O STATUS ATUAL (Coluna W -> Índice 22)
+                        status_atual = str(linha_dados[22]).strip() if len(linha_dados) > 22 and str(linha_dados[22]).strip() != "" else "Pago"
+
+                        # Listas para os Selectboxes
                         lista_clientes = [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()]
                         cliente_str_atual = f"{cod_cli_atual} - {nome_cli_atual}"
                         idx_cliente = lista_clientes.index(cliente_str_atual) if cliente_str_atual in lista_clientes else 0
@@ -748,6 +752,10 @@ if menu_selecionado == "🛒 Vendas":
 
                         lista_metodos = ["Pix", "Dinheiro", "Cartão", "Sweet Flex"]
                         idx_metodo = lista_metodos.index(metodo_atual) if metodo_atual in lista_metodos else 0
+                        
+                        # 💡 OPÇÕES DE STATUS
+                        lista_status_opcoes = ["Pago", "Em dia", "Atrasado", "Pendente"]
+                        idx_status = lista_status_opcoes.index(status_atual) if status_atual in lista_status_opcoes else 0
 
                         with st.form(f"form_edicao_{linha_real}"):
                             st.markdown(f"#### 🔄 Atualizar Dados (Linha {linha_real})")
@@ -760,7 +768,10 @@ if menu_selecionado == "🛒 Vendas":
                             novo_val = e_c4.number_input("Preço Un. (R$)", value=float(val_atual))
                             novo_desc = e_c5.number_input("Desconto (R$)", value=float(desc_reais_atual))
                             
-                            novo_metodo = st.selectbox("Forma de Pagto", lista_metodos, index=idx_metodo)
+                            # 💡 MÉTODO DE PAGAMENTO E STATUS LADO A LADO
+                            c_m1, c_m2 = st.columns(2)
+                            novo_metodo = c_m1.selectbox("Forma de Pagto", lista_metodos, index=idx_metodo)
+                            novo_status = c_m2.selectbox("Status da Venda", lista_status_opcoes, index=idx_status)
                             
                             st.markdown("---")
                             st.write("💳 **Detalhes de Parcelamento (Sweet Flex)**")
@@ -789,11 +800,12 @@ if menu_selecionado == "🛒 Vendas":
                                     n_desc_perc = novo_desc / n_v_bruto if n_v_bruto > 0 else 0
                                     n_t_liq = n_v_bruto - novo_desc
                                     
+                                    # Lógica do Sweet Flex
                                     eh_parc = "Sim" if novo_metodo == "Sweet Flex" else "Não"
                                     num_parc_final = novo_num_parc if eh_parc == "Sim" else 1
                                     venc_final = novo_venc.strftime("%d/%m/%Y") if eh_parc == "Sim" else "-"
                                     
-                                    # 💡 Salva apenas os dados base, deixando a planilha calcular Saldo, Total, etc.
+                                    # 💡 ENVIANDO O STATUS PARA A COLUNA W
                                     atualizacoes = [
                                         {'range': f'C{linha_real}', 'values': [[n_cod_cli]]},
                                         {'range': f'D{linha_real}', 'values': [[n_nome_cli]]},
@@ -804,9 +816,11 @@ if menu_selecionado == "🛒 Vendas":
                                         {'range': f'I{linha_real}', 'values': [[novo_val]]},
                                         {'range': f'J{linha_real}', 'values': [[n_desc_perc]]},
                                         {'range': f'O{linha_real}', 'values': [[novo_metodo]]},
-                                        {'range': f'Q{linha_real}', 'values': [[num_parc_final]]},
-                                        {'range': f'V{linha_real}', 'values': [[venc_final]]}
+                                        {'range': f'Q{linha_real}', 'values': [[num_parc_final]]},  # Coluna Q: Parcelas
+                                        {'range': f'V{linha_real}', 'values': [[venc_final]]},      # Coluna V: Data Vencimento
+                                        {'range': f'W{linha_real}', 'values': [[novo_status]]}       # 💡 Coluna W: Status
                                     ]
+                                    
                                     aba_vendas.batch_update(atualizacoes, value_input_option='USER_ENTERED')
                                     
                                     st.session_state['recibo_correcao'] = {
