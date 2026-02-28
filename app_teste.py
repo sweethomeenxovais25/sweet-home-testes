@@ -1932,13 +1932,41 @@ elif menu_selecionado == "📦 Estoque":
 
                     elif acao == "3. Correção":
                         with st.form("f_cor"):
-                            real = st.number_input("Qtd real física", value=est_h)
-                            if st.form_submit_button("Corrigir"):
+                            st.markdown("✏️ **Corrigir Cadastro Atual** (Sem criar novo lote)")
+                            
+                            c_cor1, c_cor2 = st.columns([1, 2])
+                            novo_cod = c_cor1.text_input("Código", value=str(cod_e))
+                            novo_nome = c_cor2.text_input("Nome do Produto", value=str(nome_e))
+                            
+                            c_cor3, c_cor4, c_cor5 = st.columns(3)
+                            real = c_cor3.number_input("Qtd real física", value=int(est_h))
+                            novo_custo = c_cor4.number_input("Custo Unitário (R$)", value=float(custo_at))
+                            novo_preco = c_cor5.number_input("Preço de Venda (R$)", value=float(preco_at))
+                            
+                            if st.form_submit_button("💾 Salvar Correções"):
                                 with st.spinner("Sincronizando..."):
                                     aba = planilha_mestre.worksheet("INVENTÁRIO")
-                                    aba.update_acell(f"C{lin_p}", real + vend_g)
-                                    planilha_mestre.worksheet("LOG_ESTOQUE").append_row([datetime.now().strftime("%d/%m/%Y"), datetime.now().strftime("%H:%M"), "CORREÇÃO", nome_e, f"Ajustado para {real}", st.session_state.get('usuario_logado', 'Bia')], value_input_option='RAW')
-                                    st.success("Corrigido!"); st.cache_data.clear(); st.rerun()
+                                    
+                                    # 💡 Upgrade: Usando batch_update para alterar todas as colunas de uma vez só (muito mais rápido)
+                                    atualizacoes = [
+                                        {'range': f'A{lin_p}', 'values': [[novo_cod.strip()]]},
+                                        {'range': f'B{lin_p}', 'values': [[novo_nome.strip()]]},
+                                        {'range': f'C{lin_p}', 'values': [[real + vend_g]]}, # Qtd Comprada = Físico atual + O que já vendeu
+                                        {'range': f'D{lin_p}', 'values': [[novo_custo]]},
+                                        {'range': f'I{lin_p}', 'values': [[novo_preco]]}
+                                    ]
+                                    aba.batch_update(atualizacoes, value_input_option='USER_ENTERED')
+                                    
+                                    planilha_mestre.worksheet("LOG_ESTOQUE").append_row([
+                                        datetime.now().strftime("%d/%m/%Y"), 
+                                        datetime.now().strftime("%H:%M"), 
+                                        "CORREÇÃO GERAL", 
+                                        novo_nome, 
+                                        f"Qtd:{real} | R${novo_preco}", 
+                                        st.session_state.get('usuario_logado', 'Bia')
+                                    ], value_input_option='RAW')
+                                    
+                                    st.success("✅ Produto corrigido com sucesso!"); st.cache_data.clear(); st.rerun()
 
     # ➕ CADASTRO DE NOVO PRODUTO
     st.divider()
