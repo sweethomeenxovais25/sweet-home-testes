@@ -708,12 +708,11 @@ if menu_selecionado == "🛒 Vendas":
                         linha_real = int(venda_selecionada.split(" | ")[0].replace("Linha ", ""))
                         linha_dados = dados_v[linha_real - 1]
                         
-                        # 💡 Lendo exatamente os índices da sua planilha real
-                        cod_cli_atual = linha_dados[2]      # C: CÓD. CLIENTE
-                        nome_cli_atual = linha_dados[3]     # D: CLIENTE
-                        cod_prod_atual = linha_dados[4]     # E: CÓD. PRODUTO
-                        nome_prod_atual = linha_dados[5]    # F: PRODUTO
-                        
+                        cod_cli_atual = linha_dados[2]
+                        nome_cli_atual = linha_dados[3]
+                        cod_prod_atual = linha_dados[4]
+                        nome_prod_atual = linha_dados[5]
+
                         def limpar_para_editar(val_str, is_perc=False):
                             try:
                                 v = str(val_str).replace("R$", "").replace(" ", "").replace(".", "").replace(",", ".")
@@ -722,26 +721,24 @@ if menu_selecionado == "🛒 Vendas":
                                 return float(v)
                             except: return 0.0
 
-                        qtd_atual = limpar_para_editar(linha_dados[7]) # H
-                        val_atual = limpar_para_editar(linha_dados[8]) # I
-                        
-                        desc_perc_raw = limpar_para_editar(linha_dados[9], is_perc=True) # J
+                        qtd_atual = limpar_para_editar(linha_dados[7])
+                        val_atual = limpar_para_editar(linha_dados[8])
+                        desc_perc_raw = limpar_para_editar(linha_dados[9], is_perc=True)
                         desc_reais_atual = round((qtd_atual * val_atual) * desc_perc_raw, 2) if 0 <= desc_perc_raw <= 1 else 0.0
 
-                        metodo_atual = linha_dados[14] if len(linha_dados) > 14 else "Pix" # O
-
-                        try: parc_atual = int(linha_dados[16]) if len(linha_dados) > 16 and str(linha_dados[16]).strip() else 1
-                        except: parc_atual = 1 # Q
+                        metodo_atual = linha_dados[14] if len(linha_dados) > 14 else "Pix"
                         
-                        venc_atual_str = str(linha_dados[21]) if len(linha_dados) > 21 and str(linha_dados[21]).strip() != "-" else "" # V
+                        # 💡 RESGATE DOS DADOS DO SWEET FLEX E STATUS
+                        try: parc_atual = int(linha_dados[16]) if len(linha_dados) > 16 and str(linha_dados[16]).strip() else 1
+                        except: parc_atual = 1
+                        
+                        venc_atual_str = str(linha_dados[21]) if len(linha_dados) > 21 and str(linha_dados[21]).strip() != "-" else ""
                         import datetime as dt
                         try: venc_atual_dt = dt.datetime.strptime(venc_atual_str, "%d/%m/%Y").date()
                         except: venc_atual_dt = dt.datetime.now().date()
-
-                        # 💡 LENDO O STATUS ATUAL (Coluna W -> Índice 22)
+                        
                         status_atual = str(linha_dados[22]).strip() if len(linha_dados) > 22 and str(linha_dados[22]).strip() != "" else "Pago"
 
-                        # Listas para os Selectboxes
                         lista_clientes = [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()]
                         cliente_str_atual = f"{cod_cli_atual} - {nome_cli_atual}"
                         idx_cliente = lista_clientes.index(cliente_str_atual) if cliente_str_atual in lista_clientes else 0
@@ -753,7 +750,6 @@ if menu_selecionado == "🛒 Vendas":
                         lista_metodos = ["Pix", "Dinheiro", "Cartão", "Sweet Flex"]
                         idx_metodo = lista_metodos.index(metodo_atual) if metodo_atual in lista_metodos else 0
                         
-                        # 💡 OPÇÕES DE STATUS
                         lista_status_opcoes = ["Pago", "Em dia", "Atrasado", "Pendente"]
                         idx_status = lista_status_opcoes.index(status_atual) if status_atual in lista_status_opcoes else 0
 
@@ -768,7 +764,6 @@ if menu_selecionado == "🛒 Vendas":
                             novo_val = e_c4.number_input("Preço Un. (R$)", value=float(val_atual))
                             novo_desc = e_c5.number_input("Desconto (R$)", value=float(desc_reais_atual))
                             
-                            # 💡 MÉTODO DE PAGAMENTO E STATUS LADO A LADO
                             c_m1, c_m2 = st.columns(2)
                             novo_metodo = c_m1.selectbox("Forma de Pagto", lista_metodos, index=idx_metodo)
                             novo_status = c_m2.selectbox("Status da Venda", lista_status_opcoes, index=idx_status)
@@ -800,12 +795,10 @@ if menu_selecionado == "🛒 Vendas":
                                     n_desc_perc = novo_desc / n_v_bruto if n_v_bruto > 0 else 0
                                     n_t_liq = n_v_bruto - novo_desc
                                     
-                                    # Lógica do Sweet Flex
                                     eh_parc = "Sim" if novo_metodo == "Sweet Flex" else "Não"
                                     num_parc_final = novo_num_parc if eh_parc == "Sim" else 1
                                     venc_final = novo_venc.strftime("%d/%m/%Y") if eh_parc == "Sim" else "-"
                                     
-                                    # 💡 ENVIANDO O STATUS PARA A COLUNA W
                                     atualizacoes = [
                                         {'range': f'C{linha_real}', 'values': [[n_cod_cli]]},
                                         {'range': f'D{linha_real}', 'values': [[n_nome_cli]]},
@@ -816,11 +809,10 @@ if menu_selecionado == "🛒 Vendas":
                                         {'range': f'I{linha_real}', 'values': [[novo_val]]},
                                         {'range': f'J{linha_real}', 'values': [[n_desc_perc]]},
                                         {'range': f'O{linha_real}', 'values': [[novo_metodo]]},
-                                        {'range': f'Q{linha_real}', 'values': [[num_parc_final]]},  # Coluna Q: Parcelas
-                                        {'range': f'V{linha_real}', 'values': [[venc_final]]},      # Coluna V: Data Vencimento
-                                        {'range': f'W{linha_real}', 'values': [[novo_status]]}       # 💡 Coluna W: Status
+                                        {'range': f'Q{linha_real}', 'values': [[num_parc_final]]},
+                                        {'range': f'V{linha_real}', 'values': [[venc_final]]},
+                                        {'range': f'W{linha_real}', 'values': [[novo_status]]}
                                     ]
-                                    
                                     aba_vendas.batch_update(atualizacoes, value_input_option='USER_ENTERED')
                                     
                                     st.session_state['recibo_correcao'] = {
