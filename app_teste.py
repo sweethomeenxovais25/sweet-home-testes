@@ -774,7 +774,6 @@ if menu_selecionado == "🛒 Vendas":
                                         {'range': f'V{linha_real}', 'values': [[venc_final]]}        # Coluna V: Data Vencimento
                                     ]
                                     
-                                    # USER_ENTERED garante que o Sheets entenda que 'J' é porcentagem e não texto!
                                     aba_vendas.batch_update(atualizacoes, value_input_option='USER_ENTERED')
                                     
                                     st.session_state['recibo_correcao'] = {
