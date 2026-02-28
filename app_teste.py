@@ -765,13 +765,13 @@ if menu_selecionado == "🛒 Vendas":
                                         {'range': f'D{linha_real}', 'values': [[n_nome_cli]]},
                                         {'range': f'E{linha_real}', 'values': [[n_cod_prod]]},
                                         {'range': f'F{linha_real}', 'values': [[n_nome_prod]]},
-                                        {'range': f'G{linha_real}', 'values': [[n_custo]]},  # Se custo ficar na G
+                                        {'range': f'G{linha_real}', 'values': [[n_custo]]},
                                         {'range': f'H{linha_real}', 'values': [[nova_qtd]]},
                                         {'range': f'I{linha_real}', 'values': [[novo_val]]},
                                         {'range': f'J{linha_real}', 'values': [[n_desc_perc]]},
                                         {'range': f'O{linha_real}', 'values': [[novo_metodo]]},
                                         {'range': f'Q{linha_real}', 'values': [[num_parc_final]]},  # Coluna Q: Parcelas
-                                        {'range': f'V{linha_real}', 'values': [[venc_final]]}        # Coluna V: Data Vencimento
+                                        {'range': f'V{linha_real}', 'values': [[venc_final]]}       # Coluna V: Data Vencimento
                                     ]
                                     
                                     aba_vendas.batch_update(atualizacoes, value_input_option='USER_ENTERED')
