@@ -664,8 +664,8 @@ if menu_selecionado == "🛒 Vendas":
     # [O código da Borracha Mágica (Edição de Vendas) continua exatamente como você já tinha abaixo deste ponto]
 
 # ==========================================
-# ✏️ BORRACHA MÁGICA: EDIÇÃO E EXCLUSÃO (COM RADAR)
-# ==========================================
+    # ✏️ BORRACHA MÁGICA: EDIÇÃO E EXCLUSÃO (COM RADAR)
+    # ==========================================
     with st.expander("✏️ Corrigir ou Excluir Venda (Radar de Vendas)", expanded=False):
         st.write("Pesquise por uma venda antiga ou escolha uma recente para corrigir cliente, produto, valores ou método de pagamento.")
         
@@ -683,28 +683,23 @@ if menu_selecionado == "🛒 Vendas":
                     if len(linha) > 5 and "TOTAIS" not in str(linha[3]).upper() and str(linha[3]).strip() != "":
                         pagto_info = linha[14] if len(linha) > 14 else "Indefinido"
                         
-                        # 💡 AQUI ESTÁ A MELHORIA: Trazendo o Código + Nome exatos da planilha
                         cod_cliente = linha[2]
                         nome_cliente = linha[3]
                         cod_produto = linha[4]
                         nome_produto = linha[5]
                         
-                        # O texto agora exibe: "Cliente: CLI-001 - Maria | Item: 101.1 - Lençol..."
                         texto_item = f"Linha {i+1} | Data: {linha[1]} | Cliente: {cod_cliente} - {nome_cliente} | Item: {cod_produto} - {nome_produto} | Pgto: {pagto_info}"
                         
                         if busca_venda:
-                            # Se tem busca, filtra em todo o histórico!
                             if busca_venda.lower() in texto_item.lower():
                                 vendas_filtradas.append(texto_item)
                         else:
-                            # Se não tem busca, guarda tudo (vamos pegar as últimas 20 depois)
                             vendas_filtradas.append(texto_item)
                 
                 if not busca_venda:
-                    # Sem busca, mostra só as últimas 20 para não travar a tela
                     vendas_filtradas = vendas_filtradas[-20:]
                 
-                vendas_filtradas.reverse() # Coloca as mais recentes no topo
+                vendas_filtradas.reverse()
                 
                 if vendas_filtradas:
                     venda_selecionada = st.selectbox("Selecione a venda com erro:", ["---"] + vendas_filtradas)
@@ -719,28 +714,69 @@ if menu_selecionado == "🛒 Vendas":
                         cod_prod_atual = linha_dados[4]     # E: CÓD. PRODUTO
                         nome_prod_atual = linha_dados[5]    # F: PRODUTO
                         
-                        # Assumindo H (Qtd) = 7 e I (Val Un) = 8
-                        qtd_atual = limpar_para_editar(linha_dados[7])
-                        val_atual = limpar_para_editar(linha_dados[8])
+                        def limpar_para_editar(val_str, is_perc=False):
+                            try:
+                                v = str(val_str).replace("R$", "").replace(" ", "").replace(".", "").replace(",", ".")
+                                if is_perc and "%" in str(val_str):
+                                    return float(v.replace("%", "")) / 100.0
+                                return float(v)
+                            except: return 0.0
+
+                        qtd_atual = limpar_para_editar(linha_dados[7]) # H
+                        val_atual = limpar_para_editar(linha_dados[8]) # I
                         
-                        # J: DESCONTO (%) -> Índice 9
-                        desc_perc_raw = limpar_para_editar(linha_dados[9], is_perc=True)
+                        desc_perc_raw = limpar_para_editar(linha_dados[9], is_perc=True) # J
                         desc_reais_atual = round((qtd_atual * val_atual) * desc_perc_raw, 2) if 0 <= desc_perc_raw <= 1 else 0.0
 
-                        # O: FORMA DE PAGAMENTO -> Índice 14
-                        metodo_atual = linha_dados[14] if len(linha_dados) > 14 else "Pix"
+                        metodo_atual = linha_dados[14] if len(linha_dados) > 14 else "Pix" # O
 
-                        # Q: Nº DE PARCELAS -> Índice 16
                         try: parc_atual = int(linha_dados[16]) if len(linha_dados) > 16 and str(linha_dados[16]).strip() else 1
-                        except: parc_atual = 1
+                        except: parc_atual = 1 # Q
                         
-                        # V: PRÓXIMA PARCELA (Vencimento) -> Índice 21
-                        venc_atual_str = str(linha_dados[21]) if len(linha_dados) > 21 and str(linha_dados[21]).strip() != "-" else ""
+                        venc_atual_str = str(linha_dados[21]) if len(linha_dados) > 21 and str(linha_dados[21]).strip() != "-" else "" # V
                         import datetime as dt
                         try: venc_atual_dt = dt.datetime.strptime(venc_atual_str, "%d/%m/%Y").date()
                         except: venc_atual_dt = dt.datetime.now().date()
 
-                        # ... [O formulário visual com as colunas e botões de Salvar/Excluir continua o mesmo] ...
+                        lista_clientes = [f"{k} - {v['nome']}" for k, v in banco_de_clientes.items()]
+                        cliente_str_atual = f"{cod_cli_atual} - {nome_cli_atual}"
+                        idx_cliente = lista_clientes.index(cliente_str_atual) if cliente_str_atual in lista_clientes else 0
+
+                        lista_produtos = [f"{k} - {v['nome']}" for k, v in banco_de_produtos.items()]
+                        produto_str_atual = f"{cod_prod_atual} - {nome_prod_atual}"
+                        idx_produto = lista_produtos.index(produto_str_atual) if produto_str_atual in lista_produtos else 0
+
+                        lista_metodos = ["Pix", "Dinheiro", "Cartão", "Sweet Flex"]
+                        idx_metodo = lista_metodos.index(metodo_atual) if metodo_atual in lista_metodos else 0
+
+                        with st.form(f"form_edicao_{linha_real}"):
+                            st.markdown(f"#### 🔄 Atualizar Dados (Linha {linha_real})")
+                            e_c1, e_c2 = st.columns(2)
+                            novo_cliente = e_c1.selectbox("Cliente Oficial", lista_clientes, index=idx_cliente)
+                            novo_produto = e_c2.selectbox("Produto Correto", lista_produtos, index=idx_produto)
+                            
+                            e_c3, e_c4, e_c5 = st.columns(3)
+                            nova_qtd = e_c3.number_input("Quantidade", value=float(qtd_atual), min_value=0.1)
+                            novo_val = e_c4.number_input("Preço Un. (R$)", value=float(val_atual))
+                            novo_desc = e_c5.number_input("Desconto (R$)", value=float(desc_reais_atual))
+                            
+                            novo_metodo = st.selectbox("Forma de Pagto", lista_metodos, index=idx_metodo)
+                            
+                            st.markdown("---")
+                            st.write("💳 **Detalhes de Parcelamento (Sweet Flex)**")
+                            c_flex1, c_flex2 = st.columns(2)
+                            novo_num_parc = c_flex1.number_input("Qtd Parcelas", value=parc_atual, min_value=1)
+                            novo_venc = c_flex2.date_input("Data do 1º Vencimento", value=venc_atual_dt)
+                            st.caption("ℹ️ *Estes dois campos só serão aplicados na planilha se a forma de pagamento escolhida acima for 'Sweet Flex'.*")
+                            
+                            st.divider()
+                            col_btn1, col_btn2 = st.columns([2, 1])
+                            
+                            salvar = col_btn1.form_submit_button("💾 Salvar Alteração", type="primary", use_container_width=True)
+                            
+                            st.write("---")
+                            confirma_exclusao = st.checkbox("Confirmar que desejo EXCLUIR esta venda permanentemente")
+                            excluir = col_btn2.form_submit_button("🗑️ Excluir", type="secondary", use_container_width=True)
 
                             if salvar:
                                 try:
@@ -753,13 +789,11 @@ if menu_selecionado == "🛒 Vendas":
                                     n_desc_perc = novo_desc / n_v_bruto if n_v_bruto > 0 else 0
                                     n_t_liq = n_v_bruto - novo_desc
                                     
-                                    # Lógica do Sweet Flex
                                     eh_parc = "Sim" if novo_metodo == "Sweet Flex" else "Não"
                                     num_parc_final = novo_num_parc if eh_parc == "Sim" else 1
                                     venc_final = novo_venc.strftime("%d/%m/%Y") if eh_parc == "Sim" else "-"
                                     
-                                    # 💡 AQUI ESTÁ O SEGREDO: Vamos enviar apenas os DADOS BRUTOS.
-                                    # As colunas K, L, T, U, W e X vão calcular sozinhas via Fórmula no Sheets!
+                                    # 💡 Salva apenas os dados base, deixando a planilha calcular Saldo, Total, etc.
                                     atualizacoes = [
                                         {'range': f'C{linha_real}', 'values': [[n_cod_cli]]},
                                         {'range': f'D{linha_real}', 'values': [[n_nome_cli]]},
@@ -770,10 +804,9 @@ if menu_selecionado == "🛒 Vendas":
                                         {'range': f'I{linha_real}', 'values': [[novo_val]]},
                                         {'range': f'J{linha_real}', 'values': [[n_desc_perc]]},
                                         {'range': f'O{linha_real}', 'values': [[novo_metodo]]},
-                                        {'range': f'Q{linha_real}', 'values': [[num_parc_final]]},  # Coluna Q: Parcelas
-                                        {'range': f'V{linha_real}', 'values': [[venc_final]]}       # Coluna V: Data Vencimento
+                                        {'range': f'Q{linha_real}', 'values': [[num_parc_final]]},
+                                        {'range': f'V{linha_real}', 'values': [[venc_final]]}
                                     ]
-                                    
                                     aba_vendas.batch_update(atualizacoes, value_input_option='USER_ENTERED')
                                     
                                     st.session_state['recibo_correcao'] = {
