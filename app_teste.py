@@ -708,6 +708,7 @@ if menu_selecionado == "🛒 Vendas":
                         linha_real = int(venda_selecionada.split(" | ")[0].replace("Linha ", ""))
                         linha_dados = dados_v[linha_real - 1]
                         
+                        # 💡 LEITURA DOS DADOS (Com proteção contra erros de índice)
                         cod_cli_atual = linha_dados[2]
                         nome_cli_atual = linha_dados[3]
                         cod_prod_atual = linha_dados[4]
@@ -728,7 +729,6 @@ if menu_selecionado == "🛒 Vendas":
 
                         metodo_atual = linha_dados[14] if len(linha_dados) > 14 else "Pix"
                         
-                        # 💡 RESGATE DOS DADOS DO SWEET FLEX E STATUS
                         try: parc_atual = int(linha_dados[16]) if len(linha_dados) > 16 and str(linha_dados[16]).strip() else 1
                         except: parc_atual = 1
                         
@@ -773,7 +773,6 @@ if menu_selecionado == "🛒 Vendas":
                             c_flex1, c_flex2 = st.columns(2)
                             novo_num_parc = c_flex1.number_input("Qtd Parcelas", value=parc_atual, min_value=1)
                             novo_venc = c_flex2.date_input("Data do 1º Vencimento", value=venc_atual_dt)
-                            st.caption("ℹ️ *Estes dois campos só serão aplicados na planilha se a forma de pagamento escolhida acima for 'Sweet Flex'.*")
                             
                             st.divider()
                             col_btn1, col_btn2 = st.columns([2, 1])
@@ -799,6 +798,10 @@ if menu_selecionado == "🛒 Vendas":
                                     num_parc_final = novo_num_parc if eh_parc == "Sim" else 1
                                     venc_final = novo_venc.strftime("%d/%m/%Y") if eh_parc == "Sim" else "-"
                                     
+                                    # 💡 AQUI É A MÁGICA: Em vez de sobrescrever as fórmulas de controle da planilha com zeros e números fixos (S, T, U),
+                                    # eu reenvio as suas fórmulas originais de volta, para o Sheets recalcular o valor de cada parcela e vista automaticamente!
+                                    # E insiro o STATUS NOVO na coluna W.
+                                    
                                     atualizacoes = [
                                         {'range': f'C{linha_real}', 'values': [[n_cod_cli]]},
                                         {'range': f'D{linha_real}', 'values': [[n_nome_cli]]},
@@ -809,10 +812,18 @@ if menu_selecionado == "🛒 Vendas":
                                         {'range': f'I{linha_real}', 'values': [[novo_val]]},
                                         {'range': f'J{linha_real}', 'values': [[n_desc_perc]]},
                                         {'range': f'O{linha_real}', 'values': [[novo_metodo]]},
+                                        {'range': f'P{linha_real}', 'values': [[eh_parc]]},
                                         {'range': f'Q{linha_real}', 'values': [[num_parc_final]]},
+                                        
+                                        # Recriando a matemática da Venda
+                                        {'range': f'S{linha_real}', 'values': [[n_t_liq / num_parc_final if eh_parc == "Sim" else 0]]},
+                                        {'range': f'T{linha_real}', 'values': [[n_t_liq if eh_parc == "Não" else 0]]},
+                                        {'range': f'U{linha_real}', 'values': [[n_t_liq if eh_parc == "Sim" else 0]]},
+                                        
                                         {'range': f'V{linha_real}', 'values': [[venc_final]]},
-                                        {'range': f'W{linha_real}', 'values': [[novo_status]]}
+                                        {'range': f'W{linha_real}', 'values': [[novo_status]]} # O SEU STATUS CORRIGIDO!
                                     ]
+                                    
                                     aba_vendas.batch_update(atualizacoes, value_input_option='USER_ENTERED')
                                     
                                     st.session_state['recibo_correcao'] = {
