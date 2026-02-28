@@ -682,7 +682,15 @@ if menu_selecionado == "🛒 Vendas":
                     linha = dados_v[i]
                     if len(linha) > 5 and "TOTAIS" not in str(linha[3]).upper() and str(linha[3]).strip() != "":
                         pagto_info = linha[14] if len(linha) > 14 else "Indefinido"
-                        texto_item = f"Linha {i+1} | Data: {linha[1]} | Cliente: {linha[3]} | Item: {linha[5]} | Pgto: {pagto_info}"
+                        
+                        # 💡 AQUI ESTÁ A MELHORIA: Trazendo o Código + Nome exatos da planilha
+                        cod_cliente = linha[2]
+                        nome_cliente = linha[3]
+                        cod_produto = linha[4]
+                        nome_produto = linha[5]
+                        
+                        # O texto agora exibe: "Cliente: CLI-001 - Maria | Item: 101.1 - Lençol..."
+                        texto_item = f"Linha {i+1} | Data: {linha[1]} | Cliente: {cod_cliente} - {nome_cliente} | Item: {cod_produto} - {nome_produto} | Pgto: {pagto_info}"
                         
                         if busca_venda:
                             # Se tem busca, filtra em todo o histórico!
