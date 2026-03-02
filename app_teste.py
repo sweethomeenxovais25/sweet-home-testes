@@ -37,6 +37,50 @@ def verificar_status_odoo(codigo_produto):
         return False, ""
 
 # ==========================================
+# 📱 FORÇANDO O ÍCONE NO SMARTPHONE (BASE64 HACK)
+# ==========================================
+def forcar_icone_smartphone(caminho_imagem):
+    # Verifica se a imagem realmente existe na pasta para não dar erro
+    if os.path.exists(caminho_imagem):
+        # Transforma a imagem em código de texto (Base64)
+        with open(caminho_imagem, 'rb') as f:
+            data = f.read()
+        img_base64 = base64.b64encode(data).decode()
+        img_url = f"data:image/png;base64,{img_base64}"
+
+        # Injeta o código invisível na página
+        components.html(
+            f"""
+            <script>
+                const doc = window.parent.document;
+                
+                // 1. Ícone para iPhone (Apple Touch Icon)
+                let appleIcon = doc.querySelector("link[rel='apple-touch-icon']");
+                if (!appleIcon) {{
+                    appleIcon = doc.createElement('link');
+                    appleIcon.rel = 'apple-touch-icon';
+                    doc.head.appendChild(appleIcon);
+                }}
+                appleIcon.href = '{img_url}';
+                
+                // 2. Ícone padrão (Android/Chrome)
+                let favicon = doc.querySelector("link[rel='icon']");
+                if (!favicon) {{
+                    favicon = doc.createElement('link');
+                    favicon.rel = 'icon';
+                    doc.head.appendChild(favicon);
+                }}
+                favicon.href = '{img_url}';
+            </script>
+            """,
+            height=0, 
+            width=0
+        )
+
+# Chama a função usando o nome exato do seu arquivo
+forcar_icone_smartphone("logo_sweet_teste.png")
+
+# ==========================================
 # 1. CONFIGURAÇÃO ÚNICA DA PÁGINA
 # ==========================================
 st.set_page_config(
