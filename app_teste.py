@@ -3114,11 +3114,37 @@ elif menu_selecionado == "📢 Gestão de Marketing":
     st.title("📢 Gestão de Marketing e Conteúdo")
     st.write("A sua central de comando para alinhar ideias, aprovar artes e dominar as redes sociais.")
     
+    # 💡 MEMÓRIA DO SISTEMA PARA RECIBOS (Evita o "Refresh Fantasma")
+    if 'recibo_mkt' not in st.session_state:
+        st.session_state['recibo_mkt'] = None
+    
     # Preparação dos Dados
     df_mkt = df_marketing.copy()
     if not df_mkt.empty:
         df_mkt.columns = [str(c).strip().upper() for c in df_mkt.columns]
     
+    # ==========================================
+    # 🧾 CENTRAL DE NOTIFICAÇÕES (RECIBOS)
+    # ==========================================
+    if st.session_state['recibo_mkt']:
+        recibo = st.session_state['recibo_mkt']
+        st.divider()
+        if recibo['acao'] == "criado":
+            st.success("✅ **Desafio Lançado com Sucesso!**")
+            st.markdown(f"A nova demanda **{recibo['id']}** ({recibo['formato']}) para o produto *{recibo['produto']}* já está no Kanban da equipe! Prazo: **{recibo['prazo']}**.")
+        elif recibo['acao'] == "movido":
+            st.success(f"🔄 **Tarefa Movida!** O card **{recibo['id']}** avançou para: **{recibo['novo_status']}**.")
+        elif recibo['acao'] == "validado":
+            st.success(f"🌐 **Arte no Ar!** O link oficial do Instagram foi vinculado à tarefa **{recibo['id']}** e o portfólio foi atualizado.")
+        elif recibo['acao'] == "editado":
+            st.success(f"✏️ **Atualização Salva!** A tarefa **{recibo['id']}** foi corrigida na base de dados.")
+        elif recibo['acao'] == "excluido":
+            st.warning(f"🗑️ **Demanda Excluída.** A tarefa foi removida permanentemente do sistema.")
+
+        if st.button("✖️ Fechar Aviso", key="fechar_aviso_mkt"):
+            st.session_state['recibo_mkt'] = None
+            st.rerun()
+            
     # 📊 DASHBOARD DE MÉTRICAS (VISÃO DO DIRETOR)
     st.divider()
     st.write("#### 📊 Visão Geral da Produção")
@@ -3127,7 +3153,6 @@ elif menu_selecionado == "📢 Gestão de Marketing":
     total_pedidos = len(df_mkt) if not df_mkt.empty else 0
     
     if not df_mkt.empty:
-        # 💡 A CORREÇÃO: O símbolo '|' atua como 'OU'. Agora ele soma a Fila com a Produção!
         em_producao = len(df_mkt[df_mkt['STATUS'].str.contains('Em Produção|Fila', case=False, na=False)])
         falta_postar = len(df_mkt[df_mkt['STATUS'].str.contains('Falta Postar', case=False, na=False)])
         concluidos = len(df_mkt[df_mkt['STATUS'].str.contains('Concluído', case=False, na=False)])
@@ -3153,7 +3178,6 @@ elif menu_selecionado == "📢 Gestão de Marketing":
         with st.form("form_novo_marketing", clear_on_submit=True):
             c1, c2 = st.columns([2, 1])
             
-            # O Pulo do Gato: Puxar os produtos reais do sistema
             opcoes_produtos = ["Nenhum / Post Institucional"] + [f"{k} - {v['nome']}" for k, v in banco_de_produtos.items()]
             f_produto = c1.selectbox("Sobre qual produto é o post?", opcoes_produtos)
             
@@ -3161,7 +3185,6 @@ elif menu_selecionado == "📢 Gestão de Marketing":
             
             f_desc = st.text_area("Descrição / Ideia", placeholder="Ex: Fazer um vídeo mostrando a elasticidade do tecido do lençol. Usar música em alta.")
             
-            # 💡 NOVO: Campo para o link da arte (Canva/Drive)
             f_link_arte = st.text_input("Link da Arte/Pasta (Canva/Drive) - Opcional", placeholder="Ex: https://canva.com/...")
             
             c3, c4 = st.columns(2)
@@ -3185,7 +3208,6 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                             data_hoje = dt.datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y")
                             data_prazo_str = f_data_agendada.strftime("%d/%m/%Y")
                             
-                            # 💡 NOVO ESPELHO DA PLANILHA (A até J)
                             linha_mkt = [
                                 novo_id,               # A: ID_TAREFA
                                 data_hoje,             # B: DATA_PEDIDO
@@ -3200,21 +3222,24 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                             ]
                             
                             aba_mkt.append_row(linha_mkt, value_input_option='RAW')
-                            st.success(f"✅ Tarefa {novo_id} registada com sucesso! O Gestor de Marketing já foi notificado (virtualmente)!")
-                            st.cache_data.clear(); st.rerun()
+                            
+                            # 💡 RECIBO E REFRESH
+                            st.session_state['recibo_mkt'] = {"acao": "criado", "id": novo_id, "produto": f_produto, "formato": f_formato, "prazo": data_prazo_str}
+                            st.cache_data.clear(); st.cache_resource.clear(); st.rerun()
                         except Exception as e:
                             st.error(f"Erro ao registar: {e}")
                 else:
                     st.warning("Por favor, preencha a descrição da ideia!")
                     
+    # ==========================================
+    # ABA 2: KANBAN
+    # ==========================================
     with t_kanban:
         st.write("### 📋 Quadro de Produção (Kanban)")
         
         if not df_mkt.empty:
-            # Criamos as 4 colunas visuais do seu fluxo de trabalho
             col_fila, col_prod, col_postar, col_done = st.columns(4)
             
-            # Mapeamento de Status e Cores
             status_map = [
                 ("📥 Fila (Aguardando Início)", col_fila),
                 ("✍️ Em Produção", col_prod),
@@ -3225,25 +3250,21 @@ elif menu_selecionado == "📢 Gestão de Marketing":
             for status_nome, coluna_gui in status_map:
                 with coluna_gui:
                     st.markdown(f"**{status_nome}**")
-                    # Filtra apenas as tarefas desse status
                     tarefas_status = df_mkt[df_mkt['STATUS'] == status_nome]
                     
                     if tarefas_status.empty:
                         st.caption("Vazio")
                     
                     for _, task in tarefas_status.iterrows():
-                        # Cada tarefa vira um card (expander)
                         with st.expander(f"📍 {task['ID_TAREFA']}", expanded=True):
                             st.write(f"**{task['FORMATO']}**")
                             st.caption(f"📅 Prazo: {task['DATA_AGENDADA']}")
                             st.write(f"<small>{task['DESCRIÇÃO']}</small>", unsafe_allow_html=True)
                             
-                            # 💡 NOVIDADE: Botão clicável para a equipe abrir o Canva/Drive
                             link_producao = str(task.get('LINK_ARTE', '-'))
                             if link_producao != "-" and link_producao.startswith("http"):
                                 st.markdown(f"🎨 [**Abrir Arte / Referência**]({link_producao})")
                             
-                            # 🔄 Botão para Mover para a próxima etapa
                             if status_nome != "🚀 Concluído":
                                 fluxo = {
                                     "📥 Fila (Aguardando Início)": "✍️ Em Produção",
@@ -3259,15 +3280,15 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                                         
                                         aba_mkt.update_acell(f"G{linha_planilha}", proximo)
                                         
-                                        # 💡 Ajustado para a Coluna J
                                         if proximo == "🚀 Concluído":
                                             import datetime as dt
                                             import pytz
                                             agora = dt.datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y %H:%M")
                                             aba_mkt.update_acell(f"J{linha_planilha}", agora)
                                             
-                                        st.toast(f"Tarefa {task['ID_TAREFA']} movida!")
-                                        st.cache_data.clear(); st.rerun()
+                                        # 💡 RECIBO E REFRESH
+                                        st.session_state['recibo_mkt'] = {"acao": "movido", "id": task['ID_TAREFA'], "novo_status": proximo}
+                                        st.cache_data.clear(); st.cache_resource.clear(); st.rerun()
                                     except Exception as e:
                                         st.error(f"Erro ao mover card: {e}")
         else:
@@ -3282,7 +3303,6 @@ elif menu_selecionado == "📢 Gestão de Marketing":
         
         if not df_mkt.empty:
             df_agenda = df_mkt.copy()
-            # Converte a data de texto (DD/MM/YYYY) para data real do Python
             df_agenda['DATA_DATETIME'] = pd.to_datetime(df_agenda['DATA_AGENDADA'], format='%d/%m/%Y', errors='coerce')
             df_agenda = df_agenda.dropna(subset=['DATA_DATETIME']).sort_values('DATA_DATETIME')
             
@@ -3290,34 +3310,23 @@ elif menu_selecionado == "📢 Gestão de Marketing":
             from datetime import datetime
             hoje_real = pd.to_datetime(datetime.now(pytz.timezone('America/Sao_Paulo')).strftime('%Y-%m-%d'))
             
-            # Filtra apenas o que AINDA NÃO FOI POSTADO
             df_agenda_pendente = df_agenda[~df_agenda['STATUS'].str.contains('Concluído', case=False, na=False)]
             
-            # 💡 FUNÇÃO CAÇADORA DE IMAGENS: Procura a foto do produto no df_docs
             def buscar_foto_produto(nome_produto_vinculado):
                 if not df_docs.empty and str(nome_produto_vinculado) != "Nenhum / Post Institucional":
-                    # Filtra documentos que são fotos e têm o vínculo exato com o produto
                     fotos = df_docs[(df_docs['TIPO'] == "Foto de Produto") & (df_docs['VINCULO'] == str(nome_produto_vinculado))]
                     if not fotos.empty:
-                        # Pega o link da foto mais recente que foi subida para esse produto
                         return str(fotos.iloc[-1].get('LINK_DRIVE', ''))
                 return None
 
-            # 💡 FUNÇÃO DESENHISTA: Cria o card visual com ou sem foto
             def renderizar_card_tarefa(task, titulo_tempo):
                 foto_url = buscar_foto_produto(task['PRODUTO_VINCULADO'])
-                
-                # Se achou a foto no Cloudinary, divide a tela (Foto na esquerda, texto na direita)
                 if foto_url and foto_url.startswith("http"):
                     c_img, c_txt = st.columns([1, 4])
-                    with c_img:
-                        st.image(foto_url, use_container_width=True)
-                    with c_txt:
-                        st.markdown(f"**{titulo_tempo}** | 📍 {task['ID_TAREFA']} - {task['FORMATO']}<br>📦 **Produto:** {task['PRODUTO_VINCULADO']}<br><small>*{task['DESCRIÇÃO']}*</small><br>Status: **{task['STATUS']}**", unsafe_allow_html=True)
+                    with c_img: st.image(foto_url, use_container_width=True)
+                    with c_txt: st.markdown(f"**{titulo_tempo}** | 📍 {task['ID_TAREFA']} - {task['FORMATO']}<br>📦 **Produto:** {task['PRODUTO_VINCULADO']}<br><small>*{task['DESCRIÇÃO']}*</small><br>Status: **{task['STATUS']}**", unsafe_allow_html=True)
                 else:
-                    # Se não tem foto (ou é post institucional), desenha normal
                     st.markdown(f"**{titulo_tempo}** | 📍 {task['ID_TAREFA']} - {task['FORMATO']}<br>📦 **Produto:** {task['PRODUTO_VINCULADO']}<br><small>*{task['DESCRIÇÃO']}*</small><br>Status: **{task['STATUS']}**", unsafe_allow_html=True)
-                
                 st.divider()
 
             if not df_agenda_pendente.empty:
@@ -3325,19 +3334,14 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                 hoje = df_agenda_pendente[df_agenda_pendente['DATA_DATETIME'] == hoje_real]
                 futuro = df_agenda_pendente[df_agenda_pendente['DATA_DATETIME'] > hoje_real]
                 
-                # 🔴 ATRASADOS
                 if not atrasados.empty:
                     st.error("#### 🔴 Prazos Estourados (Atrasados)")
-                    for _, task in atrasados.iterrows():
-                        renderizar_card_tarefa(task, task['DATA_AGENDADA'])
+                    for _, task in atrasados.iterrows(): renderizar_card_tarefa(task, task['DATA_AGENDADA'])
                 
-                # 🟢 HOJE
                 if not hoje.empty:
                     st.success("#### 🟢 Vai para o ar HOJE!")
-                    for _, task in hoje.iterrows():
-                        renderizar_card_tarefa(task, "HOJE")
+                    for _, task in hoje.iterrows(): renderizar_card_tarefa(task, "HOJE")
                 
-                # 🔵 PRÓXIMOS DIAS
                 if not futuro.empty:
                     st.info("#### 🔵 Próximos Dias")
                     for _, task in futuro.iterrows():
@@ -3357,7 +3361,6 @@ elif menu_selecionado == "📢 Gestão de Marketing":
         st.write("Postou no Instagram? Cole o link aqui para dar baixa oficial e guardar no histórico!")
         
         if not df_mkt.empty:
-            # 💡 CORREÇÃO: Agora verifica o LINK_PUBLICADO em vez do LINK_ARTE
             df_pendente_link = df_mkt[
                 (df_mkt['STATUS'].str.contains('Falta Postar', case=False, na=False)) | 
                 ((df_mkt['STATUS'].str.contains('Concluído', case=False, na=False)) & (df_mkt.get('LINK_PUBLICADO', '-') == "-"))
@@ -3384,13 +3387,13 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                                         import pytz
                                         agora = dt.datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y %H:%M")
                                         
-                                        # 💡 O NOVO ENDEREÇAMENTO (G, I, J)
                                         aba_mkt.update_acell(f"G{linha_planilha}", "🚀 Concluído") # Status
                                         aba_mkt.update_acell(f"I{linha_planilha}", link_post)      # Link Instagram
                                         aba_mkt.update_acell(f"J{linha_planilha}", agora)          # Data Conclusão
                                         
-                                        st.success("✅ Arte validada! Link salvo e métricas de tempo atualizadas.")
-                                        st.cache_data.clear(); st.rerun()
+                                        # 💡 RECIBO E REFRESH
+                                        st.session_state['recibo_mkt'] = {"acao": "validado", "id": id_alvo}
+                                        st.cache_data.clear(); st.cache_resource.clear(); st.rerun()
                                     except Exception as e:
                                         st.error(f"Erro ao salvar o link: {e}")
                             else:
@@ -3400,14 +3403,11 @@ elif menu_selecionado == "📢 Gestão de Marketing":
             
             st.divider()
             
-            # --- TABELA DE HISTÓRICO (PORTFÓLIO) ---
             st.write("#### 🏆 Histórico de Sucesso (Portfólio)")
             df_concluidos = df_mkt[df_mkt['STATUS'].str.contains('Concluído', case=False, na=False)].copy()
             
             if not df_concluidos.empty:
-                # 💡 Exibe o LINK_PUBLICADO na vitrine final
                 colunas_mostrar = ['DATA_CONCLUSAO', 'ID_TAREFA', 'PRODUTO_VINCULADO', 'FORMATO', 'LINK_PUBLICADO']
-                # Tratamento de erro caso a coluna seja muito nova
                 if 'LINK_PUBLICADO' not in df_concluidos.columns: df_concluidos['LINK_PUBLICADO'] = "-"
                 
                 df_view = df_concluidos[colunas_mostrar].copy().iloc[::-1]
@@ -3480,7 +3480,6 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                     except: idx_status = 0
                     novo_status = e_c4.selectbox("Status Atual", lista_status, index=idx_status)
                     
-                    # 💡 NOVO: DOIS CAMPOS DE LINKS
                     st.write("🔗 **Gestão de Links**")
                     e_c5, e_c6 = st.columns(2)
                     novo_link_arte = e_c5.text_input("Link da Arte (Canva/Drive)", value=str(dados_atuais.get('LINK_ARTE', '-')))
@@ -3506,12 +3505,13 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                                     {'range': f'E{linha_alvo}', 'values': [[nova_desc]]},
                                     {'range': f'F{linha_alvo}', 'values': [[nova_data_str]]},
                                     {'range': f'G{linha_alvo}', 'values': [[novo_status]]},
-                                    {'range': f'H{linha_alvo}', 'values': [[novo_link_arte]]}, # Canva
-                                    {'range': f'I{linha_alvo}', 'values': [[novo_link_pub]]}   # Instagram
+                                    {'range': f'H{linha_alvo}', 'values': [[novo_link_arte]]},
+                                    {'range': f'I{linha_alvo}', 'values': [[novo_link_pub]]}
                                 ]
                                 aba_mkt.batch_update(atualizacoes, value_input_option='USER_ENTERED')
                                 
-                                st.success("✅ Demanda atualizada com sucesso!")
+                                # 💡 RECIBO E REFRESH
+                                st.session_state['recibo_mkt'] = {"acao": "editado", "id": dados_atuais.get('ID_TAREFA', '')}
                                 st.cache_data.clear(); st.cache_resource.clear(); st.rerun()
                             except Exception as e:
                                 st.error(f"Erro ao salvar: {e}")
@@ -3522,7 +3522,9 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                                 try:
                                     aba_mkt = planilha_mestre.worksheet("MARKETING")
                                     aba_mkt.delete_rows(linha_alvo)
-                                    st.success("🗑️ Demanda excluída do sistema!")
+                                    
+                                    # 💡 RECIBO E REFRESH
+                                    st.session_state['recibo_mkt'] = {"acao": "excluido"}
                                     st.cache_data.clear(); st.cache_resource.clear(); st.rerun()
                                 except Exception as e:
                                     st.error(f"Erro ao excluir: {e}")
