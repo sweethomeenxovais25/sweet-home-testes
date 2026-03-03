@@ -3303,6 +3303,7 @@ elif menu_selecionado == "📢 Gestão de Marketing":
         
         if not df_mkt.empty:
             df_agenda = df_mkt.copy()
+            # Converte a data de texto (DD/MM/YYYY) para data real do Python
             df_agenda['DATA_DATETIME'] = pd.to_datetime(df_agenda['DATA_AGENDADA'], format='%d/%m/%Y', errors='coerce')
             df_agenda = df_agenda.dropna(subset=['DATA_DATETIME']).sort_values('DATA_DATETIME')
             
@@ -3310,23 +3311,34 @@ elif menu_selecionado == "📢 Gestão de Marketing":
             from datetime import datetime
             hoje_real = pd.to_datetime(datetime.now(pytz.timezone('America/Sao_Paulo')).strftime('%Y-%m-%d'))
             
+            # Filtra apenas o que AINDA NÃO FOI POSTADO
             df_agenda_pendente = df_agenda[~df_agenda['STATUS'].str.contains('Concluído', case=False, na=False)]
             
+            # 💡 FUNÇÃO CAÇADORA DE IMAGENS: Procura a foto do produto no df_docs
             def buscar_foto_produto(nome_produto_vinculado):
                 if not df_docs.empty and str(nome_produto_vinculado) != "Nenhum / Post Institucional":
+                    # Filtra documentos que são fotos e têm o vínculo exato com o produto
                     fotos = df_docs[(df_docs['TIPO'] == "Foto de Produto") & (df_docs['VINCULO'] == str(nome_produto_vinculado))]
                     if not fotos.empty:
+                        # Pega o link da foto mais recente que foi subida para esse produto
                         return str(fotos.iloc[-1].get('LINK_DRIVE', ''))
                 return None
 
+            # 💡 FUNÇÃO DESENHISTA: Cria o card visual com ou sem foto
             def renderizar_card_tarefa(task, titulo_tempo):
                 foto_url = buscar_foto_produto(task['PRODUTO_VINCULADO'])
+                
+                # Se achou a foto no Cloudinary/Drive, divide a tela (Foto na esquerda, texto na direita)
                 if foto_url and foto_url.startswith("http"):
                     c_img, c_txt = st.columns([1, 4])
-                    with c_img: st.image(foto_url, use_container_width=True)
-                    with c_txt: st.markdown(f"**{titulo_tempo}** | 📍 {task['ID_TAREFA']} - {task['FORMATO']}<br>📦 **Produto:** {task['PRODUTO_VINCULADO']}<br><small>*{task['DESCRIÇÃO']}*</small><br>Status: **{task['STATUS']}**", unsafe_allow_html=True)
+                    with c_img:
+                        st.image(foto_url, use_container_width=True)
+                    with c_txt:
+                        st.markdown(f"**{titulo_tempo}** | 📍 {task['ID_TAREFA']} - {task['FORMATO']}<br>📦 **Produto:** {task['PRODUTO_VINCULADO']}<br><small>*{task['DESCRIÇÃO']}*</small><br>Status: **{task['STATUS']}**", unsafe_allow_html=True)
                 else:
+                    # Se não tem foto (ou é post institucional), desenha normal
                     st.markdown(f"**{titulo_tempo}** | 📍 {task['ID_TAREFA']} - {task['FORMATO']}<br>📦 **Produto:** {task['PRODUTO_VINCULADO']}<br><small>*{task['DESCRIÇÃO']}*</small><br>Status: **{task['STATUS']}**", unsafe_allow_html=True)
+                
                 st.divider()
 
             if not df_agenda_pendente.empty:
@@ -3334,14 +3346,19 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                 hoje = df_agenda_pendente[df_agenda_pendente['DATA_DATETIME'] == hoje_real]
                 futuro = df_agenda_pendente[df_agenda_pendente['DATA_DATETIME'] > hoje_real]
                 
+                # 🔴 ATRASADOS
                 if not atrasados.empty:
                     st.error("#### 🔴 Prazos Estourados (Atrasados)")
-                    for _, task in atrasados.iterrows(): renderizar_card_tarefa(task, task['DATA_AGENDADA'])
+                    for _, task in atrasados.iterrows():
+                        renderizar_card_tarefa(task, task['DATA_AGENDADA'])
                 
+                # 🟢 HOJE
                 if not hoje.empty:
                     st.success("#### 🟢 Vai para o ar HOJE!")
-                    for _, task in hoje.iterrows(): renderizar_card_tarefa(task, "HOJE")
+                    for _, task in hoje.iterrows():
+                        renderizar_card_tarefa(task, "HOJE")
                 
+                # 🔵 PRÓXIMOS DIAS
                 if not futuro.empty:
                     st.info("#### 🔵 Próximos Dias")
                     for _, task in futuro.iterrows():
