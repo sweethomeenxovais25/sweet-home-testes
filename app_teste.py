@@ -3122,28 +3122,6 @@ elif menu_selecionado == "📢 Gestão de Marketing":
     df_mkt = df_marketing.copy()
     if not df_mkt.empty:
         df_mkt.columns = [str(c).strip().upper() for c in df_mkt.columns]
-    
-    # ==========================================
-    # 🧾 CENTRAL DE NOTIFICAÇÕES (RECIBOS)
-    # ==========================================
-    if st.session_state['recibo_mkt']:
-        recibo = st.session_state['recibo_mkt']
-        st.divider()
-        if recibo['acao'] == "criado":
-            st.success("✅ **Desafio Lançado com Sucesso!**")
-            st.markdown(f"A nova demanda **{recibo['id']}** ({recibo['formato']}) para o produto *{recibo['produto']}* já está no Kanban da equipe! Prazo: **{recibo['prazo']}**.")
-        elif recibo['acao'] == "movido":
-            st.success(f"🔄 **Tarefa Movida!** O card **{recibo['id']}** avançou para: **{recibo['novo_status']}**.")
-        elif recibo['acao'] == "validado":
-            st.success(f"🌐 **Arte no Ar!** O link oficial do Instagram foi vinculado à tarefa **{recibo['id']}** e o portfólio foi atualizado.")
-        elif recibo['acao'] == "editado":
-            st.success(f"✏️ **Atualização Salva!** A tarefa **{recibo['id']}** foi corrigida na base de dados.")
-        elif recibo['acao'] == "excluido":
-            st.warning(f"🗑️ **Demanda Excluída.** A tarefa foi removida permanentemente do sistema.")
-
-        if st.button("✖️ Fechar Aviso", key="fechar_aviso_mkt"):
-            st.session_state['recibo_mkt'] = None
-            st.rerun()
             
     # 📊 DASHBOARD DE MÉTRICAS (VISÃO DO DIRETOR)
     st.divider()
@@ -3167,12 +3145,31 @@ elif menu_selecionado == "📢 Gestão de Marketing":
     
     st.divider()
     
-    # ABAS DE NAVEGAÇÃO DO MARKETING
-    t_nova_tarefa, t_kanban, t_calendario, t_auditoria = st.tabs(["➕ Nova Demanda", "📋 Quadro de Produção", "📅 Agenda", "✅ Vitrine & Auditoria"])
+   # 💡 NAVEGAÇÃO COM MEMÓRIA (Evita voltar para a primeira tela após ações)
+    aba_selecionada = st.radio(
+        "Navegue pelo Marketing:",
+        ["➕ Nova Demanda", "📋 Quadro de Produção", "📅 Agenda", "✅ Vitrine & Auditoria"],
+        horizontal=True,
+        key="aba_mkt_memoria", # Essa chave é a mágica: o Streamlit não esquece onde você estava!
+        label_visibility="collapsed"
+    )
     
     # ==========================================
     # ABA 1: NOVA DEMANDA (ONDE A BIA PEDE)
     # ==========================================
+    if aba_selecionada == "➕ Nova Demanda":
+        
+        # 👇 VISUAL DO RECIBO: Fica aqui no topo da aba! 
+        # Quando a página recarregar, ele lê a memória e exibe a mensagem verde.
+        if st.session_state.get('recibo_mkt') and st.session_state['recibo_mkt']['acao'] == "criado":
+            r = st.session_state['recibo_mkt']
+            st.success("✅ **Desafio Lançado com Sucesso!**")
+            st.markdown(f"A demanda **{r['id']}** ({r['formato']}) para *{r['produto']}* já está no Kanban! Prazo: **{r['prazo']}**.")
+            if st.button("✖️ Fechar Aviso", key="fechar_criado"):
+                st.session_state['recibo_mkt'] = None
+                st.rerun()
+            st.divider()
+            
     with t_nova_tarefa:
         st.write("#### 💡 O que precisamos criar hoje?")
         with st.form("form_novo_marketing", clear_on_submit=True):
@@ -3234,6 +3231,16 @@ elif menu_selecionado == "📢 Gestão de Marketing":
     # ==========================================
     # ABA 2: KANBAN
     # ==========================================
+    elif aba_selecionada == "📋 Quadro de Produção":
+        # 🧾 RECIBO LOCALIZADO
+        if st.session_state.get('recibo_mkt') and st.session_state['recibo_mkt']['acao'] == "movido":
+            r = st.session_state['recibo_mkt']
+            st.success(f"🔄 **Tarefa Movida!** O card **{r['id']}** avançou para: **{r['novo_status']}**.")
+            if st.button("✖️ Fechar Aviso", key="fechar_movido"):
+                st.session_state['recibo_mkt'] = None
+                st.rerun()
+            st.divider()
+            
     with t_kanban:
         st.write("### 📋 Quadro de Produção (Kanban)")
         
@@ -3373,6 +3380,16 @@ elif menu_selecionado == "📢 Gestão de Marketing":
     # ==========================================
     # ABA 4: VITRINE E AUDITORIA (LINKAR O INSTAGRAM)
     # ==========================================
+    elif aba_selecionada == "✅ Vitrine & Auditoria":
+        # 🧾 RECIBO LOCALIZADO
+        if st.session_state.get('recibo_mkt') and st.session_state['recibo_mkt']['acao'] == "validado":
+            r = st.session_state['recibo_mkt']
+            st.success(f"🌐 **Arte no Ar!** O link do Instagram foi vinculado à tarefa **{r['id']}** e o portfólio atualizado.")
+            if st.button("✖️ Fechar Aviso", key="fechar_validado"):
+                st.session_state['recibo_mkt'] = None
+                st.rerun()
+            st.divider()
+            
     with t_auditoria:
         st.write("### ✅ Validação de Postagens (Auditoria)")
         st.write("Postou no Instagram? Cole o link aqui para dar baixa oficial e guardar no histórico!")
@@ -3447,7 +3464,25 @@ elif menu_selecionado == "📢 Gestão de Marketing":
     # ✏️ BORRACHA MÁGICA: EDIÇÃO E EXCLUSÃO (MARKETING)
     # ==========================================
     st.divider()
-    with st.expander("✏️ Corrigir ou Excluir Demanda de Marketing", expanded=False):
+    
+    # 💡 O Expander abre sozinho se você acabou de editar/excluir algo
+    abriu_borracha = True if st.session_state.get('recibo_mkt') and st.session_state['recibo_mkt']['acao'] in ['editado', 'excluido'] else False
+    
+    with st.expander("✏️ Corrigir ou Excluir Demanda de Marketing", expanded=abriu_borracha):
+        
+        # 🧾 RECIBO LOCALIZADO
+        if abriu_borracha:
+            r = st.session_state['recibo_mkt']
+            if r['acao'] == "editado":
+                st.success(f"✏️ **Atualização Salva!** A tarefa **{r['id']}** foi corrigida com sucesso.")
+            else:
+                st.warning("🗑️ **Demanda Excluída permanentemente.**")
+                
+            if st.button("✖️ Fechar Aviso", key="fechar_borracha"):
+                st.session_state['recibo_mkt'] = None
+                st.rerun()
+            st.divider()
+            
         st.write("Lançou um post errado ou duplicou sem querer? Escolha a demanda abaixo para corrigir os dados ou excluir permanentemente.")
         
         if not df_mkt.empty:
