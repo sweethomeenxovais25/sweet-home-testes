@@ -3232,6 +3232,7 @@ elif menu_selecionado == "📢 Gestão de Marketing":
     # ABA 2: KANBAN
     # ==========================================
     elif aba_selecionada == "📋 Quadro de Produção":
+    
         # 🧾 RECIBO LOCALIZADO
         if st.session_state.get('recibo_mkt') and st.session_state['recibo_mkt']['acao'] == "movido":
             r = st.session_state['recibo_mkt']
@@ -3381,6 +3382,7 @@ elif menu_selecionado == "📢 Gestão de Marketing":
     # ABA 4: VITRINE E AUDITORIA (LINKAR O INSTAGRAM)
     # ==========================================
     elif aba_selecionada == "✅ Vitrine & Auditoria":
+    
         # 🧾 RECIBO LOCALIZADO
         if st.session_state.get('recibo_mkt') and st.session_state['recibo_mkt']['acao'] == "validado":
             r = st.session_state['recibo_mkt']
