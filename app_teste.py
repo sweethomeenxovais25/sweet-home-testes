@@ -85,7 +85,6 @@ estilo_sweet_clean = """
     }
 
     /* ✨ O EXORCISMO DA SETA FANTASMA ✨ */
-    /* Pega a seta de abrir e a de fechar diretamente pelo código do Streamlit */
     [data-testid="collapsedControl"] svg, 
     [data-testid="collapsedControl"] path,
     [data-testid="stSidebar"] button svg,
@@ -95,18 +94,16 @@ estilo_sweet_clean = """
         stroke: #31241b !important;
     }
 
-    /* Força os textos comuns a ficarem escuros (caso o navegador esteja no modo escuro) */
     .stMarkdown, p, span, label, div[data-testid="stMetricValue"] {
         color: #31241b !important;
     }
 
-    /* 3. Títulos na cor Café Intenso */
     h1, h2, h3, h4 {
         color: #31241b !important;
     }
 
-    /* 4. Botões Principais no tom Caramelo */
-    .stButton>button {
+    /* 4. BOTÕES PRIMÁRIOS (Ações Fortes de Salvar/Enviar - Tom Caramelo) */
+    button[kind="primary"] {
         background-color: #A67B5B !important; 
         color: #ffffff !important;
         font-weight: bold !important;
@@ -116,15 +113,33 @@ estilo_sweet_clean = """
         transition: all 0.2s ease-in-out !important;
     }
     
-    .stButton>button:hover {
+    button[kind="primary"]:hover {
         background-color: #8B5A2B !important;
-        color: #ffffff !important;
         transform: scale(1.02);
     }
     
-    /* Protege a letra do botão para continuar branca */
-    .stButton>button p, .stButton>button span {
+    button[kind="primary"] p, button[kind="primary"] span {
         color: #ffffff !important;
+    }
+
+    /* 5. BOTÕES SECUNDÁRIOS (Abas de Navegação e Cancelamentos - Tom Bege da Logo) */
+    button[kind="secondary"] {
+        background-color: #F5E6CE !important; /* Bege Claro Quente */
+        color: #31241b !important; /* Letra na cor Café */
+        font-weight: bold !important;
+        border-radius: 6px !important;
+        border: 1px solid #EAE0D3 !important;
+        box-shadow: none !important;
+        transition: all 0.2s ease-in-out !important;
+    }
+    
+    button[kind="secondary"]:hover {
+        background-color: #E6D2B5 !important;
+        transform: scale(1.02);
+    }
+    
+    button[kind="secondary"] p, button[kind="secondary"] span {
+        color: #31241b !important;
     }
 
     /* Limpeza do cabeçalho e rodapé */
@@ -3145,7 +3160,7 @@ elif menu_selecionado == "📢 Gestão de Marketing":
     
     st.divider()
     
-    # 💡 NAVEGAÇÃO COM MEMÓRIA (Visual "Premium" Garantido)
+    # 💡 NAVEGAÇÃO COM MEMÓRIA (Botões Beges com Barra Caramelo)
     if 'aba_mkt_memoria' not in st.session_state:
         st.session_state['aba_mkt_memoria'] = "➕ Nova Demanda"
 
@@ -3153,33 +3168,33 @@ elif menu_selecionado == "📢 Gestão de Marketing":
 
     c_tab1, c_tab2, c_tab3, c_tab4 = st.columns(4)
     
-    # 🎨 Função infalível com Gradiente Elegante e espaçamento seguro
+    # 🎨 Barra de Destaque na cor Caramelo Oficial (#A67B5B)
     def barra_destaque():
-        return """<div style="height: 5px; width: 100%; background: linear-gradient(90deg, #ff7eb3, #ff758c); border-radius: 5px; margin-top: 2px; margin-bottom: 15px; box-shadow: 0px 2px 4px rgba(255, 117, 140, 0.4);"></div>"""
+        return """<div style="height: 5px; width: 100%; background-color: #A67B5B; border-radius: 5px; margin-top: 2px; margin-bottom: 15px; box-shadow: 0px 2px 4px rgba(166, 123, 91, 0.4);"></div>"""
 
     with c_tab1:
-        if st.button("➕ Nova Demanda", use_container_width=True, type="primary" if aba_atual == "➕ Nova Demanda" else "secondary"):
+        if st.button("➕ Nova Demanda", use_container_width=True, type="secondary"):
             st.session_state['aba_mkt_memoria'] = "➕ Nova Demanda"
             st.rerun()
         if aba_atual == "➕ Nova Demanda":
             st.markdown(barra_destaque(), unsafe_allow_html=True)
 
     with c_tab2:
-        if st.button("📋 Quadro de Produção", use_container_width=True, type="primary" if aba_atual == "📋 Quadro de Produção" else "secondary"):
+        if st.button("📋 Quadro de Produção", use_container_width=True, type="secondary"):
             st.session_state['aba_mkt_memoria'] = "📋 Quadro de Produção"
             st.rerun()
         if aba_atual == "📋 Quadro de Produção":
             st.markdown(barra_destaque(), unsafe_allow_html=True)
 
     with c_tab3:
-        if st.button("📅 Agenda", use_container_width=True, type="primary" if aba_atual == "📅 Agenda" else "secondary"):
+        if st.button("📅 Agenda", use_container_width=True, type="secondary"):
             st.session_state['aba_mkt_memoria'] = "📅 Agenda"
             st.rerun()
         if aba_atual == "📅 Agenda":
             st.markdown(barra_destaque(), unsafe_allow_html=True)
 
     with c_tab4:
-        if st.button("✅ Vitrine & Auditoria", use_container_width=True, type="primary" if aba_atual == "✅ Vitrine & Auditoria" else "secondary"):
+        if st.button("✅ Vitrine & Auditoria", use_container_width=True, type="secondary"):
             st.session_state['aba_mkt_memoria'] = "✅ Vitrine & Auditoria"
             st.rerun()
         if aba_atual == "✅ Vitrine & Auditoria":
