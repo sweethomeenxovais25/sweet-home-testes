@@ -3145,30 +3145,47 @@ elif menu_selecionado == "📢 Gestão de Marketing":
     
     st.divider()
     
-    # 💡 NAVEGAÇÃO COM MEMÓRIA (Visual limpo imitando Abas)
+    # 💡 NAVEGAÇÃO COM MEMÓRIA (Visual "Premium" imitando Abas Reais)
     if 'aba_mkt_memoria' not in st.session_state:
         st.session_state['aba_mkt_memoria'] = "➕ Nova Demanda"
 
-    # Cria 4 blocos lado a lado idênticos às abas
+    aba_atual = st.session_state['aba_mkt_memoria']
+
     c_tab1, c_tab2, c_tab3, c_tab4 = st.columns(4)
     
-    if c_tab1.button("➕ Nova Demanda", use_container_width=True, type="primary" if st.session_state['aba_mkt_memoria'] == "➕ Nova Demanda" else "secondary"):
-        st.session_state['aba_mkt_memoria'] = "➕ Nova Demanda"
-        st.rerun()
-        
-    if c_tab2.button("📋 Quadro de Produção", use_container_width=True, type="primary" if st.session_state['aba_mkt_memoria'] == "📋 Quadro de Produção" else "secondary"):
-        st.session_state['aba_mkt_memoria'] = "📋 Quadro de Produção"
-        st.rerun()
-        
-    if c_tab3.button("📅 Agenda", use_container_width=True, type="primary" if st.session_state['aba_mkt_memoria'] == "📅 Agenda" else "secondary"):
-        st.session_state['aba_mkt_memoria'] = "📅 Agenda"
-        st.rerun()
-        
-    if c_tab4.button("✅ Vitrine & Auditoria", use_container_width=True, type="primary" if st.session_state['aba_mkt_memoria'] == "✅ Vitrine & Auditoria" else "secondary"):
-        st.session_state['aba_mkt_memoria'] = "✅ Vitrine & Auditoria"
-        st.rerun()
+    # 🎨 Função que desenha a "Linha de Destaque" usando a cor principal do seu tema
+    def barra_destaque():
+        return "<div style='height: 4px; background-color: var(--primary-color); border-radius: 2px; margin-top: -13px; margin-bottom: 15px;'></div>"
 
-    # O sistema lê qual botão está ativo e mostra o conteúdo correspondente
+    with c_tab1:
+        if st.button("➕ Nova Demanda", use_container_width=True, type="primary" if aba_atual == "➕ Nova Demanda" else "secondary"):
+            st.session_state['aba_mkt_memoria'] = "➕ Nova Demanda"
+            st.rerun()
+        if aba_atual == "➕ Nova Demanda":
+            st.markdown(barra_destaque(), unsafe_allow_html=True)
+
+    with c_tab2:
+        if st.button("📋 Quadro de Produção", use_container_width=True, type="primary" if aba_atual == "📋 Quadro de Produção" else "secondary"):
+            st.session_state['aba_mkt_memoria'] = "📋 Quadro de Produção"
+            st.rerun()
+        if aba_atual == "📋 Quadro de Produção":
+            st.markdown(barra_destaque(), unsafe_allow_html=True)
+
+    with c_tab3:
+        if st.button("📅 Agenda", use_container_width=True, type="primary" if aba_atual == "📅 Agenda" else "secondary"):
+            st.session_state['aba_mkt_memoria'] = "📅 Agenda"
+            st.rerun()
+        if aba_atual == "📅 Agenda":
+            st.markdown(barra_destaque(), unsafe_allow_html=True)
+
+    with c_tab4:
+        if st.button("✅ Vitrine & Auditoria", use_container_width=True, type="primary" if aba_atual == "✅ Vitrine & Auditoria" else "secondary"):
+            st.session_state['aba_mkt_memoria'] = "✅ Vitrine & Auditoria"
+            st.rerun()
+        if aba_atual == "✅ Vitrine & Auditoria":
+            st.markdown(barra_destaque(), unsafe_allow_html=True)
+
+    # O sistema lê qual botão está ativo e mostra o conteúdo correspondente abaixo
     aba_selecionada = st.session_state['aba_mkt_memoria']
     
     # ==========================================
