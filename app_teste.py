@@ -3145,14 +3145,31 @@ elif menu_selecionado == "📢 Gestão de Marketing":
     
     st.divider()
     
-    # 💡 NAVEGAÇÃO COM MEMÓRIA (Substitui as abas antigas para a página não resetar ao salvar)
-    aba_selecionada = st.radio(
-        "Navegue pelo Marketing:",
-        ["➕ Nova Demanda", "📋 Quadro de Produção", "📅 Agenda", "✅ Vitrine & Auditoria"],
-        horizontal=True,
-        key="aba_mkt_memoria",
-        label_visibility="collapsed"
-    )
+    # 💡 NAVEGAÇÃO COM MEMÓRIA (Visual limpo imitando Abas)
+    if 'aba_mkt_memoria' not in st.session_state:
+        st.session_state['aba_mkt_memoria'] = "➕ Nova Demanda"
+
+    # Cria 4 blocos lado a lado idênticos às abas
+    c_tab1, c_tab2, c_tab3, c_tab4 = st.columns(4)
+    
+    if c_tab1.button("➕ Nova Demanda", use_container_width=True, type="primary" if st.session_state['aba_mkt_memoria'] == "➕ Nova Demanda" else "secondary"):
+        st.session_state['aba_mkt_memoria'] = "➕ Nova Demanda"
+        st.rerun()
+        
+    if c_tab2.button("📋 Quadro de Produção", use_container_width=True, type="primary" if st.session_state['aba_mkt_memoria'] == "📋 Quadro de Produção" else "secondary"):
+        st.session_state['aba_mkt_memoria'] = "📋 Quadro de Produção"
+        st.rerun()
+        
+    if c_tab3.button("📅 Agenda", use_container_width=True, type="primary" if st.session_state['aba_mkt_memoria'] == "📅 Agenda" else "secondary"):
+        st.session_state['aba_mkt_memoria'] = "📅 Agenda"
+        st.rerun()
+        
+    if c_tab4.button("✅ Vitrine & Auditoria", use_container_width=True, type="primary" if st.session_state['aba_mkt_memoria'] == "✅ Vitrine & Auditoria" else "secondary"):
+        st.session_state['aba_mkt_memoria'] = "✅ Vitrine & Auditoria"
+        st.rerun()
+
+    # O sistema lê qual botão está ativo e mostra o conteúdo correspondente
+    aba_selecionada = st.session_state['aba_mkt_memoria']
     
     # ==========================================
     # ABA 1: NOVA DEMANDA (ONDE A BIA PEDE)
