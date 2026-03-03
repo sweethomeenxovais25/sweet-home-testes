@@ -3114,11 +3114,10 @@ elif menu_selecionado == "📢 Gestão de Marketing":
     st.title("📢 Gestão de Marketing e Conteúdo")
     st.write("A sua central de comando para alinhar ideias, aprovar artes e dominar as redes sociais.")
     
-    # 💡 MEMÓRIA DO SISTEMA PARA RECIBOS (Evita o "Refresh Fantasma")
+    # 💡 MEMÓRIA DO SISTEMA PARA RECIBOS
     if 'recibo_mkt' not in st.session_state:
         st.session_state['recibo_mkt'] = None
     
-    # Preparação dos Dados
     df_mkt = df_marketing.copy()
     if not df_mkt.empty:
         df_mkt.columns = [str(c).strip().upper() for c in df_mkt.columns]
@@ -3127,9 +3126,7 @@ elif menu_selecionado == "📢 Gestão de Marketing":
     st.divider()
     st.write("#### 📊 Visão Geral da Produção")
     
-    # Cálculo das Métricas
     total_pedidos = len(df_mkt) if not df_mkt.empty else 0
-    
     if not df_mkt.empty:
         em_producao = len(df_mkt[df_mkt['STATUS'].str.contains('Em Produção|Fila', case=False, na=False)])
         falta_postar = len(df_mkt[df_mkt['STATUS'].str.contains('Falta Postar', case=False, na=False)])
@@ -3138,19 +3135,19 @@ elif menu_selecionado == "📢 Gestão de Marketing":
         em_producao = falta_postar = concluidos = 0
         
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Fila & Produção", f"{em_producao}", help="Tarefas que o Gestor de Marketing precisa criar/editar.")
-    m2.metric("Aguardando Postagem", f"{falta_postar}", delta="Atenção", delta_color="inverse", help="Artes prontas! Só falta aprovar e colocar no Instagram.")
+    m1.metric("Fila & Produção", f"{em_producao}", help="Tarefas que o Gestor precisa criar/editar.")
+    m2.metric("Aguardando Postagem", f"{falta_postar}", delta="Atenção", delta_color="inverse")
     m3.metric("Postados (Sucesso)", f"{concluidos}", delta="Missão Cumprida")
     m4.metric("Total de Demandas", f"{total_pedidos}")
     
     st.divider()
     
-   # 💡 NAVEGAÇÃO COM MEMÓRIA (Evita voltar para a primeira tela após ações)
+    # 💡 NAVEGAÇÃO INTELIGENTE (Substitui as abas antigas para não perder a página no refresh)
     aba_selecionada = st.radio(
         "Navegue pelo Marketing:",
         ["➕ Nova Demanda", "📋 Quadro de Produção", "📅 Agenda", "✅ Vitrine & Auditoria"],
         horizontal=True,
-        key="aba_mkt_memoria", # Essa chave é a mágica: o Streamlit não esquece onde você estava!
+        key="aba_mkt_memoria",
         label_visibility="collapsed"
     )
     
@@ -3159,8 +3156,7 @@ elif menu_selecionado == "📢 Gestão de Marketing":
     # ==========================================
     if aba_selecionada == "➕ Nova Demanda":
         
-        # 👇 VISUAL DO RECIBO: Fica aqui no topo da aba! 
-        # Quando a página recarregar, ele lê a memória e exibe a mensagem verde.
+        # 🧾 RECIBO LOCALIZADO
         if st.session_state.get('recibo_mkt') and st.session_state['recibo_mkt']['acao'] == "criado":
             r = st.session_state['recibo_mkt']
             st.success("✅ **Desafio Lançado com Sucesso!**")
@@ -3170,18 +3166,13 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                 st.rerun()
             st.divider()
             
-    with t_nova_tarefa:
         st.write("#### 💡 O que precisamos criar hoje?")
         with st.form("form_novo_marketing", clear_on_submit=True):
             c1, c2 = st.columns([2, 1])
-            
             opcoes_produtos = ["Nenhum / Post Institucional"] + [f"{k} - {v['nome']}" for k, v in banco_de_produtos.items()]
             f_produto = c1.selectbox("Sobre qual produto é o post?", opcoes_produtos)
-            
             f_formato = c2.selectbox("Formato desejado", ["📸 Foto para o Feed", "🎬 Reels", "📱 Story", "🛒 Atualizar no Site (Odoo)", "🎨 Outro (Banner, Logo...)"])
-            
-            f_desc = st.text_area("Descrição / Ideia", placeholder="Ex: Fazer um vídeo mostrando a elasticidade do tecido do lençol. Usar música em alta.")
-            
+            f_desc = st.text_area("Descrição / Ideia", placeholder="Ex: Fazer um vídeo mostrando a elasticidade do tecido do lençol...")
             f_link_arte = st.text_input("Link da Arte/Pasta (Canva/Drive) - Opcional", placeholder="Ex: https://canva.com/...")
             
             c3, c4 = st.columns(2)
@@ -3206,21 +3197,11 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                             data_prazo_str = f_data_agendada.strftime("%d/%m/%Y")
                             
                             linha_mkt = [
-                                novo_id,               # A: ID_TAREFA
-                                data_hoje,             # B: DATA_PEDIDO
-                                f_produto,             # C: PRODUTO_VINCULADO
-                                f_formato,             # D: FORMATO
-                                f_desc,                # E: DESCRIÇÃO
-                                data_prazo_str,        # F: DATA_AGENDADA
-                                f_status_inicial,      # G: STATUS
-                                f_link_arte if f_link_arte else "-", # H: LINK_ARTE (Produção)
-                                "-",                   # I: LINK_PUBLICADO (Post final no Insta)
-                                "-"                    # J: DATA_CONCLUSAO
+                                novo_id, data_hoje, f_produto, f_formato, f_desc, data_prazo_str, 
+                                f_status_inicial, f_link_arte if f_link_arte else "-", "-", "-"
                             ]
-                            
                             aba_mkt.append_row(linha_mkt, value_input_option='RAW')
                             
-                            # 💡 RECIBO E REFRESH
                             st.session_state['recibo_mkt'] = {"acao": "criado", "id": novo_id, "produto": f_produto, "formato": f_formato, "prazo": data_prazo_str}
                             st.cache_data.clear(); st.cache_resource.clear(); st.rerun()
                         except Exception as e:
@@ -3232,7 +3213,7 @@ elif menu_selecionado == "📢 Gestão de Marketing":
     # ABA 2: KANBAN
     # ==========================================
     elif aba_selecionada == "📋 Quadro de Produção":
-    
+        
         # 🧾 RECIBO LOCALIZADO
         if st.session_state.get('recibo_mkt') and st.session_state['recibo_mkt']['acao'] == "movido":
             r = st.session_state['recibo_mkt']
@@ -3242,12 +3223,9 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                 st.rerun()
             st.divider()
             
-    with t_kanban:
         st.write("### 📋 Quadro de Produção (Kanban)")
-        
         if not df_mkt.empty:
             col_fila, col_prod, col_postar, col_done = st.columns(4)
-            
             status_map = [
                 ("📥 Fila (Aguardando Início)", col_fila),
                 ("✍️ Em Produção", col_prod),
@@ -3259,9 +3237,7 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                 with coluna_gui:
                     st.markdown(f"**{status_nome}**")
                     tarefas_status = df_mkt[df_mkt['STATUS'] == status_nome]
-                    
-                    if tarefas_status.empty:
-                        st.caption("Vazio")
+                    if tarefas_status.empty: st.caption("Vazio")
                     
                     for _, task in tarefas_status.iterrows():
                         with st.expander(f"📍 {task['ID_TAREFA']}", expanded=True):
@@ -3274,18 +3250,13 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                                 st.markdown(f"🎨 [**Abrir Arte / Referência**]({link_producao})")
                             
                             if status_nome != "🚀 Concluído":
-                                fluxo = {
-                                    "📥 Fila (Aguardando Início)": "✍️ Em Produção",
-                                    "✍️ Em Produção": "✅ Falta Postar",
-                                    "✅ Falta Postar": "🚀 Concluído"
-                                }
+                                fluxo = {"📥 Fila (Aguardando Início)": "✍️ Em Produção", "✍️ Em Produção": "✅ Falta Postar", "✅ Falta Postar": "🚀 Concluído"}
                                 proximo = fluxo[status_nome]
                                 
                                 if st.button(f"Mover ➡️", key=f"btn_{task['ID_TAREFA']}"):
                                     try:
                                         aba_mkt = planilha_mestre.worksheet("MARKETING")
                                         linha_planilha = task.name + 2 
-                                        
                                         aba_mkt.update_acell(f"G{linha_planilha}", proximo)
                                         
                                         if proximo == "🚀 Concluído":
@@ -3294,7 +3265,6 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                                             agora = dt.datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y %H:%M")
                                             aba_mkt.update_acell(f"J{linha_planilha}", agora)
                                             
-                                        # 💡 RECIBO E REFRESH
                                         st.session_state['recibo_mkt'] = {"acao": "movido", "id": task['ID_TAREFA'], "novo_status": proximo}
                                         st.cache_data.clear(); st.cache_resource.clear(); st.rerun()
                                     except Exception as e:
@@ -3305,13 +3275,12 @@ elif menu_selecionado == "📢 Gestão de Marketing":
     # ==========================================
     # ABA 3: CALENDÁRIO / AGENDA DE POSTAGENS
     # ==========================================
-    with t_calendario:
+    elif aba_selecionada == "📅 Agenda":
         st.write("### 📅 Cronograma de Conteúdo")
         st.write("Veja o que está programado para ir ao ar nos próximos dias.")
         
         if not df_mkt.empty:
             df_agenda = df_mkt.copy()
-            # Converte a data de texto (DD/MM/YYYY) para data real do Python
             df_agenda['DATA_DATETIME'] = pd.to_datetime(df_agenda['DATA_AGENDADA'], format='%d/%m/%Y', errors='coerce')
             df_agenda = df_agenda.dropna(subset=['DATA_DATETIME']).sort_values('DATA_DATETIME')
             
@@ -3319,34 +3288,27 @@ elif menu_selecionado == "📢 Gestão de Marketing":
             from datetime import datetime
             hoje_real = pd.to_datetime(datetime.now(pytz.timezone('America/Sao_Paulo')).strftime('%Y-%m-%d'))
             
-            # Filtra apenas o que AINDA NÃO FOI POSTADO
             df_agenda_pendente = df_agenda[~df_agenda['STATUS'].str.contains('Concluído', case=False, na=False)]
             
-            # 💡 FUNÇÃO CAÇADORA DE IMAGENS: Procura a foto do produto no df_docs
             def buscar_foto_produto(nome_produto_vinculado):
-                if not df_docs.empty and str(nome_produto_vinculado) != "Nenhum / Post Institucional":
-                    # Filtra documentos que são fotos e têm o vínculo exato com o produto
-                    fotos = df_docs[(df_docs['TIPO'] == "Foto de Produto") & (df_docs['VINCULO'] == str(nome_produto_vinculado))]
-                    if not fotos.empty:
-                        # Pega o link da foto mais recente que foi subida para esse produto
-                        return str(fotos.iloc[-1].get('LINK_DRIVE', ''))
+                try:
+                    df_docs_local = planilha_mestre.worksheet("DOCUMENTOS").get_all_values()
+                    if len(df_docs_local) > 1:
+                        df_d = pd.DataFrame(df_docs_local[1:], columns=df_docs_local[0])
+                        if str(nome_produto_vinculado) != "Nenhum / Post Institucional":
+                            fotos = df_d[(df_d['TIPO'] == "Foto de Produto") & (df_d['VINCULO'] == str(nome_produto_vinculado))]
+                            if not fotos.empty: return str(fotos.iloc[-1].get('LINK_DRIVE', ''))
+                except: pass
                 return None
 
-            # 💡 FUNÇÃO DESENHISTA: Cria o card visual com ou sem foto
             def renderizar_card_tarefa(task, titulo_tempo):
                 foto_url = buscar_foto_produto(task['PRODUTO_VINCULADO'])
-                
-                # Se achou a foto no Cloudinary/Drive, divide a tela (Foto na esquerda, texto na direita)
                 if foto_url and foto_url.startswith("http"):
                     c_img, c_txt = st.columns([1, 4])
-                    with c_img:
-                        st.image(foto_url, use_container_width=True)
-                    with c_txt:
-                        st.markdown(f"**{titulo_tempo}** | 📍 {task['ID_TAREFA']} - {task['FORMATO']}<br>📦 **Produto:** {task['PRODUTO_VINCULADO']}<br><small>*{task['DESCRIÇÃO']}*</small><br>Status: **{task['STATUS']}**", unsafe_allow_html=True)
+                    with c_img: st.image(foto_url, use_container_width=True)
+                    with c_txt: st.markdown(f"**{titulo_tempo}** | 📍 {task['ID_TAREFA']} - {task['FORMATO']}<br>📦 **Produto:** {task['PRODUTO_VINCULADO']}<br><small>*{task['DESCRIÇÃO']}*</small><br>Status: **{task['STATUS']}**", unsafe_allow_html=True)
                 else:
-                    # Se não tem foto (ou é post institucional), desenha normal
                     st.markdown(f"**{titulo_tempo}** | 📍 {task['ID_TAREFA']} - {task['FORMATO']}<br>📦 **Produto:** {task['PRODUTO_VINCULADO']}<br><small>*{task['DESCRIÇÃO']}*</small><br>Status: **{task['STATUS']}**", unsafe_allow_html=True)
-                
                 st.divider()
 
             if not df_agenda_pendente.empty:
@@ -3354,19 +3316,12 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                 hoje = df_agenda_pendente[df_agenda_pendente['DATA_DATETIME'] == hoje_real]
                 futuro = df_agenda_pendente[df_agenda_pendente['DATA_DATETIME'] > hoje_real]
                 
-                # 🔴 ATRASADOS
                 if not atrasados.empty:
                     st.error("#### 🔴 Prazos Estourados (Atrasados)")
-                    for _, task in atrasados.iterrows():
-                        renderizar_card_tarefa(task, task['DATA_AGENDADA'])
-                
-                # 🟢 HOJE
+                    for _, task in atrasados.iterrows(): renderizar_card_tarefa(task, task['DATA_AGENDADA'])
                 if not hoje.empty:
                     st.success("#### 🟢 Vai para o ar HOJE!")
-                    for _, task in hoje.iterrows():
-                        renderizar_card_tarefa(task, "HOJE")
-                
-                # 🔵 PRÓXIMOS DIAS
+                    for _, task in hoje.iterrows(): renderizar_card_tarefa(task, "HOJE")
                 if not futuro.empty:
                     st.info("#### 🔵 Próximos Dias")
                     for _, task in futuro.iterrows():
@@ -3382,7 +3337,7 @@ elif menu_selecionado == "📢 Gestão de Marketing":
     # ABA 4: VITRINE E AUDITORIA (LINKAR O INSTAGRAM)
     # ==========================================
     elif aba_selecionada == "✅ Vitrine & Auditoria":
-    
+        
         # 🧾 RECIBO LOCALIZADO
         if st.session_state.get('recibo_mkt') and st.session_state['recibo_mkt']['acao'] == "validado":
             r = st.session_state['recibo_mkt']
@@ -3392,7 +3347,6 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                 st.rerun()
             st.divider()
             
-    with t_auditoria:
         st.write("### ✅ Validação de Postagens (Auditoria)")
         st.write("Postou no Instagram? Cole o link aqui para dar baixa oficial e guardar no histórico!")
         
@@ -3404,16 +3358,15 @@ elif menu_selecionado == "📢 Gestão de Marketing":
             
             with st.container(border=True):
                 st.markdown("#### 🔗 Vincular Link do Instagram")
-                
                 if not df_pendente_link.empty:
                     with st.form("form_link_insta", clear_on_submit=True):
                         opcoes_baixa = [f"📍 {r['ID_TAREFA']} - {r['FORMATO']} ({r['PRODUTO_VINCULADO']})" for _, r in df_pendente_link.iterrows()]
-                        tarefa_selecionada = st.selectbox("Selecione a tarefa que acabou de ser postada:", opcoes_baixa)
+                        tarefa_selecionada = st.selectbox("Selecione a tarefa postada:", opcoes_baixa)
                         link_post = st.text_input("Cole o Link do Instagram aqui 🌐", placeholder="Ex: https://www.instagram.com/p/...")
                         
                         if st.form_submit_button("Validar e Concluir 🚀", type="primary"):
                             if link_post and "http" in link_post:
-                                with st.spinner("Registrando o sucesso..."):
+                                with st.spinner("Registrando..."):
                                     try:
                                         aba_mkt = planilha_mestre.worksheet("MARKETING")
                                         id_alvo = tarefa_selecionada.split(" - ")[0].replace("📍 ", "")
@@ -3423,22 +3376,20 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                                         import pytz
                                         agora = dt.datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y %H:%M")
                                         
-                                        aba_mkt.update_acell(f"G{linha_planilha}", "🚀 Concluído") # Status
-                                        aba_mkt.update_acell(f"I{linha_planilha}", link_post)      # Link Instagram
-                                        aba_mkt.update_acell(f"J{linha_planilha}", agora)          # Data Conclusão
+                                        aba_mkt.update_acell(f"G{linha_planilha}", "🚀 Concluído")
+                                        aba_mkt.update_acell(f"I{linha_planilha}", link_post)
+                                        aba_mkt.update_acell(f"J{linha_planilha}", agora)
                                         
-                                        # 💡 RECIBO E REFRESH
                                         st.session_state['recibo_mkt'] = {"acao": "validado", "id": id_alvo}
                                         st.cache_data.clear(); st.cache_resource.clear(); st.rerun()
                                     except Exception as e:
-                                        st.error(f"Erro ao salvar o link: {e}")
+                                        st.error(f"Erro: {e}")
                             else:
-                                st.warning("Por favor, cole um link válido (que comece com http).")
+                                st.warning("Cole um link válido.")
                 else:
-                    st.success("Tudo em dia! Não há tarefas aguardando link de postagem no momento.")
+                    st.success("Tudo em dia! Não há tarefas aguardando link no momento.")
             
             st.divider()
-            
             st.write("#### 🏆 Histórico de Sucesso (Portfólio)")
             df_concluidos = df_mkt[df_mkt['STATUS'].str.contains('Concluído', case=False, na=False)].copy()
             
@@ -3447,7 +3398,6 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                 if 'LINK_PUBLICADO' not in df_concluidos.columns: df_concluidos['LINK_PUBLICADO'] = "-"
                 
                 df_view = df_concluidos[colunas_mostrar].copy().iloc[::-1]
-                
                 st.dataframe(
                     df_view,
                     column_config={
@@ -3460,32 +3410,29 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                     use_container_width=True, hide_index=True
                 )
             else:
-                st.info("O histórico de postagens aparecerá aqui assim que o primeiro link for salvo.")
+                st.info("O histórico aparecerá aqui assim que o primeiro link for salvo.")
 
     # ==========================================
-    # ✏️ BORRACHA MÁGICA: EDIÇÃO E EXCLUSÃO (MARKETING)
+    # ✏️ BORRACHA MÁGICA: EDIÇÃO E EXCLUSÃO
     # ==========================================
     st.divider()
     
-    # 💡 O Expander abre sozinho se você acabou de editar/excluir algo
     abriu_borracha = True if st.session_state.get('recibo_mkt') and st.session_state['recibo_mkt']['acao'] in ['editado', 'excluido'] else False
     
-    with st.expander("✏️ Corrigir ou Excluir Demanda de Marketing", expanded=abriu_borracha):
+    with st.expander("✏️ Corrigir ou Excluir Demanda", expanded=abriu_borracha):
         
         # 🧾 RECIBO LOCALIZADO
         if abriu_borracha:
             r = st.session_state['recibo_mkt']
-            if r['acao'] == "editado":
-                st.success(f"✏️ **Atualização Salva!** A tarefa **{r['id']}** foi corrigida com sucesso.")
-            else:
-                st.warning("🗑️ **Demanda Excluída permanentemente.**")
+            if r['acao'] == "editado": st.success(f"✏️ **Atualização Salva!** Tarefa **{r['id']}** corrigida com sucesso.")
+            else: st.warning("🗑️ **Demanda Excluída permanentemente.**")
                 
             if st.button("✖️ Fechar Aviso", key="fechar_borracha"):
                 st.session_state['recibo_mkt'] = None
                 st.rerun()
             st.divider()
             
-        st.write("Lançou um post errado ou duplicou sem querer? Escolha a demanda abaixo para corrigir os dados ou excluir permanentemente.")
+        st.write("Lançou errado ou duplicou? Escolha a demanda abaixo para corrigir os dados ou excluir.")
         
         if not df_mkt.empty:
             demandas_recentes = df_mkt.copy().iloc[::-1]
@@ -3564,7 +3511,6 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                                 ]
                                 aba_mkt.batch_update(atualizacoes, value_input_option='USER_ENTERED')
                                 
-                                # 💡 RECIBO E REFRESH
                                 st.session_state['recibo_mkt'] = {"acao": "editado", "id": dados_atuais.get('ID_TAREFA', '')}
                                 st.cache_data.clear(); st.cache_resource.clear(); st.rerun()
                             except Exception as e:
@@ -3577,7 +3523,6 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                                     aba_mkt = planilha_mestre.worksheet("MARKETING")
                                     aba_mkt.delete_rows(linha_alvo)
                                     
-                                    # 💡 RECIBO E REFRESH
                                     st.session_state['recibo_mkt'] = {"acao": "excluido"}
                                     st.cache_data.clear(); st.cache_resource.clear(); st.rerun()
                                 except Exception as e:
