@@ -3145,7 +3145,7 @@ elif menu_selecionado == "📢 Gestão de Marketing":
     
     st.divider()
     
-    # 💡 NAVEGAÇÃO COM MEMÓRIA (Visual "Premium" imitando Abas Reais)
+    # 💡 NAVEGAÇÃO COM MEMÓRIA (Visual "Premium" Garantido)
     if 'aba_mkt_memoria' not in st.session_state:
         st.session_state['aba_mkt_memoria'] = "➕ Nova Demanda"
 
@@ -3153,9 +3153,9 @@ elif menu_selecionado == "📢 Gestão de Marketing":
 
     c_tab1, c_tab2, c_tab3, c_tab4 = st.columns(4)
     
-    # 🎨 Função que desenha a "Linha de Destaque" usando a cor principal do seu tema
+    # 🎨 Função infalível com Gradiente Elegante e espaçamento seguro
     def barra_destaque():
-        return "<div style='height: 4px; background-color: var(--primary-color); border-radius: 2px; margin-top: -13px; margin-bottom: 15px;'></div>"
+        return """<div style="height: 5px; width: 100%; background: linear-gradient(90deg, #ff7eb3, #ff758c); border-radius: 5px; margin-top: 2px; margin-bottom: 15px; box-shadow: 0px 2px 4px rgba(255, 117, 140, 0.4);"></div>"""
 
     with c_tab1:
         if st.button("➕ Nova Demanda", use_container_width=True, type="primary" if aba_atual == "➕ Nova Demanda" else "secondary"):
