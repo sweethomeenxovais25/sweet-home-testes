@@ -1360,18 +1360,22 @@ elif menu_selecionado == "💰 Financeiro":
                 with t1:
                     if not atrasados.empty:
                         c_m1, c_m2, c_m3 = st.columns(3)
-                        c_m1.metric("💰 Capital Retido", f"R$ {atrasados['TOTAL_ORIGINAL'].sum():,.2f}")
+                        c_m1.metric("💰 Capital Retido (Original)", f"R$ {atrasados['TOTAL_ORIGINAL'].sum():,.2f}")
                         c_m2.metric("📈 Expectativa c/ Encargos", f"R$ {atrasados['TOTAL_ATUALIZADO'].sum():,.2f}")
                         c_m3.metric("👥 Clientes em Atraso", f"{len(atrasados)}")
                         
+                        # 💡 RESTAURAÇÃO COMPLETA: Todas as colunas financeiras e de CRM juntas!
                         st.dataframe(
-                            atrasados[['CLIENTE', 'SWEET_SCORE', 'VALE_DESCONTO', 'COOLDOWN', 'STATUS_CRM', 'MAIOR_ATRASO', 'TOTAL_ATUALIZADO']], 
+                            atrasados[['CLIENTE', 'SWEET_SCORE', 'SWEET_FLEX', 'VALE_DESCONTO', 'MAIOR_ATRASO', 'TOTAL_ORIGINAL', 'TOTAL_ENCARGOS', 'TOTAL_ATUALIZADO', 'STATUS_PREDOMINANTE', 'STATUS_CRM', 'COOLDOWN']], 
                             column_config={
-                                "TOTAL_ATUALIZADO": st.column_config.NumberColumn("Dívida Atual", format="R$ %.2f"),
+                                "TOTAL_ORIGINAL": st.column_config.NumberColumn("Original (R$)", format="R$ %.2f"),
+                                "TOTAL_ENCARGOS": st.column_config.NumberColumn("Juros/Multa (R$)", format="R$ %.2f"),
+                                "TOTAL_ATUALIZADO": st.column_config.NumberColumn("Atualizado (R$)", format="R$ %.2f"),
                                 "MAIOR_ATRASO": "Dias Atraso",
+                                "VALE_DESCONTO": "Vale (R$)",
+                                "STATUS_PREDOMINANTE": "Fase (Idade)",
                                 "STATUS_CRM": "Fase CRM",
-                                "COOLDOWN": "Status de Contato",
-                                "VALE_DESCONTO": "Vale (R$)"
+                                "COOLDOWN": "Proteção"
                             },
                             use_container_width=True, hide_index=True
                         )
@@ -1403,7 +1407,6 @@ elif menu_selecionado == "💰 Financeiro":
                 with t4:
                     st.write("### 🎯 Dossiê do Cliente e Ação")
                     if not atrasados.empty:
-                        # 💡 AJUSTE 1: Padrão CÓDIGO - NOME
                         opcoes_acordo = [f"{row['CÓD. CLIENTE']} - {row['CLIENTE']}" for _, row in atrasados.iterrows()]
                         cliente_selecionado = st.selectbox("Selecione o Cliente para operar:", ["---"] + opcoes_acordo)
                         
@@ -1412,13 +1415,17 @@ elif menu_selecionado == "💰 Financeiro":
                             dados_cli = atrasados[atrasados['CÓD. CLIENTE'] == cod_alvo].iloc[0]
                             vale_atual = dados_cli['VALE_DESCONTO']
                             
-                            # 💡 MINI DOSSIÊ
-                            st.markdown(f"#### 👤 Perfil: {dados_cli['CLIENTE']}")
-                            d_c1, d_c2, d_c3, d_c4 = st.columns(4)
-                            d_c1.metric("Dívida Atualizada", f"R$ {dados_cli['TOTAL_ATUALIZADO']:,.2f}")
-                            d_c2.metric("Atraso", f"{dados_cli['MAIOR_ATRASO']} dias")
-                            d_c3.metric("Encargos Gerados", f"R$ {dados_cli['TOTAL_ENCARGOS']:,.2f}")
-                            d_c4.metric("Status CRM", dados_cli['STATUS_CRM'])
+                            # 💡 RESTAURAÇÃO: Dossiê Completo mostrando Flex, Legado, Juros e Original
+                            st.markdown(f"#### 👤 Perfil: {dados_cli['CLIENTE']} | {dados_cli['SWEET_FLEX']}")
+                            
+                            d_c1, d_c2, d_c3, d_c4, d_c5 = st.columns(5)
+                            d_c1.metric("Valor Original", f"R$ {dados_cli['TOTAL_ORIGINAL']:,.2f}")
+                            d_c2.metric("Juros/Multa", f"R$ {dados_cli['TOTAL_ENCARGOS']:,.2f}")
+                            d_c3.metric("Total Atualizado", f"R$ {dados_cli['TOTAL_ATUALIZADO']:,.2f}")
+                            d_c4.metric("Dias Atraso", f"{dados_cli['MAIOR_ATRASO']}")
+                            d_c5.metric("Vale/Carteira", dados_cli['VALE_DESCONTO'])
+                            
+                            st.caption(f"**Classificação da Dívida:** {dados_cli['STATUS_PREDOMINANTE']} | **Status de Relacionamento (CRM):** {dados_cli['STATUS_CRM']}")
                             
                             if dados_cli['COOLDOWN'] != "Livre":
                                 st.warning("🛡️ **Atenção:** Cliente já contatada nas últimas 24h. Cuidado para não gerar desgaste de imagem (Assédio de Cobrança).")
@@ -1451,8 +1458,9 @@ elif menu_selecionado == "💰 Financeiro":
                                             inst_obj = f"Antes de cobrar, demonstre muita empatia sobre o seguinte relato dela: '{desculpa_cliente}'." if desculpa_cliente else ""
                                             
                                             prompt_cobranca = f"""
-                                            Você atua no Customer Success da 'Sweet Home Enxovais'. Crie uma mensagem amigável de contato via WhatsApp.
+                                            Você atua no Customer Success da 'Sweet Home Enxovais'. Crie uma mensagem amigável de cobrança via WhatsApp.
                                             Dados: Cliente: {dados_cli['CLIENTE']} | Atraso: {dados_cli['MAIOR_ATRASO']} dias | Dívida Total: R$ {dados_cli['TOTAL_ATUALIZADO']:.2f} (Sendo R$ {dados_cli['TOTAL_ENCARGOS']:.2f} só de juros/multa).
+                                            Status do Crédito Flex: {dados_cli['SWEET_FLEX']}
                                             {inst_obj}
                                             {inst_rewards}
                                             Apresente 2 opções de regularização:
