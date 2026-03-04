@@ -1323,7 +1323,7 @@ elif menu_selecionado == "💰 Financeiro":
                     TOTAL_ATUALIZADO=pd.NamedAgg(column='VALOR_ATUALIZADO', aggfunc='sum'),
                     TOTAL_ENCARGOS=pd.NamedAgg(column='MULTA', aggfunc=lambda x: x.sum() + df_dev_real.loc[x.index, 'JUROS'].sum()),
                     MAIOR_ATRASO=pd.NamedAgg(column='DIAS_ATRASO', aggfunc='max'),
-                    STATUS_PREDOMINANTE=pd.NamedAgg(column='FASE', aggfunc=status_misto) # <-- Inteligência Nova
+                    STATUS_PREDOMINANTE=pd.NamedAgg(column='FASE', aggfunc=status_misto)
                 ).reset_index()
 
                 df_agrupado['CLIENTE_EXIBICAO'] = df_agrupado['CÓD. CLIENTE'].astype(str) + " - " + df_agrupado['CLIENTE']
@@ -1471,7 +1471,7 @@ elif menu_selecionado == "💰 Financeiro":
                                             st.markdown(f"**{h['DATA_HORA']}** | Fase: `{h['STATUS_CONTATO']}` | Por: {h['ATENDENTE']}<br>*{h['OBSERVACOES']}*", unsafe_allow_html=True)
                                             st.write("---")
 
-                            # 💡 AÇÕES ASSISTIDAS PELA IA
+                            # 💡 AÇÕES ASSISTIDAS PELA IA (COM CASCATA DE SEGURANÇA)
                             st.divider()
                             acao_tipo = st.radio("Selecione a Abordagem:", ["📝 Cobrança e Renegociação", "💐 Agradecimento Pós-Pagamento"], horizontal=True)
                             
@@ -1502,6 +1502,7 @@ elif menu_selecionado == "💰 Financeiro":
                                             Seja elegante, use emojis e mostre que o objetivo é ajudá-la a limpar o nome para liberar o crédito 'Sweet Flex' novamente.
                                             """
                                             
+                                            # 🚀 CASCATA DE SEGURANÇA RESTAURADA
                                             modelos = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"]
                                             for m in modelos:
                                                 try:
@@ -1513,6 +1514,8 @@ elif menu_selecionado == "💰 Financeiro":
                                                         break
                                                 except:
                                                     continue
+                                        except Exception as e: 
+                                            st.error(f"Erro na configuração da IA: {e}")
 
                             else:
                                 st.success("Fidelização: Envie esta mensagem após dar baixa no pagamento para transformar a cliente em fã.")
@@ -1521,6 +1524,7 @@ elif menu_selecionado == "💰 Financeiro":
                                         try:
                                             import google.generativeai as genai
                                             genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+                                            
                                             prompt_agradecimento = f"""
                                             Você é do relacionamento da 'Sweet Home Enxovais'.
                                             A cliente {dados_cli['CLIENTE']} acabou de regularizar uma pendência atrasada.
@@ -1528,6 +1532,8 @@ elif menu_selecionado == "💰 Financeiro":
                                             Agradeça o esforço dela, avise que o crédito 'Sweet Flex' já está liberado de novo e que ela é muito especial para a loja.
                                             Seja humana e afetuosa. Nada de textos frios de banco.
                                             """
+                                            
+                                            # 🚀 CASCATA DE SEGURANÇA TAMBÉM NO AGRADECIMENTO
                                             modelos = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"]
                                             for m in modelos:
                                                 try:
@@ -1539,6 +1545,8 @@ elif menu_selecionado == "💰 Financeiro":
                                                         break
                                                 except:
                                                     continue
+                                        except Exception as e: 
+                                            st.error(f"Erro na configuração da IA: {e}")
 
                             # 💡 REGISTRO OFICIAL NO LOG DA PLANILHA
                             st.divider()
