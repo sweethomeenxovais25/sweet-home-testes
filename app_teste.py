@@ -1209,18 +1209,19 @@ elif menu_selecionado == "💰 Financeiro":
     # ⚖️ PAINEL GERENCIAL DE INADIMPLÊNCIA E ACORDOS (CRM)
     # ====================================================
     st.markdown("---")
-    
-    # 💡 MEMÓRIA DO SISTEMA PARA RECIBOS DA COBRANÇA
-    if 'recibo_cobranca' not in st.session_state:
-        st.session_state['recibo_cobranca'] = None
             
     with st.expander("⚖️ Painel Estratégico de Recuperação de Crédito (CRM)", expanded=False):
         
+        # 💡 Botão para forçar a atualização da planilha em tempo real
         col_tit, col_ref = st.columns([3, 1])
-        col_tit.write("Análise de carteira, histórico de contatos (Régua de Cobrança) e IA.")
+        col_tit.write("Análise de carteira, cálculo de juros (CDC), histórico de contatos e IA.")
         if col_ref.button("🔄 Recarregar Dados", use_container_width=True, key="btn_ref_cob"):
             st.cache_data.clear() 
             st.rerun() 
+            
+        # 💡 MEMÓRIA DO SISTEMA PARA RECIBOS DA COBRANÇA
+        if 'recibo_cobranca' not in st.session_state:
+            st.session_state['recibo_cobranca'] = None
             
         # 🧾 RECIBO LOCALIZADO DA COBRANÇA
         if st.session_state['recibo_cobranca']:
@@ -1244,6 +1245,7 @@ elif menu_selecionado == "💰 Financeiro":
                 hoje_dt = datetime.now(fuso_br)
                 hoje_pd = pd.to_datetime(hoje_dt.strftime("%Y-%m-%d"))
                 
+                # 📅 REGRA DE NEGÓCIO: Dívidas antes de Fev/2026 são "Legado"
                 DATA_CORTE_LEGADO = pd.to_datetime("2026-02-01")
                 
                 # --- 1. HIGIENIZAÇÃO DE DADOS ---
@@ -1264,7 +1266,7 @@ elif menu_selecionado == "💰 Financeiro":
                 df_dev_real = df_dev_real.dropna(subset=['VENCIMENTO'])
                 df_dev_real['DIAS_ATRASO'] = (hoje_pd - df_dev_real['VENCIMENTO']).dt.days
 
-                # --- 2. MOTOR FINANCEIRO ---
+                # --- 2. MOTOR FINANCEIRO (CDC - MULTA E JUROS) ---
                 def calc_compliance(row):
                     multa = 0
                     juros = 0
@@ -1272,8 +1274,8 @@ elif menu_selecionado == "💰 Financeiro":
                     
                     if row['DIAS_ATRASO'] > 0:
                         if not is_legado:
-                            multa = row['SALDO_NUM'] * 0.02
-                            juros = row['SALDO_NUM'] * (0.01 / 30) * row['DIAS_ATRASO']
+                            multa = row['SALDO_NUM'] * 0.02 # 2% de multa
+                            juros = row['SALDO_NUM'] * (0.01 / 30) * row['DIAS_ATRASO'] # 1% ao mês pro rata
                         status = "🕰️ Legado" if is_legado else ("🔴 Crítico" if row['DIAS_ATRASO'] > 30 else "🟡 Recente")
                     elif row['DIAS_ATRASO'] == 0:
                         status = "🟢 Vence Hoje"
@@ -1294,10 +1296,11 @@ elif menu_selecionado == "💰 Financeiro":
                     STATUS_PREDOMINANTE=pd.NamedAgg(column='FASE', aggfunc=lambda x: x.iloc[0])
                 ).reset_index()
 
-                df_agrupado['SWEET_FLEX'] = df_agrupado['MAIOR_ATRASO'].apply(lambda dias: "🔒 Suspenso" if dias > 15 else "🔑 Liberado")
+                LIMITE_DIAS_FLEX = 15
+                df_agrupado['SWEET_FLEX'] = df_agrupado['MAIOR_ATRASO'].apply(lambda dias: "🔒 Suspenso" if dias > LIMITE_DIAS_FLEX else "🔑 Liberado")
                 df_agrupado['SWEET_SCORE'] = df_agrupado['MAIOR_ATRASO'].apply(lambda dias: "⭐ 10/10" if dias <= 0 else ("🟢 8/10" if dias <= 7 else ("🟡 5/10" if dias <= 20 else "🔴 3/10")))
 
-                # Puxar Vale Desconto
+                # Lógica do Vale Desconto (Sua Inteligência Original)
                 try:
                     df_carteira_temp = df_clientes_full.copy()
                     df_carteira_temp['COD_LIMPO'] = df_carteira_temp[df_carteira_temp.columns[0]].astype(str).str.split('.').str[0].str.strip()
@@ -1310,14 +1313,14 @@ elif menu_selecionado == "💰 Financeiro":
 
                 def resgatar_vale_vivo(cod_cliente):
                     vale = str(dicionario_vales_vivos.get(str(cod_cliente).strip(), '')).strip()
-                    if not vale or vale.lower() in ['nan', 'none', '0', '0.0', '0,00', 'r$ 0,00', 'null']: return "R$ 0,00"
+                    if not vale or vale.lower() in ['nan', 'none', '0', '0.0', '0,00', 'r$ 0,00', 'r$ 0', 'null']: return "R$ 0,00"
                     if vale.upper().startswith('R$'): return vale
                     try: return f"R$ {float(vale.replace('.', '').replace(',', '.')):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                     except: return f"R$ {vale}"
                 
                 df_agrupado['VALE_DESCONTO'] = df_agrupado['CÓD. CLIENTE'].apply(resgatar_vale_vivo)
 
-                # --- 4. LEITURA DO LOG DE COBRANÇA (O CRM NASCE AQUI) ---
+                # --- 4. O CÉREBRO DO CRM (LEITURA DO LOG_COBRANCA) ---
                 try:
                     aba_log = planilha_mestre.worksheet("LOG_COBRANCA")
                     dados_log = aba_log.get_all_values()
@@ -1329,7 +1332,7 @@ elif menu_selecionado == "💰 Financeiro":
                 except:
                     df_log = pd.DataFrame(columns=['DATA_HORA', 'COD_CLIENTE', 'NOME_CLIENTE', 'STATUS_CONTATO', 'DATA_PROMESSA', 'OBSERVACOES', 'ATENDENTE', 'DATA_HORA_DT'])
 
-                # Cruza o último contato com os devedores
+                # Cruzamento do Histórico com os Devedores (Trava de Cooldown)
                 df_agrupado['ULTIMO_CONTATO'] = "Nunca Cobrado"
                 df_agrupado['STATUS_CRM'] = "Sem Ação"
                 df_agrupado['COOLDOWN'] = "Livre"
@@ -1342,16 +1345,17 @@ elif menu_selecionado == "💰 Financeiro":
                             df_agrupado.at[idx, 'ULTIMO_CONTATO'] = ultimo['DATA_HORA'].split(" ")[0]
                             df_agrupado.at[idx, 'STATUS_CRM'] = ultimo['STATUS_CONTATO']
                             
-                            # Calcula Cooldown (Trava Anti-Assédio de 24h)
+                            # Verifica se o último contato foi a menos de 24h
                             if pd.notnull(ultimo['DATA_HORA_DT']):
                                 horas_desde_contato = (hoje_dt.replace(tzinfo=None) - ultimo['DATA_HORA_DT']).total_seconds() / 3600
                                 if horas_desde_contato < 24:
                                     df_agrupado.at[idx, 'COOLDOWN'] = "🛡️ Protegido (24h)"
 
                 atrasados = df_agrupado[df_agrupado['MAIOR_ATRASO'] > 0].sort_values('MAIOR_ATRASO', ascending=False)
-                
-                # --- 5. INTERFACE EM ABAS DO CRM ---
-                t1, t2, t3 = st.tabs(["🚨 Mapa de Risco", "📅 Promessas (P.T.P)", "🎯 Central de Contato (CRM)"])
+                prevencao = df_agrupado[(df_agrupado['MAIOR_ATRASO'] <= 0) & (df_agrupado['MAIOR_ATRASO'] >= -5)].sort_values('MAIOR_ATRASO', ascending=False)
+
+                # --- 5. INTERFACE EM 4 ABAS (O SEU PAINEL COMPLETO) ---
+                t1, t2, t3, t4 = st.tabs(["🚨 Mapa de Risco", "📅 Fluxo (5 dias)", "📆 Promessas P.T.P", "🎯 CRM & Ações"])
                 
                 with t1:
                     if not atrasados.empty:
@@ -1361,12 +1365,13 @@ elif menu_selecionado == "💰 Financeiro":
                         c_m3.metric("👥 Clientes em Atraso", f"{len(atrasados)}")
                         
                         st.dataframe(
-                            atrasados[['CLIENTE', 'SWEET_SCORE', 'COOLDOWN', 'STATUS_CRM', 'ULTIMO_CONTATO', 'MAIOR_ATRASO', 'TOTAL_ATUALIZADO']], 
+                            atrasados[['CLIENTE', 'SWEET_SCORE', 'VALE_DESCONTO', 'COOLDOWN', 'STATUS_CRM', 'MAIOR_ATRASO', 'TOTAL_ATUALIZADO']], 
                             column_config={
                                 "TOTAL_ATUALIZADO": st.column_config.NumberColumn("Dívida Atual", format="R$ %.2f"),
                                 "MAIOR_ATRASO": "Dias Atraso",
                                 "STATUS_CRM": "Fase CRM",
-                                "COOLDOWN": "Status de Contato"
+                                "COOLDOWN": "Status de Contato",
+                                "VALE_DESCONTO": "Vale (R$)"
                             },
                             use_container_width=True, hide_index=True
                         )
@@ -1374,39 +1379,51 @@ elif menu_selecionado == "💰 Financeiro":
                         st.success("🎉 Excelência! Nenhum cliente em atraso na base.")
 
                 with t2:
-                    st.write("Acompanhamento de acordos e promessas de pagamento (PTP).")
+                    st.write("Ações preventivas: Vencimentos previstos para os próximos 5 dias.")
+                    if not prevencao.empty:
+                        st.dataframe(
+                            prevencao[['CLIENTE', 'SWEET_SCORE', 'VALE_DESCONTO', 'MAIOR_ATRASO', 'TOTAL_ORIGINAL', 'STATUS_PREDOMINANTE']], 
+                            column_config={"TOTAL_ORIGINAL": st.column_config.NumberColumn("Valor (R$)", format="R$ %.2f")},
+                            use_container_width=True, hide_index=True
+                        )
+                    else:
+                        st.info("Nenhum vencimento nos próximos 5 dias.")
+
+                with t3:
+                    st.write("Previsibilidade de Caixa: Acordos e promessas de pagamento ativas.")
                     if not df_log.empty:
                         promessas = df_log[df_log['STATUS_CONTATO'] == 'Promessa de Pagamento'].copy()
                         if not promessas.empty:
                             st.dataframe(promessas[['DATA_PROMESSA', 'COD_CLIENTE', 'NOME_CLIENTE', 'OBSERVACOES', 'ATENDENTE']], use_container_width=True, hide_index=True)
                         else:
-                            st.info("Nenhuma promessa de pagamento ativa.")
+                            st.info("Nenhuma promessa de pagamento registrada.")
                     else:
-                        st.info("Nenhum histórico de cobrança registrado ainda.")
+                        st.info("O histórico de promessas aparecerá aqui.")
 
-                with t3:
-                    st.write("### 🎯 Dossiê e Ação")
+                with t4:
+                    st.write("### 🎯 Dossiê do Cliente e Ação")
                     if not atrasados.empty:
-                        # 💡 AJUSTE 1: O FILTRO AGORA MOSTRA CÓDIGO + NOME
+                        # 💡 AJUSTE 1: Padrão CÓDIGO - NOME
                         opcoes_acordo = [f"{row['CÓD. CLIENTE']} - {row['CLIENTE']}" for _, row in atrasados.iterrows()]
                         cliente_selecionado = st.selectbox("Selecione o Cliente para operar:", ["---"] + opcoes_acordo)
                         
                         if cliente_selecionado != "---":
                             cod_alvo = cliente_selecionado.split(" - ")[0]
                             dados_cli = atrasados[atrasados['CÓD. CLIENTE'] == cod_alvo].iloc[0]
+                            vale_atual = dados_cli['VALE_DESCONTO']
                             
-                            # Exibe o Mini-Dossiê
-                            st.markdown(f"#### 👤 Dossiê: {dados_cli['CLIENTE']}")
+                            # 💡 MINI DOSSIÊ
+                            st.markdown(f"#### 👤 Perfil: {dados_cli['CLIENTE']}")
                             d_c1, d_c2, d_c3, d_c4 = st.columns(4)
-                            d_c1.metric("Dívida Total", f"R$ {dados_cli['TOTAL_ATUALIZADO']:,.2f}")
+                            d_c1.metric("Dívida Atualizada", f"R$ {dados_cli['TOTAL_ATUALIZADO']:,.2f}")
                             d_c2.metric("Atraso", f"{dados_cli['MAIOR_ATRASO']} dias")
-                            d_c3.metric("Vale-Desconto", dados_cli['VALE_DESCONTO'])
+                            d_c3.metric("Encargos Gerados", f"R$ {dados_cli['TOTAL_ENCARGOS']:,.2f}")
                             d_c4.metric("Status CRM", dados_cli['STATUS_CRM'])
                             
                             if dados_cli['COOLDOWN'] != "Livre":
-                                st.warning("🛡️ **Atenção:** Esta cliente foi contatada nas últimas 24h. Avalie se um novo contato não será visto como assédio/cobrança indevida.")
+                                st.warning("🛡️ **Atenção:** Cliente já contatada nas últimas 24h. Cuidado para não gerar desgaste de imagem (Assédio de Cobrança).")
 
-                            # Linha do Tempo
+                            # 💡 TIMELINE DO CRM
                             if not df_log.empty:
                                 hist_alvo = df_log[df_log['COD_CLIENTE'] == cod_alvo]
                                 if not hist_alvo.empty:
@@ -1415,68 +1432,71 @@ elif menu_selecionado == "💰 Financeiro":
                                             st.markdown(f"**{h['DATA_HORA']}** | Fase: `{h['STATUS_CONTATO']}` | Por: {h['ATENDENTE']}<br>*{h['OBSERVACOES']}*", unsafe_allow_html=True)
                                             st.write("---")
 
+                            # 💡 AÇÕES ASSISTIDAS PELA IA
                             st.divider()
-                            st.write("#### 🤖 Ações Assistidas por IA")
-                            acao_tipo = st.radio("Qual ação deseja realizar?", ["📝 Gerar Texto de Cobrança / Acordo", "💐 Gerar Texto de Agradecimento (Pagamento Realizado)"], horizontal=True)
+                            acao_tipo = st.radio("Selecione a Abordagem:", ["📝 Cobrança e Renegociação", "💐 Agradecimento Pós-Pagamento"], horizontal=True)
                             
-                            if acao_tipo == "📝 Gerar Texto de Cobrança / Acordo":
-                                desculpa_cliente = st.text_input("A cliente deu alguma desculpa no último contato?", placeholder="Ex: Fiquei doente, esqueci...")
-                                usar_rewards = st.checkbox(f"🎁 Usar {dados_cli['VALE_DESCONTO']} de Vale-Desconto na negociação" if dados_cli['VALE_DESCONTO'] != "R$ 0,00" else "🎁 Oferecer novo Cupom para a próxima compra")
+                            if acao_tipo == "📝 Cobrança e Renegociação":
+                                st.write("Gere propostas matemáticas usando isenção de multas ou o vale-desconto como âncora.")
+                                desculpa_cliente = st.text_input("A cliente deu alguma desculpa no passado?", placeholder="Ex: Estava viajando, imprevisto de saúde...")
+                                usar_rewards = st.checkbox(f"🎁 Abater Vale de {vale_atual} na negociação" if vale_atual != "R$ 0,00" else "🎁 Oferecer 'Cupom Fidelidade' para quem pagar hoje")
                                 
-                                if st.button("✨ Gerar Propostas de Acordo", type="primary"):
-                                    with st.spinner("A IA está calculando a melhor abordagem..."):
+                                if st.button("✨ Gerar Propostas", type="primary"):
+                                    with st.spinner("Analisando juros e perfil da dívida..."):
                                         try:
                                             import google.generativeai as genai
                                             genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
                                             
-                                            inst_rewards = f"Lembre a cliente que ela tem {dados_cli['VALE_DESCONTO']} e pode abater da dívida se pagar à vista hoje." if (usar_rewards and dados_cli['VALE_DESCONTO'] != "R$ 0,00") else ("Ofereça um brinde/cupom para a próxima compra se ela quitar hoje." if usar_rewards else "")
-                                            inst_obj = f"A cliente disse: '{desculpa_cliente}'. Demonstre empatia sobre isso antes de cobrar." if desculpa_cliente else ""
+                                            inst_rewards = f"A cliente possui {vale_atual} de vale. Proponha abater esse valor da dívida se ela quitar à vista." if (usar_rewards and vale_atual != "R$ 0,00") else ("Ofereça isenção total dos juros (R$ {dados_cli['TOTAL_ENCARGOS']:.2f}) e um brinde surpresa se ela quitar a dívida hoje." if usar_rewards else "")
+                                            inst_obj = f"Antes de cobrar, demonstre muita empatia sobre o seguinte relato dela: '{desculpa_cliente}'." if desculpa_cliente else ""
                                             
                                             prompt_cobranca = f"""
-                                            Você é o Setor de Sucesso do Cliente da 'Sweet Home Enxovais'. Crie uma mensagem amigável de cobrança via WhatsApp.
-                                            Cliente: {dados_cli['CLIENTE']} | Atraso: {dados_cli['MAIOR_ATRASO']} dias | Valor: R$ {dados_cli['TOTAL_ATUALIZADO']:.2f}.
+                                            Você atua no Customer Success da 'Sweet Home Enxovais'. Crie uma mensagem amigável de contato via WhatsApp.
+                                            Dados: Cliente: {dados_cli['CLIENTE']} | Atraso: {dados_cli['MAIOR_ATRASO']} dias | Dívida Total: R$ {dados_cli['TOTAL_ATUALIZADO']:.2f} (Sendo R$ {dados_cli['TOTAL_ENCARGOS']:.2f} só de juros/multa).
                                             {inst_obj}
                                             {inst_rewards}
-                                            Crie 2 opções claras de acordo: Pagamento à vista (com desconto dos juros) e um Parcelamento.
-                                            Aja com educação e elegância. Finalize de forma positiva. Use emojis.
+                                            Apresente 2 opções de regularização:
+                                            1. Pagamento à vista (Crie um cenário isentando os juros).
+                                            2. Parcelamento flexível.
+                                            Seja elegante, use emojis e mostre que o objetivo é ajudá-la a limpar o nome para liberar o crédito 'Sweet Flex' novamente.
                                             """
                                             
                                             modelo = genai.GenerativeModel("gemini-1.5-flash")
                                             resposta = modelo.generate_content(prompt_cobranca)
-                                            st.info("💡 **Mensagem Sugerida (Copie e mande no WhatsApp):**")
+                                            st.info("💡 **Estratégia Sugerida (Copie e envie):**")
                                             st.write(resposta.text)
                                         except Exception as e: st.error(f"Erro na IA: {e}")
 
                             else:
-                                st.success("Esta ação gera um texto de relacionamento (Customer Success) para encantar quem regularizou a situação.")
+                                st.success("Fidelização: Envie esta mensagem após dar baixa no pagamento para transformar a cliente em fã.")
                                 if st.button("💐 Gerar Agradecimento", type="primary"):
-                                    with st.spinner("A IA está escrevendo com carinho..."):
+                                    with st.spinner("Escrevendo com carinho..."):
                                         try:
                                             import google.generativeai as genai
                                             genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
                                             prompt_agradecimento = f"""
-                                            Você é a Bia, gerente de relacionamento da 'Sweet Home Enxovais'.
-                                            A cliente {dados_cli['CLIENTE']} acabou de quitar uma pendência que estava em atraso.
-                                            Escreva uma mensagem curta, empática e carinhosa para enviar no WhatsApp.
-                                            Agradeça o compromisso dela, diga que o crédito 'Sweet Flex' está liberado novamente e que ela faz parte da família Sweet Home.
-                                            Não use tom de banco. Seja calorosa e use emojis fofos.
+                                            Você é do relacionamento da 'Sweet Home Enxovais'.
+                                            A cliente {dados_cli['CLIENTE']} acabou de regularizar uma pendência atrasada.
+                                            Escreva uma mensagem muito acolhedora para o WhatsApp. 
+                                            Agradeça o esforço dela, avise que o crédito 'Sweet Flex' já está liberado de novo e que ela é muito especial para a loja.
+                                            Seja humana e afetuosa. Nada de textos frios de banco.
                                             """
                                             modelo = genai.GenerativeModel("gemini-1.5-flash")
                                             resposta = modelo.generate_content(prompt_agradecimento)
-                                            st.info("💡 **Mensagem de Agradecimento Sugerida:**")
+                                            st.info("💡 **Mensagem de Fidelização:**")
                                             st.write(resposta.text)
                                         except Exception as e: st.error(f"Erro na IA: {e}")
 
-                            # Formulário de Registro (Log)
+                            # 💡 REGISTRO OFICIAL NO LOG DA PLANILHA
                             st.divider()
                             st.write("#### 💾 Registrar Ação no Sistema")
                             with st.form(f"form_log_{cod_alvo}"):
-                                f_status = st.selectbox("Qual foi o resultado do contato?", ["Aguardando Resposta", "Promessa de Pagamento", "Acordo Fechado", "Sem Retorno", "Recusa", "Pago / Quitado"])
-                                f_data_promessa = st.date_input("Se prometeu pagar, qual a data?")
-                                f_obs = st.text_area("Observações rápidas do contato")
+                                f_status = st.selectbox("Qual o status atual da negociação?", ["Aguardando Resposta", "Promessa de Pagamento", "Acordo Fechado", "Sem Retorno", "Recusa", "Pago / Quitado"])
+                                f_data_promessa = st.date_input("Se houve acordo/promessa, qual a data limite?")
+                                f_obs = st.text_area("Anotações da Conversa", placeholder="Ex: Falou que vai receber na sexta e faz o Pix...")
                                 
-                                if st.form_submit_button("Registrar no Histórico 📥", type="primary"):
-                                    with st.spinner("Gravando no diário..."):
+                                if st.form_submit_button("Salvar no Dossiê 📥", type="primary"):
+                                    with st.spinner("Arquivando..."):
                                         try:
                                             aba_log_add = planilha_mestre.worksheet("LOG_COBRANCA")
                                             data_agora = datetime.now(fuso_br).strftime("%d/%m/%Y %H:%M")
@@ -1488,11 +1508,7 @@ elif menu_selecionado == "💰 Financeiro":
                                             ]
                                             aba_log_add.append_row(nova_linha_log, value_input_option='USER_ENTERED')
                                             
-                                            st.session_state['recibo_cobranca'] = {
-                                                "cliente": dados_cli['CLIENTE'],
-                                                "status": f_status,
-                                                "promessa": data_prom_str
-                                            }
+                                            st.session_state['recibo_cobranca'] = {"cliente": dados_cli['CLIENTE'], "status": f_status, "promessa": data_prom_str}
                                             st.cache_data.clear(); st.rerun()
                                         except Exception as e: st.error(f"Erro ao salvar: {e}")
 
