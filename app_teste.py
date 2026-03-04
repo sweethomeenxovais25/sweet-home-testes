@@ -1245,7 +1245,7 @@ elif menu_selecionado == "💰 Financeiro":
                 hoje_dt = datetime.now(fuso_br)
                 hoje_pd = pd.to_datetime(hoje_dt.strftime("%Y-%m-%d"))
                 
-                # 📅 REGRA DE NEGÓCIO: Dívidas antes de Fev/2026 são "Legado"
+                # 📅 REGRA DE NEGÓCIO: Compras feitas ANTES de Fev/2026 são "Legado"
                 DATA_CORTE_LEGADO = pd.to_datetime("2026-02-01")
                 
                 # --- 1. HIGIENIZAÇÃO DE DADOS ---
@@ -1263,6 +1263,19 @@ elif menu_selecionado == "💰 Financeiro":
                 
                 df_dev_real['CÓD. CLIENTE'] = df_dev_real['CÓD. CLIENTE'].astype(str).str.split('.').str[0].str.strip()
                 df_dev_real['VENCIMENTO'] = pd.to_datetime(df_dev_real['PRÓXIMA PARCELA'], format="%d/%m/%Y", errors='coerce')
+                
+                # Localiza a DATA DA COMPRA para validar o Legado
+                coluna_data_compra = 'DATA' # Valor padrão
+                for col in df_dev_real.columns:
+                    if str(col).strip().upper() in ['DATA', 'DATA_PEDIDO', 'DATA PEDIDO', 'DATA DA VENDA']:
+                        coluna_data_compra = col
+                        break
+                
+                if coluna_data_compra in df_dev_real.columns:
+                    df_dev_real['DATA_COMPRA'] = pd.to_datetime(df_dev_real[coluna_data_compra], format="%d/%m/%Y", errors='coerce')
+                else:
+                    df_dev_real['DATA_COMPRA'] = pd.NaT
+
                 df_dev_real = df_dev_real.dropna(subset=['VENCIMENTO'])
                 df_dev_real['DIAS_ATRASO'] = (hoje_pd - df_dev_real['VENCIMENTO']).dt.days
 
@@ -1270,11 +1283,15 @@ elif menu_selecionado == "💰 Financeiro":
                 def calc_compliance(row):
                     multa = 0
                     juros = 0
-                    is_legado = row['VENCIMENTO'] < DATA_CORTE_LEGADO
+                    
+                    if pd.notnull(row['DATA_COMPRA']):
+                        is_legado = row['DATA_COMPRA'] < DATA_CORTE_LEGADO
+                    else:
+                        is_legado = row['VENCIMENTO'] < DATA_CORTE_LEGADO
                     
                     if row['DIAS_ATRASO'] > 0:
                         if not is_legado:
-                            multa = row['SALDO_NUM'] * 0.02 # 2% de multa
+                            multa = row['SALDO_NUM'] * 0.02 # 2% de multa (CDC)
                             juros = row['SALDO_NUM'] * (0.01 / 30) * row['DIAS_ATRASO'] # 1% ao mês pro rata
                         status = "🕰️ Legado" if is_legado else ("🔴 Crítico" if row['DIAS_ATRASO'] > 30 else "🟡 Recente")
                     elif row['DIAS_ATRASO'] == 0:
@@ -1296,11 +1313,14 @@ elif menu_selecionado == "💰 Financeiro":
                     STATUS_PREDOMINANTE=pd.NamedAgg(column='FASE', aggfunc=lambda x: x.iloc[0])
                 ).reset_index()
 
+                # 💡 INJEÇÃO DE PADRÃO CORPORATIVO: Código + Nome para as tabelas
+                df_agrupado['CLIENTE_EXIBICAO'] = df_agrupado['CÓD. CLIENTE'].astype(str) + " - " + df_agrupado['CLIENTE']
+
                 LIMITE_DIAS_FLEX = 15
                 df_agrupado['SWEET_FLEX'] = df_agrupado['MAIOR_ATRASO'].apply(lambda dias: "🔒 Suspenso" if dias > LIMITE_DIAS_FLEX else "🔑 Liberado")
                 df_agrupado['SWEET_SCORE'] = df_agrupado['MAIOR_ATRASO'].apply(lambda dias: "⭐ 10/10" if dias <= 0 else ("🟢 8/10" if dias <= 7 else ("🟡 5/10" if dias <= 20 else "🔴 3/10")))
 
-                # Lógica do Vale Desconto (Sua Inteligência Original)
+                # Lógica do Vale Desconto
                 try:
                     df_carteira_temp = df_clientes_full.copy()
                     df_carteira_temp['COD_LIMPO'] = df_carteira_temp[df_carteira_temp.columns[0]].astype(str).str.split('.').str[0].str.strip()
@@ -1332,7 +1352,6 @@ elif menu_selecionado == "💰 Financeiro":
                 except:
                     df_log = pd.DataFrame(columns=['DATA_HORA', 'COD_CLIENTE', 'NOME_CLIENTE', 'STATUS_CONTATO', 'DATA_PROMESSA', 'OBSERVACOES', 'ATENDENTE', 'DATA_HORA_DT'])
 
-                # Cruzamento do Histórico com os Devedores (Trava de Cooldown)
                 df_agrupado['ULTIMO_CONTATO'] = "Nunca Cobrado"
                 df_agrupado['STATUS_CRM'] = "Sem Ação"
                 df_agrupado['COOLDOWN'] = "Livre"
@@ -1345,7 +1364,6 @@ elif menu_selecionado == "💰 Financeiro":
                             df_agrupado.at[idx, 'ULTIMO_CONTATO'] = ultimo['DATA_HORA'].split(" ")[0]
                             df_agrupado.at[idx, 'STATUS_CRM'] = ultimo['STATUS_CONTATO']
                             
-                            # Verifica se o último contato foi a menos de 24h
                             if pd.notnull(ultimo['DATA_HORA_DT']):
                                 horas_desde_contato = (hoje_dt.replace(tzinfo=None) - ultimo['DATA_HORA_DT']).total_seconds() / 3600
                                 if horas_desde_contato < 24:
@@ -1364,10 +1382,10 @@ elif menu_selecionado == "💰 Financeiro":
                         c_m2.metric("📈 Expectativa c/ Encargos", f"R$ {atrasados['TOTAL_ATUALIZADO'].sum():,.2f}")
                         c_m3.metric("👥 Clientes em Atraso", f"{len(atrasados)}")
                         
-                        # 💡 RESTAURAÇÃO COMPLETA: Todas as colunas financeiras e de CRM juntas!
                         st.dataframe(
-                            atrasados[['CLIENTE', 'SWEET_SCORE', 'SWEET_FLEX', 'VALE_DESCONTO', 'MAIOR_ATRASO', 'TOTAL_ORIGINAL', 'TOTAL_ENCARGOS', 'TOTAL_ATUALIZADO', 'STATUS_PREDOMINANTE', 'STATUS_CRM', 'COOLDOWN']], 
+                            atrasados[['CLIENTE_EXIBICAO', 'SWEET_SCORE', 'SWEET_FLEX', 'VALE_DESCONTO', 'MAIOR_ATRASO', 'TOTAL_ORIGINAL', 'TOTAL_ENCARGOS', 'TOTAL_ATUALIZADO', 'STATUS_PREDOMINANTE', 'STATUS_CRM', 'COOLDOWN']], 
                             column_config={
+                                "CLIENTE_EXIBICAO": "Cliente",
                                 "TOTAL_ORIGINAL": st.column_config.NumberColumn("Original (R$)", format="R$ %.2f"),
                                 "TOTAL_ENCARGOS": st.column_config.NumberColumn("Juros/Multa (R$)", format="R$ %.2f"),
                                 "TOTAL_ATUALIZADO": st.column_config.NumberColumn("Atualizado (R$)", format="R$ %.2f"),
@@ -1386,8 +1404,11 @@ elif menu_selecionado == "💰 Financeiro":
                     st.write("Ações preventivas: Vencimentos previstos para os próximos 5 dias.")
                     if not prevencao.empty:
                         st.dataframe(
-                            prevencao[['CLIENTE', 'SWEET_SCORE', 'VALE_DESCONTO', 'MAIOR_ATRASO', 'TOTAL_ORIGINAL', 'STATUS_PREDOMINANTE']], 
-                            column_config={"TOTAL_ORIGINAL": st.column_config.NumberColumn("Valor (R$)", format="R$ %.2f")},
+                            prevencao[['CLIENTE_EXIBICAO', 'SWEET_SCORE', 'VALE_DESCONTO', 'MAIOR_ATRASO', 'TOTAL_ORIGINAL', 'STATUS_PREDOMINANTE']], 
+                            column_config={
+                                "CLIENTE_EXIBICAO": "Cliente",
+                                "TOTAL_ORIGINAL": st.column_config.NumberColumn("Valor (R$)", format="R$ %.2f")
+                            },
                             use_container_width=True, hide_index=True
                         )
                     else:
@@ -1415,7 +1436,6 @@ elif menu_selecionado == "💰 Financeiro":
                             dados_cli = atrasados[atrasados['CÓD. CLIENTE'] == cod_alvo].iloc[0]
                             vale_atual = dados_cli['VALE_DESCONTO']
                             
-                            # 💡 RESTAURAÇÃO: Dossiê Completo mostrando Flex, Legado, Juros e Original
                             st.markdown(f"#### 👤 Perfil: {dados_cli['CLIENTE']} | {dados_cli['SWEET_FLEX']}")
                             
                             d_c1, d_c2, d_c3, d_c4, d_c5 = st.columns(5)
