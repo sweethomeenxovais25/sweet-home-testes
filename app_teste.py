@@ -1245,7 +1245,7 @@ elif menu_selecionado == "💰 Financeiro":
                 hoje_dt = datetime.now(fuso_br)
                 hoje_pd = pd.to_datetime(hoje_dt.strftime("%Y-%m-%d"))
                 
-                # 📅 REGRA DE NEGÓCIO: Compras feitas ANTES de Fev/2026 são "Legado"
+                # 📅 REGRA DE NEGÓCIO: Compras feitas ANTES de Fev/2026 são "Legado" (Isentas de Juros/Multa)
                 DATA_CORTE_LEGADO = pd.to_datetime("2026-02-01")
                 
                 # --- 1. HIGIENIZAÇÃO DE DADOS ---
@@ -1264,8 +1264,8 @@ elif menu_selecionado == "💰 Financeiro":
                 df_dev_real['CÓD. CLIENTE'] = df_dev_real['CÓD. CLIENTE'].astype(str).str.split('.').str[0].str.strip()
                 df_dev_real['VENCIMENTO'] = pd.to_datetime(df_dev_real['PRÓXIMA PARCELA'], format="%d/%m/%Y", errors='coerce')
                 
-                # Localiza a DATA DA COMPRA para validar o Legado
-                coluna_data_compra = 'DATA' # Valor padrão
+                # Localiza a DATA DA COMPRA para validar o Legado por item específico
+                coluna_data_compra = 'DATA'
                 for col in df_dev_real.columns:
                     if str(col).strip().upper() in ['DATA', 'DATA_PEDIDO', 'DATA PEDIDO', 'DATA DA VENDA']:
                         coluna_data_compra = col
@@ -1279,7 +1279,7 @@ elif menu_selecionado == "💰 Financeiro":
                 df_dev_real = df_dev_real.dropna(subset=['VENCIMENTO'])
                 df_dev_real['DIAS_ATRASO'] = (hoje_pd - df_dev_real['VENCIMENTO']).dt.days
 
-                # --- 2. MOTOR FINANCEIRO (CDC - MULTA E JUROS) ---
+                # --- 2. MOTOR FINANCEIRO (LINHA POR LINHA) ---
                 def calc_compliance(row):
                     multa = 0
                     juros = 0
@@ -1291,8 +1291,8 @@ elif menu_selecionado == "💰 Financeiro":
                     
                     if row['DIAS_ATRASO'] > 0:
                         if not is_legado:
-                            multa = row['SALDO_NUM'] * 0.02 # 2% de multa (CDC)
-                            juros = row['SALDO_NUM'] * (0.01 / 30) * row['DIAS_ATRASO'] # 1% ao mês pro rata
+                            multa = row['SALDO_NUM'] * 0.02 # 2% de multa na linha recente
+                            juros = row['SALDO_NUM'] * (0.01 / 30) * row['DIAS_ATRASO'] # Juros na linha recente
                         status = "🕰️ Legado" if is_legado else ("🔴 Crítico" if row['DIAS_ATRASO'] > 30 else "🟡 Recente")
                     elif row['DIAS_ATRASO'] == 0:
                         status = "🟢 Vence Hoje"
@@ -1304,16 +1304,28 @@ elif menu_selecionado == "💰 Financeiro":
 
                 df_dev_real[['MULTA', 'JUROS', 'VALOR_ATUALIZADO', 'FASE', 'IS_LEGADO']] = df_dev_real.apply(calc_compliance, axis=1)
 
-                # --- 3. CONSOLIDAÇÃO POR CLIENTE ---
+                # --- 3. CONSOLIDAÇÃO POR CLIENTE (STATUS MISTO) ---
+                def status_misto(fases):
+                    fases_lista = list(fases)
+                    tem_legado = any("Legado" in f for f in fases_lista)
+                    tem_critico = any("Crítico" in f for f in fases_lista)
+                    tem_recente = any("Recente" in f for f in fases_lista)
+                    
+                    if tem_legado and tem_critico: return "🔴 Crítico + 🕰️ Legado"
+                    if tem_legado and tem_recente: return "🟡 Recente + 🕰️ Legado"
+                    if tem_critico: return "🔴 Crítico"
+                    if tem_recente: return "🟡 Recente"
+                    if tem_legado: return "🕰️ Legado"
+                    return fases_lista[0]
+
                 df_agrupado = df_dev_real.groupby(['CÓD. CLIENTE', 'CLIENTE']).agg(
                     TOTAL_ORIGINAL=pd.NamedAgg(column='SALDO_NUM', aggfunc='sum'),
                     TOTAL_ATUALIZADO=pd.NamedAgg(column='VALOR_ATUALIZADO', aggfunc='sum'),
                     TOTAL_ENCARGOS=pd.NamedAgg(column='MULTA', aggfunc=lambda x: x.sum() + df_dev_real.loc[x.index, 'JUROS'].sum()),
                     MAIOR_ATRASO=pd.NamedAgg(column='DIAS_ATRASO', aggfunc='max'),
-                    STATUS_PREDOMINANTE=pd.NamedAgg(column='FASE', aggfunc=lambda x: x.iloc[0])
+                    STATUS_PREDOMINANTE=pd.NamedAgg(column='FASE', aggfunc=status_misto) # <-- Inteligência Nova
                 ).reset_index()
 
-                # 💡 INJEÇÃO DE PADRÃO CORPORATIVO: Código + Nome para as tabelas
                 df_agrupado['CLIENTE_EXIBICAO'] = df_agrupado['CÓD. CLIENTE'].astype(str) + " - " + df_agrupado['CLIENTE']
 
                 LIMITE_DIAS_FLEX = 15
@@ -1372,7 +1384,7 @@ elif menu_selecionado == "💰 Financeiro":
                 atrasados = df_agrupado[df_agrupado['MAIOR_ATRASO'] > 0].sort_values('MAIOR_ATRASO', ascending=False)
                 prevencao = df_agrupado[(df_agrupado['MAIOR_ATRASO'] <= 0) & (df_agrupado['MAIOR_ATRASO'] >= -5)].sort_values('MAIOR_ATRASO', ascending=False)
 
-                # --- 5. INTERFACE EM 4 ABAS (O SEU PAINEL COMPLETO) ---
+                # --- 5. INTERFACE EM 4 ABAS ---
                 t1, t2, t3, t4 = st.tabs(["🚨 Mapa de Risco", "📅 Fluxo (5 dias)", "📆 Promessas P.T.P", "🎯 CRM & Ações"])
                 
                 with t1:
@@ -1480,11 +1492,12 @@ elif menu_selecionado == "💰 Financeiro":
                                             prompt_cobranca = f"""
                                             Você atua no Customer Success da 'Sweet Home Enxovais'. Crie uma mensagem amigável de cobrança via WhatsApp.
                                             Dados: Cliente: {dados_cli['CLIENTE']} | Atraso: {dados_cli['MAIOR_ATRASO']} dias | Dívida Total: R$ {dados_cli['TOTAL_ATUALIZADO']:.2f} (Sendo R$ {dados_cli['TOTAL_ENCARGOS']:.2f} só de juros/multa).
+                                            Status da Dívida (Atenção): {dados_cli['STATUS_PREDOMINANTE']} (Se contiver 'Legado', a cliente tem dívidas antigas isentas de juros misturadas no bolo. Não cobre juros sobre a parte isenta).
                                             Status do Crédito Flex: {dados_cli['SWEET_FLEX']}
                                             {inst_obj}
                                             {inst_rewards}
                                             Apresente 2 opções de regularização:
-                                            1. Pagamento à vista (Crie um cenário isentando os juros).
+                                            1. Pagamento à vista (Crie um cenário isentando os juros da parte recente, se houver).
                                             2. Parcelamento flexível.
                                             Seja elegante, use emojis e mostre que o objetivo é ajudá-la a limpar o nome para liberar o crédito 'Sweet Flex' novamente.
                                             """
