@@ -1471,7 +1471,13 @@ elif menu_selecionado == "💰 Financeiro":
                                             st.markdown(f"**{h['DATA_HORA']}** | Fase: `{h['STATUS_CONTATO']}` | Por: {h['ATENDENTE']}<br>*{h['OBSERVACOES']}*", unsafe_allow_html=True)
                                             st.write("---")
 
-                            # 💡 AÇÕES ASSISTIDAS PELA IA (COM CASCATA DE SEGURANÇA)
+                            # 💡 MEMÓRIA DA IA POR CLIENTE (Para o texto não sumir da tela)
+                            if 'cliente_alvo_ia' not in st.session_state or st.session_state['cliente_alvo_ia'] != cod_alvo:
+                                st.session_state['cliente_alvo_ia'] = cod_alvo
+                                st.session_state['texto_cobranca_ia'] = ""
+                                st.session_state['texto_agradecimento_ia'] = ""
+
+                            # 💡 AÇÕES ASSISTIDAS PELA IA (COM CASCATA DE SEGURANÇA E EDIÇÃO)
                             st.divider()
                             acao_tipo = st.radio("Selecione a Abordagem:", ["📝 Cobrança e Renegociação", "💐 Agradecimento Pós-Pagamento"], horizontal=True)
                             
@@ -1509,13 +1515,19 @@ elif menu_selecionado == "💰 Financeiro":
                                                     modelo = genai.GenerativeModel(m)
                                                     resposta = modelo.generate_content(prompt_cobranca)
                                                     if resposta:
-                                                        st.info("💡 **Estratégia Sugerida (Copie e envie):**")
-                                                        st.write(resposta.text)
+                                                        # Salva na memória em vez de apenas printar na tela
+                                                        st.session_state['texto_cobranca_ia'] = resposta.text
                                                         break
                                                 except:
                                                     continue
                                         except Exception as e: 
                                             st.error(f"Erro na configuração da IA: {e}")
+
+                                # 👇 CAIXA DE TEXTO EDITÁVEL PARA COBRANÇA
+                                if st.session_state['texto_cobranca_ia']:
+                                    st.info("💡 **Mensagem Gerada!** Faça os ajustes finais na caixa abaixo:")
+                                    texto_final_cob = st.text_area("Edição da Mensagem", value=st.session_state['texto_cobranca_ia'], height=300, label_visibility="collapsed")
+                                    st.caption("👆 **Dica de cópia:** Clique dentro do texto acima, aperte `Ctrl + A` (selecionar tudo), `Ctrl + C` (copiar) e cole no WhatsApp.")
 
                             else:
                                 st.success("Fidelização: Envie esta mensagem após dar baixa no pagamento para transformar a cliente em fã.")
@@ -1540,13 +1552,19 @@ elif menu_selecionado == "💰 Financeiro":
                                                     modelo = genai.GenerativeModel(m)
                                                     resposta = modelo.generate_content(prompt_agradecimento)
                                                     if resposta:
-                                                        st.info("💡 **Mensagem de Fidelização:**")
-                                                        st.write(resposta.text)
+                                                        # Salva na memória
+                                                        st.session_state['texto_agradecimento_ia'] = resposta.text
                                                         break
                                                 except:
                                                     continue
                                         except Exception as e: 
                                             st.error(f"Erro na configuração da IA: {e}")
+
+                                # 👇 CAIXA DE TEXTO EDITÁVEL PARA AGRADECIMENTO
+                                if st.session_state['texto_agradecimento_ia']:
+                                    st.info("💡 **Mensagem de Fidelização Gerada!** Faça os ajustes finais abaixo:")
+                                    texto_final_agr = st.text_area("Edição do Agradecimento", value=st.session_state['texto_agradecimento_ia'], height=200, label_visibility="collapsed")
+                                    st.caption("👆 **Dica de cópia:** Clique dentro do texto acima, aperte `Ctrl + A` (selecionar tudo), `Ctrl + C` (copiar) e cole no WhatsApp.")
 
                             # 💡 REGISTRO OFICIAL NO LOG DA PLANILHA
                             st.divider()
