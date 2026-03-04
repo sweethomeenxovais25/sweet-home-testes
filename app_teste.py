@@ -1502,11 +1502,17 @@ elif menu_selecionado == "💰 Financeiro":
                                             Seja elegante, use emojis e mostre que o objetivo é ajudá-la a limpar o nome para liberar o crédito 'Sweet Flex' novamente.
                                             """
                                             
-                                            modelo = genai.GenerativeModel("gemini-1.5-flash")
-                                            resposta = modelo.generate_content(prompt_cobranca)
-                                            st.info("💡 **Estratégia Sugerida (Copie e envie):**")
-                                            st.write(resposta.text)
-                                        except Exception as e: st.error(f"Erro na IA: {e}")
+                                            modelos = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"]
+                                            for m in modelos:
+                                                try:
+                                                    modelo = genai.GenerativeModel(m)
+                                                    resposta = modelo.generate_content(prompt_cobranca)
+                                                    if resposta:
+                                                        st.info("💡 **Estratégia Sugerida (Copie e envie):**")
+                                                        st.write(resposta.text)
+                                                        break
+                                                except:
+                                                    continue
 
                             else:
                                 st.success("Fidelização: Envie esta mensagem após dar baixa no pagamento para transformar a cliente em fã.")
@@ -1522,11 +1528,17 @@ elif menu_selecionado == "💰 Financeiro":
                                             Agradeça o esforço dela, avise que o crédito 'Sweet Flex' já está liberado de novo e que ela é muito especial para a loja.
                                             Seja humana e afetuosa. Nada de textos frios de banco.
                                             """
-                                            modelo = genai.GenerativeModel("gemini-1.5-flash")
-                                            resposta = modelo.generate_content(prompt_agradecimento)
-                                            st.info("💡 **Mensagem de Fidelização:**")
-                                            st.write(resposta.text)
-                                        except Exception as e: st.error(f"Erro na IA: {e}")
+                                            modelos = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"]
+                                            for m in modelos:
+                                                try:
+                                                    modelo = genai.GenerativeModel(m)
+                                                    resposta = modelo.generate_content(prompt_agradecimento)
+                                                    if resposta:
+                                                        st.info("💡 **Mensagem de Fidelização:**")
+                                                        st.write(resposta.text)
+                                                        break
+                                                except:
+                                                    continue
 
                             # 💡 REGISTRO OFICIAL NO LOG DA PLANILHA
                             st.divider()
