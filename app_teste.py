@@ -552,7 +552,6 @@ if menu_selecionado == "🛒 Vendas":
                 with st.spinner("Salvando venda e gerando recibo..."):
                     try:
                         # 1. Identificação/Cadastro do Cliente
-                        # 1. Identificação/Cadastro do Cliente
                         if c_sel == "*** NOVO CLIENTE ***":
                             nome_cli = c_nome_novo.strip()
                             if not modo_teste:
