@@ -540,6 +540,7 @@ if menu_selecionado == "🛒 Vendas":
             c_btn1, c_btn2 = st.columns(2)
             if c_btn1.button("🗑️ Limpar Tudo", use_container_width=True):
                 st.session_state['carrinho'] = []
+                st.cache_data.clear()
                 st.rerun()
 
             if c_btn2.button("Finalizar Venda 🚀", type="primary", use_container_width=True):
