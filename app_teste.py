@@ -3786,87 +3786,25 @@ elif menu_selecionado == "🏛️ Contabilidade e MEI":
     from datetime import datetime
     import pandas as pd
 
-    ano_atual = datetime.now(pytz.timezone('America/Sao_Paulo')).year
-    ano_anterior = ano_atual - 1
+    # ==========================================
+    # 📅 SELETOR DINÂMICO DE ANO (O Cérebro do Módulo)
+    # ==========================================
+    ano_atual_real = datetime.now(pytz.timezone('America/Sao_Paulo')).year
+    anos_disponiveis = list(range(2023, ano_atual_real + 2))
+    
+    col_ano1, col_ano2 = st.columns([1, 4])
+    ano_selecionado = col_ano1.selectbox("📅 Selecione o Ano Base:", reversed(anos_disponiveis), index=1) # Index 1 pega o ano atual na lista invertida
+    
+    ano_declaracao = ano_selecionado - 1 # A DASN é sempre sobre o ano passado
 
     # ==========================================
     # 🌡️ TERMÔMETRO DE FATURAMENTO (LEI DO MEI)
     # ==========================================
     st.divider()
-    st.write(f"### 🌡️ Termômetro de Faturamento ({ano_atual})")
-    st.caption("Acompanhamento do limite legal do MEI (R$ 81.000,00 anuais) para evitar desenquadramento e multas da Receita Federal.")
+    st.write(f"### 🌡️ Termômetro de Faturamento ({ano_selecionado})")
+    st.caption("Acompanhamento do limite legal do MEI (R$ 81.000,00 anuais) para evitar desenquadramento e multas.")
 
-    if not df_vendas_hist.empty:
-        # Puxa vendas, converte data e filtra o ano atual
-        df_termometro = df_vendas_hist.copy()
-        col_data_venda = df_termometro.columns[1] # Puxa pela posição da coluna DATA
-        df_termometro['DATA_DT'] = pd.to_datetime(df_termometro[col_data_venda], format='%d/%m/%Y', errors='coerce')
-        
-        vendas_ano_atual = df_termometro[df_termometro['DATA_DT'].dt.year == ano_atual]
-        
-        # Filtra canceladas e TOTAIS
-        vendas_validas = vendas_ano_atual[
-            (~vendas_ano_atual['CÓD. CLIENTE'].str.upper().str.contains("TOTAIS", na=False)) &
-            (vendas_ano_atual.iloc[:, 22].astype(str).str.strip().str.lower() != "cancelado") # Status da Venda
-        ].copy()
-
-        # Soma o faturamento BRUTO
-        vendas_validas['VALOR_BRUTO'] = vendas_validas.iloc[:, 11].apply(limpar_v) # Coluna de Total
-        faturamento_atual = vendas_validas['VALOR_BRUTO'].sum()
-        
-        limite_mei = 81000.00
-        percentual_atingido = (faturamento_atual / limite_mei) * 100
-
-        # Cores Dinâmicas para o Alerta
-        if percentual_atingido < 70:
-            cor_termo = "#28a745" # Verde (Seguro)
-            status_termo = "🟢 **Zona Segura:** Faturamento dentro da margem legal."
-        elif percentual_atingido < 90:
-            cor_termo = "#ffa500" # Amarelo (Alerta)
-            status_termo = "🟡 **Atenção:** Você está se aproximando do limite do MEI. Prepare-se com seu contador."
-        else:
-            cor_termo = "#ff4b4b" # Vermelho (Perigo)
-            status_termo = "🔴 **Risco de Desenquadramento:** Limite quase estourado! Transição para ME recomendada urgente."
-
-        c_termo1, c_termo2, c_termo3 = st.columns([1, 1, 1])
-        c_termo1.metric(f"Faturado em {ano_atual}", f"R$ {faturamento_atual:,.2f}")
-        c_termo2.metric("Teto Máximo MEI", f"R$ {limite_mei:,.2f}")
-        c_termo3.metric("Margem Restante", f"R$ {limite_mei - faturamento_atual:,.2f}")
-
-        # Barra de Progresso Customizada
-        progresso_visual = min(percentual_atingido / 100, 1.0)
-        st.markdown(
-            f"""
-            <div style="width: 100%; background-color: #f0f2f6; border-radius: 10px; height: 15px;">
-                <div style="width: {progresso_visual*100}%; background-color: {cor_termo}; height: 15px; border-radius: 10px; transition: width 0.5s ease-in-out;">
-                </div>
-            </div>
-            <div style="margin-top: 5px; font-weight: bold; color: {cor_termo};">{percentual_atingido:.1f}% do teto atingido.</div>
-            """, 
-            unsafe_allow_html=True
-        )
-        st.write(status_termo)
-        
-        # 💡 BOTÃO DA RECEITA FEDERAL (DASN-SIMEI)
-        with st.expander("📝 Gerar Relatório para Declaração Anual (DASN-SIMEI)"):
-            st.info(f"O Gov.br exige que você declare até o dia 31 de maio de {ano_atual} tudo o que foi faturado em **{ano_anterior}**.")
-            vendas_ano_anterior = df_termometro[df_termometro['DATA_DT'].dt.year == ano_anterior].copy()
-            vendas_ano_anterior['VALOR_BRUTO'] = vendas_ano_anterior.iloc[:, 11].apply(limpar_v)
-            faturamento_passado = vendas_ano_anterior['VALOR_BRUTO'].sum()
-            
-            st.markdown(f"#### Valor Exato para declarar referente a {ano_anterior}: **R$ {faturamento_passado:,.2f}**")
-            st.link_button("Ir para o site oficial da Receita Federal (DASN)", "https://www8.receita.fazenda.gov.br/SimplesNacional/Aplicacoes/ATSPO/dasnsimei.app/Default.aspx", type="primary")
-
-    else:
-        st.info("Aguardando registro de vendas para calcular o termômetro.")
-
-# ==========================================
-# 🧾 GESTÃO DE GUIAS DAS (ARQUIVAMENTO)
-# ==========================================
-    st.divider()
-    st.write("### 💸 Gestão de Guias DAS (Imposto Mensal)")
-    
-    # Carrega a aba
+    # Carrega a aba CONTABILIDADE primeiro para uso no módulo inteiro
     try:
         aba_contabilidade = planilha_mestre.worksheet("CONTABILIDADE")
         dados_cont = aba_contabilidade.get_all_values()
@@ -3874,72 +3812,231 @@ elif menu_selecionado == "🏛️ Contabilidade e MEI":
     except:
         df_cont = pd.DataFrame()
 
-    c_guia1, c_guia2 = st.columns([1, 1.5])
+    if not df_vendas_hist.empty:
+        df_termometro = df_vendas_hist.copy()
+        
+        # Busca a coluna de data de forma robusta
+        col_data_venda = 'DATA DA VENDA' if 'DATA DA VENDA' in df_termometro.columns else df_termometro.columns[1] 
+        df_termometro['DATA_DT'] = pd.to_datetime(df_termometro[col_data_venda], format='%d/%m/%Y', errors='coerce')
+        
+        # 💡 FILTRA PELO ANO SELECIONADO NO DROPDOWN
+        vendas_ano_foco = df_termometro[df_termometro['DATA_DT'].dt.year == ano_selecionado]
+        
+        vendas_validas = vendas_ano_foco[
+            (~vendas_ano_foco['CÓD. CLIENTE'].str.upper().str.contains("TOTAIS", na=False)) &
+            (vendas_ano_foco.iloc[:, 22].astype(str).str.strip().str.lower() != "cancelado")
+        ].copy()
+
+        vendas_validas['VALOR_BRUTO'] = vendas_validas.iloc[:, 11].apply(limpar_v) 
+        faturamento_atual = vendas_validas['VALOR_BRUTO'].sum()
+        
+        limite_mei = 81000.00
+        percentual_atingido = (faturamento_atual / limite_mei) * 100 if limite_mei > 0 else 0
+
+        # Cores Dinâmicas
+        if percentual_atingido < 70:
+            cor_termo = "#28a745"; status_termo = "🟢 **Zona Segura:** Faturamento dentro da margem legal."
+        elif percentual_atingido < 90:
+            cor_termo = "#ffa500"; status_termo = "🟡 **Atenção:** Aproximando-se do limite do MEI. Monitore de perto."
+        else:
+            cor_termo = "#ff4b4b"; status_termo = "🔴 **Risco de Desenquadramento:** Limite estourando! Fale com um contador."
+
+        c_termo1, c_termo2, c_termo3 = st.columns([1, 1, 1])
+        c_termo1.metric(f"Faturado em {ano_selecionado}", f"R$ {faturamento_atual:,.2f}")
+        c_termo2.metric("Teto Máximo MEI", f"R$ {limite_mei:,.2f}")
+        c_termo3.metric("Margem Restante", f"R$ {limite_mei - faturamento_atual:,.2f}")
+
+        progresso_visual = min(percentual_atingido / 100, 1.0)
+        st.markdown(
+            f"""
+            <div style="width: 100%; background-color: #f0f2f6; border-radius: 10px; height: 15px;">
+                <div style="width: {progresso_visual*100}%; background-color: {cor_termo}; height: 15px; border-radius: 10px; transition: width 0.5s ease-in-out;">
+                </div>
+            </div>
+            <div style="margin-top: 5px; font-weight: bold; color: {cor_termo};">{percentual_atingido:.1f}% do teto atingido no ano.</div>
+            """, 
+            unsafe_allow_html=True
+        )
+        st.write(status_termo)
+        
+        # ==========================================
+        # 📝 DECLARAÇÃO ANUAL (DASN-SIMEI) COMPLETADA
+        # ==========================================
+        st.write("")
+        with st.expander(f"📝 Gerar e Comprovar Declaração Anual (DASN-SIMEI referente a {ano_declaracao})", expanded=False):
+            st.info(f"O Governo exige que você declare até 31 de maio de {ano_selecionado} tudo o que foi faturado em **{ano_declaracao}**.")
+            
+            # Calcula o ano anterior
+            vendas_ano_anterior = df_termometro[df_termometro['DATA_DT'].dt.year == ano_declaracao].copy()
+            vendas_ano_anterior['VALOR_BRUTO'] = vendas_ano_anterior.iloc[:, 11].apply(limpar_v)
+            faturamento_passado = vendas_ano_anterior['VALOR_BRUTO'].sum()
+            
+            c_dasn1, c_dasn2 = st.columns([1, 1.5])
+            with c_dasn1:
+                st.markdown(f"##### Valor Exato para declarar:\n### **R$ {faturamento_passado:,.2f}**")
+                st.link_button("🌐 Acessar Portal da Receita Federal", "https://www8.receita.fazenda.gov.br/SimplesNacional/Aplicacoes/ATSPO/dasnsimei.app/Default.aspx", type="primary")
+            
+            with c_dasn2:
+                st.markdown("##### 🔒 Anexar Comprovante de Entrega")
+                st.write("Já declarou? Guarde o recibo oficial aqui para não perder.")
+                with st.form("form_dasn", clear_on_submit=True):
+                    dasn_arquivo = st.file_uploader("Recibo DASN (PDF/Foto)", type=['pdf', 'png', 'jpg'])
+                    if st.form_submit_button("Salvar Recibo DASN", type="secondary"):
+                        if dasn_arquivo:
+                            with st.spinner("Criptografando e salvando..."):
+                                nome_doc = f"DASN_SIMEI_{ano_declaracao}_entregue_em_{ano_selecionado}"
+                                id_cloud, link_cloud = upload_para_cloudinary(dasn_arquivo.getvalue(), nome_doc, "Contabilidade")
+                                if link_cloud:
+                                    try:
+                                        data_agora = datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y")
+                                        aba_contabilidade.append_row(["DASN (Declaração Anual)", f"Ano-Calendário {ano_declaracao}", "31/05", 0.00, "ENTREGUE", data_agora, link_cloud], value_input_option='USER_ENTERED')
+                                        st.success(f"✅ Declaração de {ano_declaracao} salva com sucesso!"); st.cache_data.clear(); st.rerun()
+                                    except Exception as e: st.error(f"Erro: {e}")
+                        else:
+                            st.warning("Anexe o arquivo primeiro.")
+
+    else:
+        st.info("Aguardando registro de vendas para calcular o termômetro.")
+
+    # ==========================================
+    # 💸 GESTÃO MENSAL (GUIAS DAS) & CHECKLIST
+    # ==========================================
+    st.divider()
+    st.write(f"### 💸 Imposto Mensal (DAS MEI) - {ano_selecionado}")
     
+    # 💡 CHECKLIST DE REGULARIDADE DOS 12 MESES
+    meses_ano = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+    meses_pagos = []
+    
+    if not df_cont.empty:
+        # Puxa apenas as guias mensais pagas do ano selecionado
+        df_cont_guias = df_cont[df_cont['TIPO_GUIA'] == "DAS MEI (Mensal)"].copy()
+        for _, row in df_cont_guias.iterrows():
+            comp = str(row.get('COMPETENCIA', ''))
+            # Se for "Janeiro/2026", verifica se bate com o ano selecionado
+            if f"/{ano_selecionado}" in comp:
+                mes = comp.split("/")[0].strip()
+                meses_pagos.append(mes)
+
+    # Renderiza as "Pílulas" do Checklist
+    st.write("**Painel de Regularidade (Checklist)**")
+    cols_check = st.columns(12)
+    for i, mes in enumerate(meses_ano):
+        is_pago = mes in meses_pagos
+        cor_check = "#28a745" if is_pago else "#e0e0e0" # Verde ou Cinza
+        texto_check = "✓" if is_pago else "!"
+        cor_fonte = "white" if is_pago else "#555"
+        
+        # Desenha a pílula do mês via HTML
+        cols_check[i].markdown(
+            f"""<div style="background-color: {cor_check}; color: {cor_fonte}; padding: 5px; border-radius: 5px; text-align: center; font-size: 11px; font-weight: bold; margin-bottom: 10px;" title="{mes}">{mes[:3].upper()}<br>{texto_check}</div>""", 
+            unsafe_allow_html=True
+        )
+
+    st.write("")
+    c_guia1, c_guia2 = st.columns([1, 1.5])
     with c_guia1:
-        st.write("#### ➕ Anexar Comprovante DAS")
+        st.write("#### ➕ Pagar Guia do Mês")
         with st.form("form_novo_das", clear_on_submit=True):
-            tipo_guia = st.selectbox("Tipo de Guia", ["DAS MEI (Mensal)", "DASN (Declaração Anual)", "Outra Taxa"])
-            meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
-            comp_mes = st.selectbox("Mês de Referência", meses)
-            comp_ano = st.number_input("Ano", min_value=2020, max_value=2050, value=ano_atual)
+            tipo_guia = "DAS MEI (Mensal)"
+            comp_mes = st.selectbox("Mês de Referência", meses_ano)
+            comp_ano = st.number_input("Ano", min_value=2020, max_value=2050, value=ano_selecionado)
             valor_das = st.number_input("Valor Pago (R$)", value=75.60, min_value=0.0, format="%.2f")
             
-            comp_arquivo = st.file_uploader("Anexar Comprovante (PDF/Foto)", type=['pdf', 'png', 'jpg'])
+            comp_arquivo = st.file_uploader("Anexar Comprovante Pix/Boleto", type=['pdf', 'png', 'jpg'])
             
-            if st.form_submit_button("Salvar Comprovante e Dar Baixa 🔒", type="primary"):
+            if st.form_submit_button("Confirmar Pagamento 🔒", type="primary"):
                 if comp_arquivo:
-                    with st.spinner("Arquivando na Nuvem e na Contabilidade..."):
-                        nome_doc = f"Comprovante {tipo_guia} - {comp_mes}/{comp_ano}"
-                        # 1. Sobe pro Cloudinary (Reaproveita a sua função nativa)
+                    with st.spinner("Arquivando..."):
+                        nome_doc = f"Comprovante DAS - {comp_mes}_{comp_ano}"
                         id_cloud, link_cloud = upload_para_cloudinary(comp_arquivo.getvalue(), nome_doc, "Contabilidade")
                         
                         if link_cloud:
                             try:
                                 data_agora = datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y")
-                                
-                                # 2. Salva na Aba CONTABILIDADE
-                                linha_cont = [
-                                    tipo_guia, f"{comp_mes}/{comp_ano}", "Dia 20", valor_das, 
-                                    "PAGO", data_agora, link_cloud
-                                ]
+                                linha_cont = [tipo_guia, f"{comp_mes}/{comp_ano}", "Dia 20", valor_das, "PAGO", data_agora, link_cloud]
                                 aba_contabilidade.append_row(linha_cont, value_input_option='USER_ENTERED')
                                 
-                                # 3. INTEGRAÇÃO: Salva uma cópia na Aba DOCUMENTOS (Cofre Central)
+                                # INTEGRAÇÃO COM DOCUMENTOS
                                 try:
                                     aba_docs_global = planilha_mestre.worksheet("DOCUMENTOS")
-                                    linha_doc_global = [
-                                        datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y %H:%M"),
-                                        "Guia DAS / Imposto", nome_doc, id_cloud, link_cloud, "Receita Federal", "-"
-                                    ]
-                                    aba_docs_global.append_row(linha_doc_global, value_input_option='USER_ENTERED')
-                                except: pass # Ignora se a integração falhar, o foco é a Contabilidade
+                                    aba_docs_global.append_row([datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y %H:%M"), "Guia DAS / Imposto", nome_doc, id_cloud, link_cloud, "Receita Federal", "-"], value_input_option='USER_ENTERED')
+                                except: pass 
                                 
-                                st.success("✅ Guia arquivada e contabilizada com sucesso!")
-                                st.cache_data.clear()
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Erro ao salvar no banco de dados: {e}")
-                        else:
-                            st.error("Falha no upload para o Cloudinary.")
+                                st.success(f"✅ Guia de {comp_mes} contabilizada!"); st.cache_data.clear(); st.rerun()
+                            except Exception as e: st.error(f"Erro: {e}")
+                        else: st.error("Falha no upload.")
                 else:
-                    st.warning("⚠️ Você precisa anexar o comprovante de pagamento.")
+                    st.warning("⚠️ Anexe o comprovante.")
 
     with c_guia2:
-        st.write("#### 🗂️ Arquivo de Guias Pagas")
+        st.write("#### 🗂️ Arquivo Contábil")
         if not df_cont.empty:
-            df_cont_view = df_cont.copy().iloc[::-1] # Do mais recente pro mais antigo
-            
+            df_cont_view = df_cont.copy().iloc[::-1] 
             st.dataframe(
                 df_cont_view[['TIPO_GUIA', 'COMPETENCIA', 'DATA_PAGAMENTO', 'VALOR', 'LINK_COMPROVANTE']],
                 column_config={
-                    "TIPO_GUIA": "Guia",
-                    "COMPETENCIA": "Ref.",
-                    "DATA_PAGAMENTO": "Pago em",
+                    "TIPO_GUIA": "Tipo", "COMPETENCIA": "Ref.", "DATA_PAGAMENTO": "Pago em",
                     "VALOR": st.column_config.NumberColumn("Valor (R$)", format="R$ %.2f"),
                     "LINK_COMPROVANTE": st.column_config.LinkColumn("Comprovante")
                 },
                 use_container_width=True, hide_index=True
             )
         else:
-            st.info("Nenhuma guia paga registrada. Seus comprovantes aparecerão aqui.")
+            st.info("Nenhuma guia paga registrada.")
+
+    # ==========================================
+    # 🤖 ASSISTENTE FISCAL MEI (CHATBOT GOV.BR)
+    # ==========================================
+    st.divider()
+    
+    # Memória do Chatbot para a resposta não sumir
+    if 'resposta_mei_ia' not in st.session_state:
+        st.session_state['resposta_mei_ia'] = ""
+
+    with st.expander("🤖 Assistente Fiscal do MEI (Tire suas dúvidas)", expanded=False):
+        st.markdown("Tem dúvidas sobre licença-maternidade, limite de compras, INSS ou contratação de funcionário? **Pergunte ao nosso especialista treinado com as regras do portal Gov.br.**")
+        
+        pergunta_mei = st.text_area("O que você precisa saber sobre o MEI?", placeholder="Ex: Quanto posso comprar de mercadoria por ano? Posso ter filial?")
+        
+        if st.button("Consultar Legislação 🔎"):
+            if pergunta_mei:
+                with st.spinner("Consultando base de dados do Simples Nacional..."):
+                    try:
+                        import google.generativeai as genai
+                        genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+                        
+                        prompt_fiscal = f"""
+                        Você é um Consultor Fiscal Sênior especialista em MEI (Microempreendedor Individual) no Brasil, treinado com os dados oficiais do portal Gov.br e Sebrae.
+                        O usuário (dono de uma loja de enxovais chamada Sweet Home) está te fazendo a seguinte pergunta:
+                        
+                        "{pergunta_mei}"
+                        
+                        REGRAS PARA A RESPOSTA:
+                        1. Seja direto, didático e evite juridiquês complicado.
+                        2. Baseie sua resposta APENAS na lei vigente do MEI no Brasil.
+                        3. Se perguntarem sobre teto de faturamento, informe que é R$ 81.000/ano (proporcional no ano de abertura).
+                        4. Se perguntarem sobre compras, o limite de compras do MEI é de 80% da receita bruta.
+                        5. Formate a resposta usando Markdown (negritos e tópicos) para fácil leitura.
+                        """
+                        
+                        modelos = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"]
+                        for m in modelos:
+                            try:
+                                modelo = genai.GenerativeModel(m)
+                                resposta = modelo.generate_content(prompt_fiscal)
+                                if resposta:
+                                    st.session_state['resposta_mei_ia'] = resposta.text
+                                    break
+                            except: continue
+                    except Exception as e:
+                        st.error(f"Erro na IA: {e}")
+            else:
+                st.warning("Digite uma pergunta antes de consultar.")
+                
+        if st.session_state['resposta_mei_ia']:
+            st.info("💡 **Resposta Oficial do Assistente:**")
+            st.markdown(st.session_state['resposta_mei_ia'])
+            if st.button("Limpar Resposta"):
+                st.session_state['resposta_mei_ia'] = ""
+                st.rerun()
