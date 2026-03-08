@@ -4104,6 +4104,16 @@ elif menu_selecionado == "🏛️ Contabilidade e MEI":
             df_cont_edit['LINHA_REAL'] = df_cont_edit.index + 2
             df_cont_edit = df_cont_edit.iloc[::-1] # Mostra do mais recente pro mais antigo
 
+            # 💡 O FILTRO INTELIGENTE MOVIDO PARA CIMA (Curando o menu e as caixas)
+            def ler_moeda_seguro(valor):
+                v = str(valor).replace('R$', '').replace(' ', '').strip()
+                if '.' in v and ',' in v:
+                    v = v.replace('.', '').replace(',', '.')
+                elif ',' in v:
+                    v = v.replace(',', '.')
+                try: return float(v)
+                except: return 0.0
+
             opcoes_cont = []
             dict_cont = {}
 
@@ -4111,14 +4121,15 @@ elif menu_selecionado == "🏛️ Contabilidade e MEI":
                 tipo = str(r.get('TIPO_GUIA', ''))
                 comp = str(r.get('COMPETENCIA', ''))
                 
-                # Tratamento numérico blindado
-                val_str = str(r.get('VALOR_PAGO', '0')).replace('R$', '').replace(' ', '').replace('.', '').replace(',', '.')
-                try: val = float(val_str)
-                except: val = 0.0
+                # 💡 AQUI: Usamos a função segura para extrair o valor real da planilha
+                val = ler_moeda_seguro(r.get('VALOR_PAGO', 0))
                 
                 data_pg = str(r.get('DATA_PAGAMENTO', ''))
 
-                texto = f"📅 {data_pg} | {tipo} ({comp}) | R$ {val:.2f}"
+                # Formata bonito para o padrão Brasileiro (Ex: R$ 57,90)
+                val_formatado = f"R$ {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                
+                texto = f"📅 {data_pg} | {tipo} ({comp}) | {val_formatado}"
                 opcoes_cont.append(texto)
                 dict_cont[texto] = r
 
