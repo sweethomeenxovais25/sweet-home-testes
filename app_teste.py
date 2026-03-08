@@ -3793,9 +3793,9 @@ elif menu_selecionado == "🏛️ Contabilidade e MEI":
     anos_disponiveis = list(range(2023, ano_atual_real + 2))
     
     col_ano1, col_ano2 = st.columns([1, 4])
-    ano_selecionado = col_ano1.selectbox("📅 Selecione o Ano Base:", reversed(anos_disponiveis), index=1) # Index 1 pega o ano atual na lista invertida
+    ano_selecionado = col_ano1.selectbox("📅 Selecione o Ano Base:", reversed(anos_disponiveis), index=1)
     
-    ano_declaracao = ano_selecionado - 1 # A DASN é sempre sobre o ano passado
+    ano_declaracao = ano_selecionado - 1 
 
     # ==========================================
     # 🌡️ TERMÔMETRO DE FATURAMENTO (LEI DO MEI)
@@ -3804,7 +3804,7 @@ elif menu_selecionado == "🏛️ Contabilidade e MEI":
     st.write(f"### 🌡️ Termômetro de Faturamento ({ano_selecionado})")
     st.caption("Acompanhamento do limite legal do MEI (R$ 81.000,00 anuais) para evitar desenquadramento e multas.")
 
-    # Carrega a aba CONTABILIDADE primeiro para uso no módulo inteiro
+    # Carrega a aba CONTABILIDADE
     try:
         aba_contabilidade = planilha_mestre.worksheet("CONTABILIDADE")
         dados_cont = aba_contabilidade.get_all_values()
@@ -3815,11 +3815,9 @@ elif menu_selecionado == "🏛️ Contabilidade e MEI":
     if not df_vendas_hist.empty:
         df_termometro = df_vendas_hist.copy()
         
-        # Busca a coluna de data de forma robusta
         col_data_venda = 'DATA DA VENDA' if 'DATA DA VENDA' in df_termometro.columns else df_termometro.columns[1] 
         df_termometro['DATA_DT'] = pd.to_datetime(df_termometro[col_data_venda], format='%d/%m/%Y', errors='coerce')
         
-        # 💡 FILTRA PELO ANO SELECIONADO NO DROPDOWN
         vendas_ano_foco = df_termometro[df_termometro['DATA_DT'].dt.year == ano_selecionado]
         
         vendas_validas = vendas_ano_foco[
@@ -3833,7 +3831,6 @@ elif menu_selecionado == "🏛️ Contabilidade e MEI":
         limite_mei = 81000.00
         percentual_atingido = (faturamento_atual / limite_mei) * 100 if limite_mei > 0 else 0
 
-        # Cores Dinâmicas
         if percentual_atingido < 70:
             cor_termo = "#28a745"; status_termo = "🟢 **Zona Segura:** Faturamento dentro da margem legal."
         elif percentual_atingido < 90:
@@ -3859,14 +3856,11 @@ elif menu_selecionado == "🏛️ Contabilidade e MEI":
         )
         st.write(status_termo)
         
-        # ==========================================
-        # 📝 DECLARAÇÃO ANUAL (DASN-SIMEI) COMPLETADA
-        # ==========================================
+        # 📝 DECLARAÇÃO ANUAL (DASN-SIMEI)
         st.write("")
         with st.expander(f"📝 Gerar e Comprovar Declaração Anual (DASN-SIMEI referente a {ano_declaracao})", expanded=False):
             st.info(f"O Governo exige que você declare até 31 de maio de {ano_selecionado} tudo o que foi faturado em **{ano_declaracao}**.")
             
-            # Calcula o ano anterior
             vendas_ano_anterior = df_termometro[df_termometro['DATA_DT'].dt.year == ano_declaracao].copy()
             vendas_ano_anterior['VALOR_BRUTO'] = vendas_ano_anterior.iloc[:, 11].apply(limpar_v)
             faturamento_passado = vendas_ano_anterior['VALOR_BRUTO'].sum()
@@ -3878,110 +3872,193 @@ elif menu_selecionado == "🏛️ Contabilidade e MEI":
             
             with c_dasn2:
                 st.markdown("##### 🔒 Anexar Comprovante de Entrega")
-                st.write("Já declarou? Guarde o recibo oficial aqui para não perder.")
                 with st.form("form_dasn", clear_on_submit=True):
                     dasn_arquivo = st.file_uploader("Recibo DASN (PDF/Foto)", type=['pdf', 'png', 'jpg'])
                     if st.form_submit_button("Salvar Recibo DASN", type="secondary"):
                         if dasn_arquivo:
-                            with st.spinner("Criptografando e salvando..."):
+                            with st.spinner("Salvando..."):
                                 nome_doc = f"DASN_SIMEI_{ano_declaracao}_entregue_em_{ano_selecionado}"
                                 id_cloud, link_cloud = upload_para_cloudinary(dasn_arquivo.getvalue(), nome_doc, "Contabilidade")
                                 if link_cloud:
                                     try:
                                         data_agora = datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y")
-                                        aba_contabilidade.append_row(["DASN (Declaração Anual)", f"Ano-Calendário {ano_declaracao}", "31/05", 0.00, "ENTREGUE", data_agora, link_cloud], value_input_option='USER_ENTERED')
-                                        st.success(f"✅ Declaração de {ano_declaracao} salva com sucesso!"); st.cache_data.clear(); st.rerun()
+                                        # Formato Novo: TIPO | COMP | VENC | V_BASE | V_PAGO | PREJ | ATRASO | STATUS | DATA | LINK
+                                        aba_contabilidade.append_row(["DASN (Declaração Anual)", f"Ano-Calendário {ano_declaracao}", "31/05", 0.00, 0.00, 0.00, 0, "ENTREGUE", data_agora, link_cloud], value_input_option='USER_ENTERED')
+                                        st.success(f"✅ Declaração salva com sucesso!"); st.cache_data.clear(); st.rerun()
                                     except Exception as e: st.error(f"Erro: {e}")
                         else:
                             st.warning("Anexe o arquivo primeiro.")
-
     else:
         st.info("Aguardando registro de vendas para calcular o termômetro.")
 
     # ==========================================
-    # 💸 GESTÃO MENSAL (GUIAS DAS) & CHECKLIST
+    # 💸 GESTÃO MENSAL (GUIAS DAS) & RALOS FINANCEIROS
     # ==========================================
     st.divider()
     st.write(f"### 💸 Imposto Mensal (DAS MEI) - {ano_selecionado}")
     
-    # 💡 CHECKLIST DE REGULARIDADE DOS 12 MESES
     meses_ano = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
-    meses_pagos = []
     
-    if not df_cont.empty:
-        # Puxa apenas as guias mensais pagas do ano selecionado
-        df_cont_guias = df_cont[df_cont['TIPO_GUIA'] == "DAS MEI (Mensal)"].copy()
-        for _, row in df_cont_guias.iterrows():
-            comp = str(row.get('COMPETENCIA', ''))
-            # Se for "Janeiro/2026", verifica se bate com o ano selecionado
-            if f"/{ano_selecionado}" in comp:
-                mes = comp.split("/")[0].strip()
-                meses_pagos.append(mes)
+    # Processamento do Motor de Atrasos e Prejuízos
+    total_juros_ano = 0.0
+    meses_info = {} # Dicionário para guardar o status e atraso de cada mês
 
-    # Renderiza as "Pílulas" do Checklist
-    st.write("**Painel de Regularidade (Checklist)**")
-    cols_check = st.columns(12)
-    for i, mes in enumerate(meses_ano):
-        is_pago = mes in meses_pagos
-        cor_check = "#28a745" if is_pago else "#e0e0e0" # Verde ou Cinza
-        texto_check = "✓" if is_pago else "!"
-        cor_fonte = "white" if is_pago else "#555"
+    if not df_cont.empty:
+        # Garante que as colunas numéricas existam
+        if 'PREJUIZO_JUROS' in df_cont.columns:
+            df_cont['PREJUIZO_JUROS'] = pd.to_numeric(df_cont['PREJUIZO_JUROS'].astype(str).str.replace('R$', '').str.replace(',', '.'), errors='coerce').fillna(0.0)
+            df_cont['DIAS_ATRASO'] = pd.to_numeric(df_cont['DIAS_ATRASO'], errors='coerce').fillna(0)
+            df_cont['VALOR_PAGO'] = pd.to_numeric(df_cont['VALOR_PAGO'].astype(str).str.replace('R$', '').str.replace(',', '.'), errors='coerce').fillna(0.0)
+        else:
+            df_cont['PREJUIZO_JUROS'] = 0.0
+            df_cont['DIAS_ATRASO'] = 0
+            df_cont['VALOR_PAGO'] = 0.0
+
+        df_guias_ano = df_cont[(df_cont['TIPO_GUIA'] == "DAS MEI (Mensal)") & (df_cont['COMPETENCIA'].str.contains(str(ano_selecionado)))].copy()
         
-        # Desenha a pílula do mês via HTML
-        cols_check[i].markdown(
-            f"""<div style="background-color: {cor_check}; color: {cor_fonte}; padding: 5px; border-radius: 5px; text-align: center; font-size: 11px; font-weight: bold; margin-bottom: 10px;" title="{mes}">{mes[:3].upper()}<br>{texto_check}</div>""", 
-            unsafe_allow_html=True
-        )
+        for _, row in df_guias_ano.iterrows():
+            mes = row['COMPETENCIA'].split("/")[0].strip()
+            prejuizo = float(row['PREJUIZO_JUROS'])
+            atraso = int(row['DIAS_ATRASO'])
+            total_juros_ano += prejuizo
+            meses_info[mes] = {"pago": True, "atraso": atraso, "prejuizo": prejuizo}
+
+    # 💡 DASHBOARD DO "RALO FINANCEIRO"
+    c_ralo1, c_ralo2 = st.columns([2, 1])
+    with c_ralo2:
+        if total_juros_ano > 0:
+            st.metric("🚨 Ralo Financeiro (Juros/Multas)", f"R$ {total_juros_ano:,.2f}", help="Dinheiro perdido pagando guias em atraso. Esse valor foi subtraído do seu Lucro Líquido.")
+        else:
+            st.metric("🏆 Economia com Multas", "R$ 0,00", help="Parabéns! Você pagou tudo em dia neste ano e não perdeu dinheiro com juros.")
+
+    # 💡 CHECKLIST DE REGULARIDADE DOS 12 MESES (INTELIGENTE)
+    with c_ralo1:
+        st.write("**Painel de Regularidade (Checklist Mensal)**")
+        cols_check = st.columns(12)
+        for i, mes in enumerate(meses_ano):
+            info = meses_info.get(mes, {"pago": False, "atraso": 0, "prejuizo": 0.0})
+            
+            if info["pago"]:
+                if info["atraso"] > 0:
+                    cor_check = "#ffa500" # Amarelo (Pago com atraso)
+                    texto_check = "⚠️"
+                    dica = f"{mes}: Pago com {info['atraso']} dias de atraso (R$ {info['prejuizo']:.2f} de juros)."
+                else:
+                    cor_check = "#28a745" # Verde (Pago em dia)
+                    texto_check = "✓"
+                    dica = f"{mes}: Pago rigorosamente em dia!"
+                cor_fonte = "white"
+            else:
+                cor_check = "#e0e0e0" # Cinza (Não pago)
+                texto_check = "!"
+                cor_fonte = "#555"
+                dica = f"{mes}: Pendente"
+            
+            cols_check[i].markdown(
+                f"""<div style="background-color: {cor_check}; color: {cor_fonte}; padding: 5px; border-radius: 5px; text-align: center; font-size: 11px; font-weight: bold; margin-bottom: 10px;" title="{dica}">{mes[:3].upper()}<br>{texto_check}</div>""", 
+                unsafe_allow_html=True
+            )
 
     st.write("")
     c_guia1, c_guia2 = st.columns([1, 1.5])
+    
     with c_guia1:
-        st.write("#### ➕ Pagar Guia do Mês")
+        st.write("#### ➕ Registrar Pagamento do DAS")
         with st.form("form_novo_das", clear_on_submit=True):
             tipo_guia = "DAS MEI (Mensal)"
             comp_mes = st.selectbox("Mês de Referência", meses_ano)
-            comp_ano = st.number_input("Ano", min_value=2020, max_value=2050, value=ano_selecionado)
-            valor_das = st.number_input("Valor Pago (R$)", value=75.60, min_value=0.0, format="%.2f")
             
-            comp_arquivo = st.file_uploader("Anexar Comprovante Pix/Boleto", type=['pdf', 'png', 'jpg'])
+            st.markdown("<small><i>O vencimento legal do DAS é sempre dia 20 do mês seguinte à competência.</i></small>", unsafe_allow_html=True)
             
-            if st.form_submit_button("Confirmar Pagamento 🔒", type="primary"):
+            # CÁLCULO DE DATAS E VALORES
+            c_d1, c_d2 = st.columns(2)
+            dt_vencimento = c_d1.date_input("Data de Vencimento Original")
+            dt_pagamento = c_d2.date_input("Data em que foi Pago")
+            
+            c_v1, c_v2 = st.columns(2)
+            valor_base = c_v1.number_input("Valor da Guia (R$)", value=75.60, min_value=0.0, format="%.2f", help="Valor sem juros.")
+            valor_pago = c_v2.number_input("Valor Efetivamente Pago (R$)", value=75.60, min_value=0.0, format="%.2f", help="Se pagou atrasado, insira o valor final com as multas aqui.")
+            
+            comp_arquivo = st.file_uploader("Anexar Comprovante (PDF/Foto)", type=['pdf', 'png', 'jpg'])
+            
+            if st.form_submit_button("Confirmar Pagamento e Integrar 🔒", type="primary"):
                 if comp_arquivo:
-                    with st.spinner("Arquivando..."):
-                        nome_doc = f"Comprovante DAS - {comp_mes}_{comp_ano}"
+                    with st.spinner("Calculando impacto financeiro e arquivando..."):
+                        
+                        # 🧮 Motor Matemático de Atraso
+                        diferenca_dias = (dt_pagamento - dt_vencimento).days
+                        dias_atraso = diferenca_dias if diferenca_dias > 0 else 0
+                        prejuizo_juros = valor_pago - valor_base if valor_pago > valor_base else 0.0
+                        
+                        nome_doc = f"DAS_{comp_mes}_{ano_selecionado}_Atraso{dias_atraso}d"
                         id_cloud, link_cloud = upload_para_cloudinary(comp_arquivo.getvalue(), nome_doc, "Contabilidade")
                         
                         if link_cloud:
                             try:
-                                data_agora = datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y")
-                                linha_cont = [tipo_guia, f"{comp_mes}/{comp_ano}", "Dia 20", valor_das, "PAGO", data_agora, link_cloud]
+                                import pytz
+                                fuso = pytz.timezone('America/Sao_Paulo')
+                                data_agora = datetime.now(fuso).strftime("%d/%m/%Y")
+                                
+                                # 1️⃣ Salva na aba CONTABILIDADE
+                                linha_cont = [
+                                    tipo_guia, f"{comp_mes}/{ano_selecionado}", dt_vencimento.strftime("%d/%m/%Y"), 
+                                    valor_base, valor_pago, prejuizo_juros, dias_atraso, "PAGO", 
+                                    dt_pagamento.strftime("%d/%m/%Y"), link_cloud
+                                ]
                                 aba_contabilidade.append_row(linha_cont, value_input_option='USER_ENTERED')
                                 
-                                # INTEGRAÇÃO COM DOCUMENTOS
+                                # 2️⃣ INTEGRAÇÃO GIGANTE: Lança o valor pago diretamente na aba DESPESAS (DRE)
+                                try:
+                                    aba_despesas = planilha_mestre.worksheet("DESPESAS")
+                                    obs_desp = f"Ref: {comp_mes}/{ano_selecionado}."
+                                    if prejuizo_juros > 0:
+                                        obs_desp += f" Inclui R$ {prejuizo_juros:.2f} de Multa/Juros."
+                                    
+                                    linha_desp = [
+                                        data_agora, dt_vencimento.strftime("%d/%m/%Y"), 
+                                        f"Imposto Federal (DAS) - {comp_mes}/{ano_selecionado}", 
+                                        "Impostos / Taxas", valor_pago, "Pago", dt_pagamento.strftime("%d/%m/%Y"), obs_desp
+                                    ]
+                                    aba_despesas.append_row(linha_desp, value_input_option='USER_ENTERED')
+                                except Exception as err_d: 
+                                    print(f"Erro ao integrar com despesas: {err_d}")
+                                
+                                # 3️⃣ INTEGRAÇÃO: Salva no cofre de Documentos
                                 try:
                                     aba_docs_global = planilha_mestre.worksheet("DOCUMENTOS")
-                                    aba_docs_global.append_row([datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y %H:%M"), "Guia DAS / Imposto", nome_doc, id_cloud, link_cloud, "Receita Federal", "-"], value_input_option='USER_ENTERED')
+                                    aba_docs_global.append_row([datetime.now(fuso).strftime("%d/%m/%Y %H:%M"), "Guia DAS / Imposto", nome_doc, id_cloud, link_cloud, "Receita Federal", "-"], value_input_option='USER_ENTERED')
                                 except: pass 
                                 
-                                st.success(f"✅ Guia de {comp_mes} contabilizada!"); st.cache_data.clear(); st.rerun()
-                            except Exception as e: st.error(f"Erro: {e}")
-                        else: st.error("Falha no upload.")
+                                if prejuizo_juros > 0:
+                                    st.warning(f"Pagamento registrado! O atraso de {dias_atraso} dias gerou R$ {prejuizo_juros:.2f} de prejuízo, que já foi abatido do seu Lucro Líquido no Painel Financeiro.")
+                                else:
+                                    st.success(f"✅ Guia de {comp_mes} contabilizada e integrada ao Caixa com sucesso!")
+                                
+                                st.cache_data.clear(); st.rerun()
+                            except Exception as e: st.error(f"Erro na integração: {e}")
+                        else: st.error("Falha no upload do arquivo.")
                 else:
-                    st.warning("⚠️ Anexe o comprovante.")
+                    st.warning("⚠️ Anexe o comprovante obrigatório para registro.")
 
     with c_guia2:
         st.write("#### 🗂️ Arquivo Contábil")
         if not df_cont.empty:
-            df_cont_view = df_cont.copy().iloc[::-1] 
-            st.dataframe(
-                df_cont_view[['TIPO_GUIA', 'COMPETENCIA', 'DATA_PAGAMENTO', 'VALOR', 'LINK_COMPROVANTE']],
-                column_config={
-                    "TIPO_GUIA": "Tipo", "COMPETENCIA": "Ref.", "DATA_PAGAMENTO": "Pago em",
-                    "VALOR": st.column_config.NumberColumn("Valor (R$)", format="R$ %.2f"),
-                    "LINK_COMPROVANTE": st.column_config.LinkColumn("Comprovante")
-                },
-                use_container_width=True, hide_index=True
-            )
+            df_guias_view = df_cont[df_cont['TIPO_GUIA'] == "DAS MEI (Mensal)"].copy().iloc[::-1]
+            
+            if not df_guias_view.empty:
+                st.dataframe(
+                    df_guias_view[['COMPETENCIA', 'DATA_PAGAMENTO', 'VALOR_PAGO', 'PREJUIZO_JUROS', 'LINK_COMPROVANTE']],
+                    column_config={
+                        "COMPETENCIA": "Mês/Ano", 
+                        "DATA_PAGAMENTO": "Data Pgto",
+                        "VALOR_PAGO": st.column_config.NumberColumn("Total Pago", format="R$ %.2f"),
+                        "PREJUIZO_JUROS": st.column_config.NumberColumn("⚠️ Multa", format="R$ %.2f"),
+                        "LINK_COMPROVANTE": st.column_config.LinkColumn("PDF/Comprovante")
+                    },
+                    use_container_width=True, hide_index=True
+                )
+            else:
+                st.info("Nenhuma guia paga registrada.")
         else:
             st.info("Nenhuma guia paga registrada.")
 
@@ -3990,14 +4067,13 @@ elif menu_selecionado == "🏛️ Contabilidade e MEI":
     # ==========================================
     st.divider()
     
-    # Memória do Chatbot para a resposta não sumir
     if 'resposta_mei_ia' not in st.session_state:
         st.session_state['resposta_mei_ia'] = ""
 
-    with st.expander("🤖 Assistente Fiscal do MEI (Tire suas dúvidas)", expanded=False):
-        st.markdown("Tem dúvidas sobre licença-maternidade, limite de compras, INSS ou contratação de funcionário? **Pergunte ao nosso especialista treinado com as regras do portal Gov.br.**")
+    with st.expander("🤖 Assistente Fiscal do MEI (Tire suas dúvidas legais)", expanded=False):
+        st.markdown("Tem dúvidas sobre licença-maternidade, limite de compras, INSS, juros de atraso ou contratação de funcionário? **Pergunte ao nosso especialista treinado com as regras do portal Gov.br.**")
         
-        pergunta_mei = st.text_area("O que você precisa saber sobre o MEI?", placeholder="Ex: Quanto posso comprar de mercadoria por ano? Posso ter filial?")
+        pergunta_mei = st.text_area("O que você precisa saber sobre o MEI?", placeholder="Ex: Qual o juros se eu atrasar a guia DAS? Posso ter filial?")
         
         if st.button("Consultar Legislação 🔎"):
             if pergunta_mei:
@@ -4007,16 +4083,16 @@ elif menu_selecionado == "🏛️ Contabilidade e MEI":
                         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
                         
                         prompt_fiscal = f"""
-                        Você é um Consultor Fiscal Sênior especialista em MEI (Microempreendedor Individual) no Brasil, treinado com os dados oficiais do portal Gov.br e Sebrae.
-                        O usuário (dono de uma loja de enxovais chamada Sweet Home) está te fazendo a seguinte pergunta:
+                        Você é um Consultor Fiscal Sênior especialista em MEI (Microempreendedor Individual) no Brasil, treinado com os dados oficiais do portal Gov.br (PGMEI) e Sebrae.
+                        A usuária Bia, dona da loja de enxovais Sweet Home, está te fazendo a seguinte pergunta:
                         
                         "{pergunta_mei}"
                         
                         REGRAS PARA A RESPOSTA:
-                        1. Seja direto, didático e evite juridiquês complicado.
+                        1. Seja direto, didático e empático. Evite juridiquês complicado.
                         2. Baseie sua resposta APENAS na lei vigente do MEI no Brasil.
-                        3. Se perguntarem sobre teto de faturamento, informe que é R$ 81.000/ano (proporcional no ano de abertura).
-                        4. Se perguntarem sobre compras, o limite de compras do MEI é de 80% da receita bruta.
+                        3. Se perguntarem sobre multas de atraso do DAS, informe EXATAMENTE a regra: Multa de 0,33% ao dia (limitada a 20%) + Juros da taxa Selic + 1% no mês do pagamento.
+                        4. Se perguntarem sobre compras, o limite é de 80% da receita bruta.
                         5. Formate a resposta usando Markdown (negritos e tópicos) para fácil leitura.
                         """
                         
