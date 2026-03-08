@@ -3977,7 +3977,7 @@ elif menu_selecionado == "🏛️ Contabilidade e MEI":
             
             c_v1, c_v2 = st.columns(2)
             valor_base = c_v1.number_input("Valor da Guia (R$)", value=75.60, min_value=0.0, format="%.2f", help="Valor sem juros.")
-            valor_pago = c_v2.number_input("Valor Efetivamente Pago (R$)", value=75.60, min_value=0.0, format="%.2f", help="Se pagou atrasado, insira o valor final com as multas aqui.")
+            valor_pago = c_v2.number_input("Efetivamente Pago (R$)", value=75.60, min_value=0.0, format="%.2f", help="Se pagou atrasado, insira o valor final com as multas aqui.")
             
             comp_arquivo = st.file_uploader("Anexar Comprovante (PDF/Foto)", type=['pdf', 'png', 'jpg'])
             
