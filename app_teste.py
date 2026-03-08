@@ -4146,12 +4146,21 @@ elif menu_selecionado == "🏛️ Contabilidade e MEI":
 
                     c_e3, c_e4 = st.columns(2)
                     
-                    v_base_str = str(dados_atuais.get('VALOR_BASE', '0')).replace('R$', '').replace(' ', '').replace('.', '').replace(',', '.')
-                    v_pago_str = str(dados_atuais.get('VALOR_PAGO', '0')).replace('R$', '').replace(' ', '').replace('.', '').replace(',', '.')
-                    try: val_base_atual = float(v_base_str)
-                    except: val_base_atual = 0.0
-                    try: val_pago_atual = float(v_pago_str)
-                    except: val_pago_atual = 0.0
+                    # 💡 O FILTRO INTELIGENTE ANTI-BUG DO MILIONÁRIO
+                    def ler_moeda_seguro(valor):
+                        v = str(valor).replace('R$', '').replace(' ', '').strip()
+                        # Se tem ponto e vírgula (ex: 1.500,00), tira o ponto e troca vírgula por ponto
+                        if '.' in v and ',' in v:
+                            v = v.replace('.', '').replace(',', '.')
+                        # Se só tem vírgula (ex: 57,90), troca por ponto
+                        elif ',' in v:
+                            v = v.replace(',', '.')
+                        # Se só tem ponto (ex: 57.90), já tá pronto pro Python e ele não mexe!
+                        try: return float(v)
+                        except: return 0.0
+
+                    val_base_atual = ler_moeda_seguro(dados_atuais.get('VALOR_BASE', 0))
+                    val_pago_atual = ler_moeda_seguro(dados_atuais.get('VALOR_PAGO', 0))
 
                     novo_v_base = c_e3.number_input("Valor Original (Sem Juros)", value=val_base_atual, min_value=0.0, format="%.2f")
                     novo_v_pago = c_e4.number_input("Valor Efetivamente Pago", value=val_pago_atual, min_value=0.0, format="%.2f")
