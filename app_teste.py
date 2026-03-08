@@ -4063,6 +4063,179 @@ elif menu_selecionado == "🏛️ Contabilidade e MEI":
             st.info("Nenhuma guia paga registrada.")
 
     # ==========================================
+    # ✏️ BORRACHA MÁGICA: CONTABILIDADE E IMPOSTOS
+    # ==========================================
+    st.divider()
+    
+    # Memória para abrir a sanfona sozinha quando houver ação
+    abriu_borracha_cont = True if 'recibo_cont' in st.session_state and st.session_state['recibo_cont'] else False
+
+    with st.expander("✏️ Corrigir ou Excluir Lançamento Contábil", expanded=abriu_borracha_cont):
+        
+        # 🧾 RECIBO LOCALIZADO
+        if abriu_borracha_cont:
+            r = st.session_state['recibo_cont']
+            if r['acao'] == "editado":
+                st.success("✏️ Guia atualizada com sucesso e juros recalculados!")
+            elif r['acao'] == "excluido":
+                st.warning("🗑️ Guia destruída. O comprovante foi apagado da nuvem (Cloudinary) e do Cofre Central.")
+            
+            if st.button("✖️ Fechar Aviso", key="fechar_aviso_cont"):
+                st.session_state['recibo_cont'] = None
+                st.rerun()
+            st.divider()
+
+        st.write("Lançou um valor errado ou duplicou o pagamento do mês? Escolha abaixo para corrigir as datas/valores ou destruir o registro permanentemente.")
+
+        if not df_cont.empty:
+            df_cont_edit = df_cont.copy()
+            df_cont_edit['LINHA_REAL'] = df_cont_edit.index + 2
+            df_cont_edit = df_cont_edit.iloc[::-1] # Mostra do mais recente pro mais antigo
+
+            opcoes_cont = []
+            dict_cont = {}
+
+            for _, r in df_cont_edit.iterrows():
+                tipo = str(r.get('TIPO_GUIA', ''))
+                comp = str(r.get('COMPETENCIA', ''))
+                
+                # Tratamento numérico blindado
+                val_str = str(r.get('VALOR_PAGO', '0')).replace('R$', '').replace(' ', '').replace('.', '').replace(',', '.')
+                try: val = float(val_str)
+                except: val = 0.0
+                
+                data_pg = str(r.get('DATA_PAGAMENTO', ''))
+
+                texto = f"📅 {data_pg} | {tipo} ({comp}) | R$ {val:.2f}"
+                opcoes_cont.append(texto)
+                dict_cont[texto] = r
+
+            guia_selecionada = st.selectbox("Selecione o registro contábil:", ["---"] + opcoes_cont)
+
+            if guia_selecionada != "---":
+                dados_atuais = dict_cont[guia_selecionada]
+                linha_alvo = dados_atuais['LINHA_REAL']
+
+                with st.form("form_edita_cont"):
+                    st.markdown(f"#### 🔄 Editando: {dados_atuais.get('TIPO_GUIA', '')} - {dados_atuais.get('COMPETENCIA', '')}")
+
+                    c_e1, c_e2 = st.columns(2)
+                    import datetime as dt
+                    
+                    # Carrega as datas de forma segura
+                    try: data_venc_obj = dt.datetime.strptime(str(dados_atuais.get('VENCIMENTO', '')), "%d/%m/%Y").date()
+                    except: data_venc_obj = dt.datetime.now().date()
+
+                    try: data_pag_obj = dt.datetime.strptime(str(dados_atuais.get('DATA_PAGAMENTO', '')), "%d/%m/%Y").date()
+                    except: data_pag_obj = dt.datetime.now().date()
+
+                    novo_venc = c_e1.date_input("Data de Vencimento Original", value=data_venc_obj)
+                    novo_pag = c_e2.date_input("Data Efetiva do Pagamento", value=data_pag_obj)
+
+                    c_e3, c_e4 = st.columns(2)
+                    
+                    v_base_str = str(dados_atuais.get('VALOR_BASE', '0')).replace('R$', '').replace(' ', '').replace('.', '').replace(',', '.')
+                    v_pago_str = str(dados_atuais.get('VALOR_PAGO', '0')).replace('R$', '').replace(' ', '').replace('.', '').replace(',', '.')
+                    try: val_base_atual = float(v_base_str)
+                    except: val_base_atual = 0.0
+                    try: val_pago_atual = float(v_pago_str)
+                    except: val_pago_atual = 0.0
+
+                    novo_v_base = c_e3.number_input("Valor Original (Sem Juros)", value=val_base_atual, min_value=0.0, format="%.2f")
+                    novo_v_pago = c_e4.number_input("Valor Efetivamente Pago", value=val_pago_atual, min_value=0.0, format="%.2f")
+
+                    st.divider()
+                    col_btn1, col_btn2 = st.columns([2, 1])
+                    salvar = col_btn1.form_submit_button("💾 Recalcular e Salvar", type="primary", use_container_width=True)
+
+                    st.write("---")
+                    confirma_exclusao = st.checkbox("Confirmar DESTRUIÇÃO TOTAL deste registro (Apaga a imagem da Nuvem)")
+                    excluir = col_btn2.form_submit_button("🗑️ Destruir Guia", type="secondary", use_container_width=True)
+
+                    if salvar:
+                        with st.spinner("Recalculando prejuízos e atualizando banco de dados..."):
+                            try:
+                                # O MÓDULO RECALCULA A MULTA AUTOMATICAMENTE NA EDIÇÃO
+                                diferenca_dias = (novo_pag - novo_venc).days
+                                novo_atraso = diferenca_dias if diferenca_dias > 0 else 0
+                                novo_prejuizo = novo_v_pago - novo_v_base if novo_v_pago > novo_v_base else 0.0
+
+                                aba_cont_edit = planilha_mestre.worksheet("CONTABILIDADE")
+
+                                atualizacoes = [
+                                    {'range': f'C{linha_alvo}', 'values': [[novo_venc.strftime("%d/%m/%Y")]]},
+                                    {'range': f'D{linha_alvo}', 'values': [[novo_v_base]]},
+                                    {'range': f'E{linha_alvo}', 'values': [[novo_v_pago]]},
+                                    {'range': f'F{linha_alvo}', 'values': [[novo_prejuizo]]},
+                                    {'range': f'G{linha_alvo}', 'values': [[novo_atraso]]},
+                                    {'range': f'I{linha_alvo}', 'values': [[novo_pag.strftime("%d/%m/%Y")]]},
+                                ]
+                                aba_cont_edit.batch_update(atualizacoes, value_input_option='USER_ENTERED')
+
+                                # Opcional: Registra na Auditoria
+                                try:
+                                    planilha_mestre.worksheet("LOG_AUDITORIA").append_row([
+                                        dt.datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y %H:%M"),
+                                        st.session_state.get('usuario_logado', 'Sistema'), "EDIÇÃO CONTÁBIL", f"Linha {linha_alvo}",
+                                        "Receita Federal", f"Ajustou guia {dados_atuais.get('COMPETENCIA', '')} para R$ {novo_v_pago:.2f}"
+                                    ], value_input_option='USER_ENTERED')
+                                except: pass
+
+                                st.session_state['recibo_cont'] = {"acao": "editado"}
+                                st.cache_data.clear(); st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro ao salvar: {e}")
+
+                    if excluir:
+                        if confirma_exclusao:
+                            with st.spinner("Iniciando protocolo de destruição sincronizada..."):
+                                try:
+                                    link_alvo = str(dados_atuais.get('LINK_COMPROVANTE', ''))
+                                    
+                                    # 1️⃣ O CAÇADOR: Procura o arquivo no Cofre Central (DOCUMENTOS) usando o link
+                                    id_cloud_excluir = None
+                                    linha_docs_excluir = None
+                                    if not df_docs.empty and link_alvo != "":
+                                        match_doc = df_docs[df_docs['LINK_DRIVE'] == link_alvo]
+                                        if not match_doc.empty:
+                                            id_cloud_excluir = match_doc.iloc[0]['ID_ARQUIVO']
+                                            linha_docs_excluir = match_doc.index[0] + 2
+                                    
+                                    # 2️⃣ O EXECUTOR: Deleta fisicamente o arquivo do servidor Cloudinary
+                                    if id_cloud_excluir and id_cloud_excluir != "-":
+                                        import cloudinary.uploader
+                                        try: 
+                                            cloudinary.uploader.destroy(id_cloud_excluir)
+                                        except Exception as c_err: 
+                                            print(f"Aviso Cloudinary: {c_err}")
+
+                                    # 3️⃣ O LIXEIRO: Deleta a linha da aba DOCUMENTOS (O Cofre)
+                                    if linha_docs_excluir:
+                                        try: planilha_mestre.worksheet("DOCUMENTOS").delete_rows(linha_docs_excluir)
+                                        except: pass
+
+                                    # 4️⃣ O FINALIZADOR: Deleta da aba CONTABILIDADE
+                                    planilha_mestre.worksheet("CONTABILIDADE").delete_rows(linha_alvo)
+
+                                    # Registra o crime na Auditoria
+                                    try:
+                                        planilha_mestre.worksheet("LOG_AUDITORIA").append_row([
+                                            dt.datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y %H:%M"),
+                                            st.session_state.get('usuario_logado', 'Sistema'), "EXCLUSÃO CONTÁBIL", f"Linha {linha_alvo}",
+                                            "Receita Federal", f"Apagou guia {dados_atuais.get('COMPETENCIA', '')}"
+                                        ], value_input_option='USER_ENTERED')
+                                    except: pass
+
+                                    st.session_state['recibo_cont'] = {"acao": "excluido"}
+                                    st.cache_data.clear(); st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro na exclusão: {e}")
+                        else:
+                            st.warning("⚠️ Você precisa marcar a caixa de confirmação para destruir o arquivo.")
+        else:
+            st.info("Nenhum lançamento contábil registrado ainda.")
+
+    # ==========================================
     # 🤖 ASSISTENTE FISCAL MEI (CHATBOT GOV.BR)
     # ==========================================
     st.divider()
