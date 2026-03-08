@@ -334,7 +334,7 @@ with st.sidebar:
     
     menu_selecionado = st.radio(
         "Navegação",
-        ["🛒 Vendas", "💰 Financeiro", "📦 Estoque", "👥 Clientes", "📂 Documentos", "🏭 Compras e Despesas", "📢 Gestão de Marketing"], 
+        ["🛒 Vendas", "💰 Financeiro", "📦 Estoque", "👥 Clientes", "📂 Documentos", "🏭 Compras e Despesas", "📢 Gestão de Marketing", "🏛️ Contabilidade e MEI"], 
         key="navegacao_principal_sweet"
     )
     
@@ -3774,3 +3774,172 @@ elif menu_selecionado == "📢 Gestão de Marketing":
                             st.warning("⚠️ Marque a caixa de confirmação para excluir a tarefa.")
         else:
             st.info("Nenhuma demanda de marketing registrada no momento.")
+
+# ==========================================================
+# 🏛️ SEÇÃO 8: CONTABILIDADE E INTELIGÊNCIA FISCAL (MEI)
+# ==========================================================
+elif menu_selecionado == "🏛️ Contabilidade e MEI":
+    st.title("🏛️ Inteligência Fiscal e MEI")
+    st.write("Proteção tributária, termômetro de faturamento e cofre de guias do Simples Nacional.")
+
+    import pytz
+    from datetime import datetime
+    import pandas as pd
+
+    ano_atual = datetime.now(pytz.timezone('America/Sao_Paulo')).year
+    ano_anterior = ano_atual - 1
+
+    # ==========================================
+    # 🌡️ TERMÔMETRO DE FATURAMENTO (LEI DO MEI)
+    # ==========================================
+    st.divider()
+    st.write(f"### 🌡️ Termômetro de Faturamento ({ano_atual})")
+    st.caption("Acompanhamento do limite legal do MEI (R$ 81.000,00 anuais) para evitar desenquadramento e multas da Receita Federal.")
+
+    if not df_vendas_hist.empty:
+        # Puxa vendas, converte data e filtra o ano atual
+        df_termometro = df_vendas_hist.copy()
+        col_data_venda = df_termometro.columns[1] # Puxa pela posição da coluna DATA
+        df_termometro['DATA_DT'] = pd.to_datetime(df_termometro[col_data_venda], format='%d/%m/%Y', errors='coerce')
+        
+        vendas_ano_atual = df_termometro[df_termometro['DATA_DT'].dt.year == ano_atual]
+        
+        # Filtra canceladas e TOTAIS
+        vendas_validas = vendas_ano_atual[
+            (~vendas_ano_atual['CÓD. CLIENTE'].str.upper().str.contains("TOTAIS", na=False)) &
+            (vendas_ano_atual.iloc[:, 22].astype(str).str.strip().str.lower() != "cancelado") # Status da Venda
+        ].copy()
+
+        # Soma o faturamento BRUTO
+        vendas_validas['VALOR_BRUTO'] = vendas_validas.iloc[:, 11].apply(limpar_v) # Coluna de Total
+        faturamento_atual = vendas_validas['VALOR_BRUTO'].sum()
+        
+        limite_mei = 81000.00
+        percentual_atingido = (faturamento_atual / limite_mei) * 100
+
+        # Cores Dinâmicas para o Alerta
+        if percentual_atingido < 70:
+            cor_termo = "#28a745" # Verde (Seguro)
+            status_termo = "🟢 **Zona Segura:** Faturamento dentro da margem legal."
+        elif percentual_atingido < 90:
+            cor_termo = "#ffa500" # Amarelo (Alerta)
+            status_termo = "🟡 **Atenção:** Você está se aproximando do limite do MEI. Prepare-se com seu contador."
+        else:
+            cor_termo = "#ff4b4b" # Vermelho (Perigo)
+            status_termo = "🔴 **Risco de Desenquadramento:** Limite quase estourado! Transição para ME recomendada urgente."
+
+        c_termo1, c_termo2, c_termo3 = st.columns([1, 1, 1])
+        c_termo1.metric(f"Faturado em {ano_atual}", f"R$ {faturamento_atual:,.2f}")
+        c_termo2.metric("Teto Máximo MEI", f"R$ {limite_mei:,.2f}")
+        c_termo3.metric("Margem Restante", f"R$ {limite_mei - faturamento_atual:,.2f}")
+
+        # Barra de Progresso Customizada
+        progresso_visual = min(percentual_atingido / 100, 1.0)
+        st.markdown(
+            f"""
+            <div style="width: 100%; background-color: #f0f2f6; border-radius: 10px; height: 15px;">
+                <div style="width: {progresso_visual*100}%; background-color: {cor_termo}; height: 15px; border-radius: 10px; transition: width 0.5s ease-in-out;">
+                </div>
+            </div>
+            <div style="margin-top: 5px; font-weight: bold; color: {cor_termo};">{percentual_atingido:.1f}% do teto atingido.</div>
+            """, 
+            unsafe_allow_html=True
+        )
+        st.write(status_termo)
+        
+        # 💡 BOTÃO DA RECEITA FEDERAL (DASN-SIMEI)
+        with st.expander("📝 Gerar Relatório para Declaração Anual (DASN-SIMEI)"):
+            st.info(f"O Gov.br exige que você declare até o dia 31 de maio de {ano_atual} tudo o que foi faturado em **{ano_anterior}**.")
+            vendas_ano_anterior = df_termometro[df_termometro['DATA_DT'].dt.year == ano_anterior].copy()
+            vendas_ano_anterior['VALOR_BRUTO'] = vendas_ano_anterior.iloc[:, 11].apply(limpar_v)
+            faturamento_passado = vendas_ano_anterior['VALOR_BRUTO'].sum()
+            
+            st.markdown(f"#### Valor Exato para declarar referente a {ano_anterior}: **R$ {faturamento_passado:,.2f}**")
+            st.link_button("Ir para o site oficial da Receita Federal (DASN)", "https://www8.receita.fazenda.gov.br/SimplesNacional/Aplicacoes/ATSPO/dasnsimei.app/Default.aspx", type="primary")
+
+    else:
+        st.info("Aguardando registro de vendas para calcular o termômetro.")
+
+# ==========================================
+# 🧾 GESTÃO DE GUIAS DAS (ARQUIVAMENTO)
+# ==========================================
+    st.divider()
+    st.write("### 💸 Gestão de Guias DAS (Imposto Mensal)")
+    
+    # Carrega a aba
+    try:
+        aba_contabilidade = planilha_mestre.worksheet("CONTABILIDADE")
+        dados_cont = aba_contabilidade.get_all_values()
+        df_cont = pd.DataFrame(dados_cont[1:], columns=dados_cont[0]) if len(dados_cont) > 1 else pd.DataFrame()
+    except:
+        df_cont = pd.DataFrame()
+
+    c_guia1, c_guia2 = st.columns([1, 1.5])
+    
+    with c_guia1:
+        st.write("#### ➕ Anexar Comprovante DAS")
+        with st.form("form_novo_das", clear_on_submit=True):
+            tipo_guia = st.selectbox("Tipo de Guia", ["DAS MEI (Mensal)", "DASN (Declaração Anual)", "Outra Taxa"])
+            meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+            comp_mes = st.selectbox("Mês de Referência", meses)
+            comp_ano = st.number_input("Ano", min_value=2020, max_value=2050, value=ano_atual)
+            valor_das = st.number_input("Valor Pago (R$)", value=75.60, min_value=0.0, format="%.2f")
+            
+            comp_arquivo = st.file_uploader("Anexar Comprovante (PDF/Foto)", type=['pdf', 'png', 'jpg'])
+            
+            if st.form_submit_button("Salvar Comprovante e Dar Baixa 🔒", type="primary"):
+                if comp_arquivo:
+                    with st.spinner("Arquivando na Nuvem e na Contabilidade..."):
+                        nome_doc = f"Comprovante {tipo_guia} - {comp_mes}/{comp_ano}"
+                        # 1. Sobe pro Cloudinary (Reaproveita a sua função nativa)
+                        id_cloud, link_cloud = upload_para_cloudinary(comp_arquivo.getvalue(), nome_doc, "Contabilidade")
+                        
+                        if link_cloud:
+                            try:
+                                data_agora = datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y")
+                                
+                                # 2. Salva na Aba CONTABILIDADE
+                                linha_cont = [
+                                    tipo_guia, f"{comp_mes}/{comp_ano}", "Dia 20", valor_das, 
+                                    "PAGO", data_agora, link_cloud
+                                ]
+                                aba_contabilidade.append_row(linha_cont, value_input_option='USER_ENTERED')
+                                
+                                # 3. INTEGRAÇÃO: Salva uma cópia na Aba DOCUMENTOS (Cofre Central)
+                                try:
+                                    aba_docs_global = planilha_mestre.worksheet("DOCUMENTOS")
+                                    linha_doc_global = [
+                                        datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y %H:%M"),
+                                        "Guia DAS / Imposto", nome_doc, id_cloud, link_cloud, "Receita Federal", "-"
+                                    ]
+                                    aba_docs_global.append_row(linha_doc_global, value_input_option='USER_ENTERED')
+                                except: pass # Ignora se a integração falhar, o foco é a Contabilidade
+                                
+                                st.success("✅ Guia arquivada e contabilizada com sucesso!")
+                                st.cache_data.clear()
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro ao salvar no banco de dados: {e}")
+                        else:
+                            st.error("Falha no upload para o Cloudinary.")
+                else:
+                    st.warning("⚠️ Você precisa anexar o comprovante de pagamento.")
+
+    with c_guia2:
+        st.write("#### 🗂️ Arquivo de Guias Pagas")
+        if not df_cont.empty:
+            df_cont_view = df_cont.copy().iloc[::-1] # Do mais recente pro mais antigo
+            
+            st.dataframe(
+                df_cont_view[['TIPO_GUIA', 'COMPETENCIA', 'DATA_PAGAMENTO', 'VALOR', 'LINK_COMPROVANTE']],
+                column_config={
+                    "TIPO_GUIA": "Guia",
+                    "COMPETENCIA": "Ref.",
+                    "DATA_PAGAMENTO": "Pago em",
+                    "VALOR": st.column_config.NumberColumn("Valor (R$)", format="R$ %.2f"),
+                    "LINK_COMPROVANTE": st.column_config.LinkColumn("Comprovante")
+                },
+                use_container_width=True, hide_index=True
+            )
+        else:
+            st.info("Nenhuma guia paga registrada. Seus comprovantes aparecerão aqui.")
