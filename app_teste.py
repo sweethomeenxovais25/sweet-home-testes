@@ -3899,7 +3899,7 @@ elif menu_selecionado == "🏛️ Contabilidade e MEI":
     
     meses_ano = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
     
-    # Processamento do Motor de Atrasos e Prejuízos
+    # Processamento do Motor de Atrasos e Prejuízos (BLINDADO CONTRA ESPAÇOS INVISÍVEIS)
     total_juros_ano = 0.0
     meses_info = {} # Dicionário para guardar o status e atraso de cada mês
 
@@ -3914,14 +3914,24 @@ elif menu_selecionado == "🏛️ Contabilidade e MEI":
             df_cont['DIAS_ATRASO'] = 0
             df_cont['VALOR_PAGO'] = 0.0
 
-        df_guias_ano = df_cont[(df_cont['TIPO_GUIA'] == "DAS MEI (Mensal)") & (df_cont['COMPETENCIA'].str.contains(str(ano_selecionado)))].copy()
+        # 💡 O SEGREDO AQUI: Limpa espaços e formatação das colunas para busca perfeita
+        df_cont['TIPO_LIMPO'] = df_cont['TIPO_GUIA'].astype(str).str.strip()
+        df_cont['COMP_LIMPA'] = df_cont['COMPETENCIA'].astype(str).str.strip()
+
+        df_guias_ano = df_cont[
+            (df_cont['TIPO_LIMPO'] == "DAS MEI (Mensal)") & 
+            (df_cont['COMP_LIMPA'].str.contains(str(ano_selecionado), na=False))
+        ].copy()
         
         for _, row in df_guias_ano.iterrows():
-            mes = row['COMPETENCIA'].split("/")[0].strip()
+            # Extrai o mês, arranca espaços extras e joga para MINÚSCULO (ex: "janeiro")
+            mes_banco = str(row['COMP_LIMPA']).split("/")[0].strip().lower()
             prejuizo = float(row['PREJUIZO_JUROS'])
             atraso = int(row['DIAS_ATRASO'])
             total_juros_ano += prejuizo
-            meses_info[mes] = {"pago": True, "atraso": atraso, "prejuizo": prejuizo}
+            
+            # Salva na memória com a chave limpa e minúscula
+            meses_info[mes_banco] = {"pago": True, "atraso": atraso, "prejuizo": prejuizo}
 
     # 💡 DASHBOARD DO "RALO FINANCEIRO"
     c_ralo1, c_ralo2 = st.columns([2, 1])
@@ -3936,7 +3946,9 @@ elif menu_selecionado == "🏛️ Contabilidade e MEI":
         st.write("**Painel de Regularidade (Checklist Mensal)**")
         cols_check = st.columns(12)
         for i, mes in enumerate(meses_ano):
-            info = meses_info.get(mes, {"pago": False, "atraso": 0, "prejuizo": 0.0})
+            
+            # 💡 NA HORA DE PROCURAR: Converte o nome do mês para minúsculo também!
+            info = meses_info.get(mes.lower(), {"pago": False, "atraso": 0, "prejuizo": 0.0})
             
             if info["pago"]:
                 if info["atraso"] > 0:
