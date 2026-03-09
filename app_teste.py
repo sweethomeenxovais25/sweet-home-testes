@@ -17,6 +17,7 @@ from PIL import Image
 import requests
 import time
 import pytz
+import hashlib
 
 def verificar_status_odoo(codigo_produto):
     cod_limpo = str(codigo_produto).strip()
@@ -35,6 +36,37 @@ def verificar_status_odoo(codigo_produto):
         return False, ""
     except:
         return False, ""
+
+import hashlib
+
+# --- NOVAS APIS E SEGURANÇA (MOTOR UNIVERSAL) ---
+def buscar_cep_magico(cep):
+    """Vai à internet buscar os dados do endereço usando a API pública do ViaCEP"""
+    cep_limpo = str(cep).replace("-", "").replace(".", "").strip()
+    if len(cep_limpo) == 8:
+        try:
+            url = f"https://viacep.com.br/ws/{cep_limpo}/json/"
+            resposta = requests.get(url, timeout=5)
+            dados = resposta.json()
+            if "erro" not in dados: return dados
+        except: return None
+    return None
+
+def buscar_cnpj_magico(cnpj):
+    """Consulta a API pública da ReceitaWS para buscar os dados de uma empresa"""
+    cnpj_limpo = str(cnpj).replace(".", "").replace("-", "").replace("/", "").strip()
+    if len(cnpj_limpo) == 14:
+        try:
+            url = f"https://receitaws.com.br/v1/cnpj/{cnpj_limpo}"
+            resposta = requests.get(url, timeout=5)
+            dados = resposta.json()
+            if dados.get("status") == "OK": return dados
+        except: return None
+    return None
+
+def gerar_hash_senha(senha):
+    """Transforma a senha num código criptografado irreversível (SHA-256)"""
+    return hashlib.sha256(str(senha).encode('utf-8')).hexdigest()
 
 # ==========================================
 # 1. CONFIGURAÇÃO ÚNICA DA PÁGINA
@@ -153,15 +185,13 @@ st.markdown(estilo_sweet_clean, unsafe_allow_html=True)
 from datetime import datetime # Certifique-se de que isso está no topo do seu arquivo
 
 # ==========================================
-# 🔒 2. FASE DE LOGIN & SEGURANÇA
+# 🔒 2. FASE DE LOGIN & SEGURANÇA (MOTOR SAAS)
 # ==========================================
 if not st.session_state['autenticado']:
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
-        try:
-            st.image("logo_sweet_teste.png", use_container_width=True)
-        except:
-            st.warning("🌸 Sweet Home Enxovais")
+        try: st.image("logo_sweet_teste.png", use_container_width=True)
+        except: st.warning("🌸 Sweet Home Enxovais")
         
         st.markdown("<h2 style='text-align: center;'>Gestão Sweet</h2>", unsafe_allow_html=True)
 
@@ -171,24 +201,42 @@ if not st.session_state['autenticado']:
             entrar = st.form_submit_button("Entrar no Sistema 🚀", use_container_width=True)
             
             if entrar:
-                try:
-                    usuarios_permitidos = st.secrets["usuarios"]
-                    if usuario_input in usuarios_permitidos:
-                        if str(usuarios_permitidos[usuario_input]) == senha_input:
-                            st.session_state['autenticado'] = True
-                            st.session_state['usuario_logado'] = usuario_input
+                if usuario_input and senha_input:
+                    with st.spinner("Verificando credenciais no cofre..."):
+                        try:
+                            # Tenta puxar a aba CREDENCIAIS conectando na hora
+                            aba_cred = planilha_mestre.worksheet("CREDENCIAIS")
+                            dados_cred = aba_cred.get_all_values()
                             
-                            # 💡 O SINAL: Avisamos ao sistema que precisa anotar o acesso!
-                            st.session_state['precisa_registrar_acesso'] = True 
-                            
-                            st.rerun() # Entra no sistema
-                        else:
-                            st.error("❌ Senha incorreta.")
-                    else:
-                        st.error("❌ Usuário não encontrado.")
-                except Exception as e:
-                    st.error("Erro ao acessar cofre de senhas. Verifique os Secrets.")
-    st.stop() # Bloqueia quem não logou
+                            if len(dados_cred) > 1:
+                                import pandas as pd
+                                df_cred_temp = pd.DataFrame(dados_cred[1:], columns=dados_cred[0])
+                                
+                                # Procura o usuário Ativo
+                                user_row = df_cred_temp[(df_cred_temp['USUARIO'] == usuario_input) & (df_cred_temp['STATUS'] == 'Ativo')]
+                                
+                                if not user_row.empty:
+                                    senha_real_banco = str(user_row.iloc[0]['SENHA'])
+                                    senha_digitada_hash = gerar_hash_senha(senha_input)
+                                    
+                                    # Aceita a senha criptografada OU a antiga (para transição)
+                                    if senha_real_banco == senha_digitada_hash or senha_real_banco == senha_input:
+                                        st.session_state['autenticado'] = True
+                                        st.session_state['usuario_logado'] = str(user_row.iloc[0]['NOME'])
+                                        st.session_state['nivel_acesso'] = str(user_row.iloc[0]['NIVEL'])
+                                        st.session_state['precisa_registrar_acesso'] = True
+                                        st.rerun()
+                                    else:
+                                        st.error("❌ Senha incorreta.")
+                                else:
+                                    st.error("❌ Usuário não encontrado ou bloqueado.")
+                            else:
+                                st.error("⚠️ A aba CREDENCIAIS está vazia na planilha.")
+                        except Exception as e:
+                            st.error(f"Erro de comunicação com o cofre: {e}")
+                else:
+                    st.warning("Preencha usuário e senha.")
+    st.stop()
 
 # ==========================================
 # 🚀 3. SISTEMA LIBERADO (CONEXÕES E DADOS)
@@ -274,13 +322,12 @@ def upload_para_cloudinary(file_bytes, file_name, pasta_destino):
 
 @st.cache_data(ttl=60)
 def carregar_dados():
-    # 💡 CORREÇÃO 1: Se falhar, agora ele retorna as 14 variáveis certinhas para não quebrar o app
+    # 💡 CORREÇÃO: Retorna as 15 variáveis certinhas para não quebrar o app se falhar
     if not planilha_mestre: 
-        return {}, {}, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+        return {}, {}, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     
     def ler_aba_seguro(nome):
         try:
-            # 💡 CORREÇÃO 2: A variável certa é 'nome' e não 'nome_aba'
             aba = planilha_mestre.worksheet(nome)
             dados = aba.get_all_values()
             if len(dados) <= 1: return pd.DataFrame()
@@ -290,7 +337,7 @@ def carregar_dados():
                 df = df[df.iloc[:, 1].astype(str).str.strip() != ""]
             return df
         except Exception as e: 
-            print(f"Erro ao ler {nome}: {e}") # Isso ajuda a avisar se a aba não existir
+            print(f"Erro ao ler {nome}: {e}")
             return pd.DataFrame()
 
     df_inv = ler_aba_seguro("INVENTÁRIO")
@@ -299,23 +346,26 @@ def carregar_dados():
     df_vendas = ler_aba_seguro("VENDAS")
     df_painel = ler_aba_seguro("PAINEL")
     
-    # NOVAS ABAS CORPORATIVAS
+    # ABAS CORPORATIVAS
     df_socios = ler_aba_seguro("SOCIOS")
     df_aportes = ler_aba_seguro("APORTES")
     df_fornecedores = ler_aba_seguro("FORNECEDORES")
     df_despesas = ler_aba_seguro("DESPESAS")
     df_docs = ler_aba_seguro("DOCUMENTOS")
     df_marketing = ler_aba_seguro("MARKETING")
+    
+    # 💡 ABA DE USUÁRIOS
+    df_cred = ler_aba_seguro("CREDENCIAIS")
 
     banco_prod = {str(r.iloc[0]): {"nome": r.iloc[1], "custo": float(limpar_v(r.iloc[3])), "estoque": r.iloc[7], "venda": r.iloc[8]} for _, r in df_inv.iterrows()} if not df_inv.empty else {}
     banco_cli = {str(r.iloc[0]): {"nome": str(r.iloc[1]), "fone": str(r.iloc[2])} for _, r in df_cli.iterrows()} if not df_cli.empty else {}
     banco_forn = {str(r.iloc[0]): {"nome": str(r.iloc[1])} for _, r in df_fornecedores.iterrows()} if not df_fornecedores.empty else {}
 
-    # Retornando TUDO
-    return banco_prod, banco_cli, df_inv, df_fin, df_vendas, df_painel, df_cli, df_socios, df_aportes, df_docs, banco_forn, df_fornecedores, df_despesas, df_marketing
+    # Retornando TUDO (15 itens)
+    return banco_prod, banco_cli, df_inv, df_fin, df_vendas, df_painel, df_cli, df_socios, df_aportes, df_docs, banco_forn, df_fornecedores, df_despesas, df_marketing, df_cred
 
-# Variáveis que recebem os dados (Atualizado)
-banco_de_produtos, banco_de_clientes, df_full_inv, df_financeiro, df_vendas_hist, df_painel_resumo, df_clientes_full, df_socios, df_aportes, df_docs, banco_de_fornecedores, df_fornecedores, df_despesas, df_marketing = carregar_dados()
+# Variáveis que recebem os dados (Atualizado com df_cred no final)
+banco_de_produtos, banco_de_clientes, df_full_inv, df_financeiro, df_vendas_hist, df_painel_resumo, df_clientes_full, df_socios, df_aportes, df_docs, banco_de_fornecedores, df_fornecedores, df_despesas, df_marketing, df_cred = carregar_dados()
 
 with st.sidebar:
     try:
