@@ -649,34 +649,41 @@ if menu_selecionado == "🛒 Vendas":
     with st.container(border=True):
         st.markdown("### 🛍️ Adicionar Produtos")
         
-        # Ajustamos as proporções para a caixa preencher melhor a tela e sumir com a lacuna
         c_p1, c_p2, c_p3, c_p4 = st.columns([3.5, 1, 1, 1])
         
-        # 1. Seleção do Produto
+        # 💡 FUNÇÃO DE ESTABILIZAÇÃO: Atualiza o preço sem quebrar a tela
+        def atualizar_preco_dinamico():
+            if 'venda_produto_sel' in st.session_state:
+                cod_escolhido = st.session_state['venda_produto_sel'].split(" - ")[0]
+                st.session_state['venda_val_input'] = limpar_v(banco_de_produtos.get(cod_escolhido, {}).get('venda', 0.0))
+
+        # 1. Seleção do Produto (Agora com o gatilho on_change para puxar o preço)
         p_sel = c_p1.selectbox(
             "Item do Estoque", 
             sorted(lista_selecao_limpa), 
-            key="venda_produto_sel"
+            key="venda_produto_sel",
+            on_change=atualizar_preco_dinamico
         )
         
-        # ✅ TRAVA DE SEGURANÇA: Só tenta o split se p_sel não for nulo
+        # ✅ TRAVA DE SEGURANÇA MANTIDA
         if p_sel:
             cod_p_temp = p_sel.split(" - ")[0]
-            # 2. Recuperação do preço direto da planilha
             preco_da_planilha = limpar_v(banco_de_produtos.get(cod_p_temp, {}).get('venda', 0.0))
+            
+            # Se for a primeira vez que a tela carrega, o valor inicial é definido
+            if 'venda_val_input' not in st.session_state:
+                st.session_state['venda_val_input'] = preco_da_planilha
         else:
             st.warning("⚠️ O estoque parece estar vazio ou o produto não foi carregado. Tente sincronizar a planilha.")
-            st.stop() # Interrompe a execução deste bloco para evitar o erro abaixo
+            st.stop()
         
-        # 3. Campos de entrada
+        # 3. Campos de entrada (CHAVES ESTÁTICAS E SEGURAS)
         qtd_v = c_p2.number_input("Qtd", value=1, min_value=1, key="venda_qtd_input")
         
-        # O segredo está aqui: o value recebe o preco_da_planilha e a KEY muda conforme o produto
-        # Isso força o Streamlit a atualizar o valor na tela instantaneamente
-        val_v = c_p3.number_input("Preço Un. (R$)", value=preco_da_planilha, min_value=0.0, step=0.01, key=f"preco_dinamico_{cod_p_temp}")
+        # 💡 O SEGREDO: Usamos a chave 'venda_val_input'. O Streamlit atualiza sozinho sem piscar!
+        val_v = c_p3.number_input("Preço Un. (R$)", min_value=0.0, step=0.01, key="venda_val_input")
 
         with c_p4:
-            # Solução definitiva de alinhamento: empurra o botão exatamente a altura do texto "Preço Un. (R$)"
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
             
             if st.button("➕ Adicionar", use_container_width=True):
@@ -693,7 +700,6 @@ if menu_selecionado == "🛒 Vendas":
                     "subtotal": qtd_v * val_v
                 }
                 
-                # --- A MÁGICA ENTRA AQUI ---
                 cesta_temporaria = st.session_state['carrinho']
                 cesta_temporaria.append(item_carrinho)
                 st.session_state['carrinho'] = cesta_temporaria
