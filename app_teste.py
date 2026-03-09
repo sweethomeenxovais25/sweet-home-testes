@@ -1204,8 +1204,8 @@ elif menu_selecionado == "💰 Financeiro":
                         
                         chave_api = st.secrets["GOOGLE_API_KEY"]
                         
-                        # 💡 A SUA LISTA DE MODELOS SOLICITADA
-                        modelos_para_testar = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"]
+                        # 💡 A CORREÇÃO ESTÁ AQUI: "gemini-pro" alterado para "gemini-1.5-pro" (nome técnico V1)
+                        modelos_para_testar = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
                         
                         sucesso_ia = False
                         ultimo_erro_tecnico = ""
