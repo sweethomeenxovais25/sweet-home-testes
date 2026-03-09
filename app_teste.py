@@ -1166,75 +1166,80 @@ elif menu_selecionado == "💰 Financeiro":
             c_ia1, c_ia2 = st.columns([3, 1])
             c_ia1.write(f"Olá, **{st.session_state.get('usuario_logado', 'Gestor')}**! Quer que a Inteligência Artificial analise os números da **{NOME_LOJA}**?")
             
-            if c_ia2.button("🧠 Gerar Análise", type="primary", use_container_width=True):
+            if c_ia2.button("🧠 Gerar Análise Executiva", type="primary", use_container_width=True):
                 with st.spinner("O CEO de Bolso está a analisar os seus dados..."):
                     try:
-                        # 1. PREPARAÇÃO DOS DADOS (CÉREBRO)
-                        # Verificamos se os nomes das colunas batem com a planilha da Sweet
+                        # 1. PREPARAÇÃO DOS DADOS (CÉREBRO DO SaaS)
                         total_vendas_qtd = len(df_vendas_hist) if not df_vendas_hist.empty else 0
                         total_despesas = len(df_despesas) if not df_despesas.empty else 0
                         
+                        # Localização flexível do produto campeão
                         produto_top = "Nenhum"
                         if not df_vendas_hist.empty:
                             try:
-                                # Tentativa inteligente de achar a coluna de produtos
-                                col_prod = 'PRODUTO' if 'PRODUTO' in df_vendas_hist.columns else df_vendas_hist.columns[5]
-                                produto_top = df_vendas_hist[col_prod].value_counts().idxmax()
+                                col_prod_nome = 'PRODUTO' if 'PRODUTO' in df_vendas_hist.columns else df_vendas_hist.columns[5]
+                                produto_top = df_vendas_hist[col_prod_nome].value_counts().idxmax()
                             except:
-                                produto_top = "Analisando histórico..."
+                                produto_top = "Identificado no histórico"
 
-                        # 2. ENGENHARIA DE PROMPT
+                        # 2. ENGENHARIA DE PROMPT (PERSONALIZADA)
                         prompt_ceo = f"""
-                        Aja como um Diretor Financeiro (CFO) da loja {NOME_LOJA}. 
-                        Analise os números:
-                        - Volume de Vendas: {total_vendas_qtd}
-                        - Registos de Despesas/Compras: {total_despesas}
+                        Aja como um Diretor Financeiro (CFO) amigável da loja {NOME_LOJA}. 
+                        Analise os seguintes dados reais:
+                        - Total de Vendas registradas: {total_vendas_qtd}
+                        - Registos de Despesas/Saídas: {total_despesas}
                         - Produto mais vendido: {produto_top}
                         
-                        Dê um conselho de gestão curto (máximo 3 frases) focado em lucratividade. 
-                        Use um tom motivador e profissional.
+                        Crie um resumo executivo de 2 parágrafos. 
+                        No primeiro, dê um panorama geral motivador. 
+                        No segundo, dê uma sugestão prática para aumentar o lucro.
+                        Use um tom profissional e acolhedor. Seja conciso.
                         """
 
-                        # 3. CHAMADA À API (COM DIAGNÓSTICO REAL)
+                        # 3. MOTOR DE FALLBACK COM LISTA ATUALIZADA
                         import requests
                         if "GOOGLE_API_KEY" not in st.secrets:
-                            st.error("⚠️ Erro: GOOGLE_API_KEY não configurada nos Secrets do Streamlit.")
+                            st.error("⚠️ Chave 'GOOGLE_API_KEY' não encontrada nos Secrets!")
                             st.stop()
                         
                         chave_api = st.secrets["GOOGLE_API_KEY"]
-                        # Testamos apenas os 2 modelos mais estáveis para evitar 404
-                        modelos_para_testar = ["gemini-1.5-flash", "gemini-pro"]
+                        
+                        # 💡 A SUA LISTA DE MODELOS SOLICITADA
+                        modelos_para_testar = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"]
                         
                         sucesso_ia = False
-                        detalhe_erro = ""
+                        ultimo_erro_tecnico = ""
 
                         for modelo_nome in modelos_para_testar:
-                            url_google = f"https://generativelanguage.googleapis.com/v1/models/{modelo_nome}:generateContent?key={chave_api}"
-                            payload = {"contents": [{"parts": [{"text": prompt_ceo}]}]}
-                            
                             try:
-                                res = requests.post(url_google, json=payload, timeout=15)
-                                if res.status_code == 200:
-                                    dados_retorno = res.json()
+                                # Usamos o endpoint v1 para maior estabilidade no SaaS
+                                url_google = f"https://generativelanguage.googleapis.com/v1/models/{modelo_nome}:generateContent?key={chave_api}"
+                                payload = {"contents": [{"parts": [{"text": prompt_ceo}]}]}
+                                
+                                resposta = requests.post(url_google, json=payload, timeout=12)
+                                
+                                if resposta.status_code == 200:
+                                    dados_retorno = resposta.json()
                                     texto_final = dados_retorno['candidates'][0]['content']['parts'][0]['text']
-                                    st.success(f"✅ Análise concluída (via {modelo_nome})")
+                                    st.success(f"✅ Análise concluída com sucesso (via {modelo_nome})!")
                                     st.info(texto_final)
                                     sucesso_ia = True
-                                    break
+                                    break # Sucesso! Interrompe o loop
                                 else:
-                                    # Se não for 200, guarda o erro real para o lojista não ficar no escuro
-                                    detalhe_erro = f"Código {res.status_code}: {res.text}"
-                                    continue 
+                                    # Guarda o erro para diagnóstico se nenhum funcionar
+                                    ultimo_erro_tecnico = f"Modelo {modelo_nome} retornou Erro {resposta.status_code}: {resposta.text}"
+                                    continue
                             except Exception as e_req:
-                                detalhe_erro = str(e_req)
+                                ultimo_erro_tecnico = str(e_req)
                                 continue
 
                         if not sucesso_ia:
-                            st.error(f"⚠️ A IA não respondeu. Motivo técnico: {detalhe_erro}")
-                            st.warning("Dica: Verifique se a sua Chave API no Google AI Studio tem permissão para o modelo Gemini 1.5 Flash.")
+                            st.error("⚠️ O Google recusou a ligação ou a cota expirou.")
+                            with st.expander("🔍 Detalhes Técnicos para Suporte"):
+                                st.code(ultimo_erro_tecnico)
 
                     except Exception as e_geral:
-                        st.error(f"⚠️ Erro ao processar dados da planilha: {e_geral}")
+                        st.error(f"⚠️ Erro ao processar os dados para a IA: {e_geral}")
     
     st.divider()
     
