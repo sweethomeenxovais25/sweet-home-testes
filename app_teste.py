@@ -544,11 +544,11 @@ with st.sidebar:
 # [Restante do código do seu Menu Lateral...]
     
     st.divider()
-    # ⚡ ASSINATURA DISCRETA DO SAAS (GestoBap)
+    # ⚡ ASSINATURA DISCRETA DO SAAS (BAPLY)
     st.markdown(
         """
         <div style='text-align: center; color: #888888; font-size: 11px; padding-bottom: 10px;'>
-            ⚡ Powered by <b>GestoBap</b>
+            ⚡ Powered by <b>BAPLY</b>
         </div>
         """, 
         unsafe_allow_html=True
