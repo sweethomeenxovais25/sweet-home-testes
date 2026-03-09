@@ -1170,73 +1170,71 @@ elif menu_selecionado == "💰 Financeiro":
                 with st.spinner("O CEO de Bolso está a analisar os seus dados..."):
                     try:
                         # 1. PREPARAÇÃO DOS DADOS (CÉREBRO)
+                        # Verificamos se os nomes das colunas batem com a planilha da Sweet
                         total_vendas_qtd = len(df_vendas_hist) if not df_vendas_hist.empty else 0
                         total_despesas = len(df_despesas) if not df_despesas.empty else 0
                         
                         produto_top = "Nenhum"
                         if not df_vendas_hist.empty:
                             try:
-                                col_prod_nome = df_vendas_hist.columns[5] # Nome do Produto
-                                produto_top = df_vendas_hist[col_prod_nome].value_counts().idxmax()
+                                # Tentativa inteligente de achar a coluna de produtos
+                                col_prod = 'PRODUTO' if 'PRODUTO' in df_vendas_hist.columns else df_vendas_hist.columns[5]
+                                produto_top = df_vendas_hist[col_prod].value_counts().idxmax()
                             except:
-                                produto_top = "Identificado no histórico"
+                                produto_top = "Analisando histórico..."
 
-                        # 2. ENGENHARIA DE PROMPT (O QUE PERGUNTAR)
+                        # 2. ENGENHARIA DE PROMPT
                         prompt_ceo = f"""
-                        Aja como um Diretor Financeiro (CFO) amigável da loja {NOME_LOJA}. 
-                        Analise os seguintes dados:
-                        - Vendas totais: {total_vendas_qtd}
-                        - Registos de Despesas: {total_despesas}
-                        - Produto destaque: {produto_top}
+                        Aja como um Diretor Financeiro (CFO) da loja {NOME_LOJA}. 
+                        Analise os números:
+                        - Volume de Vendas: {total_vendas_qtd}
+                        - Registos de Despesas/Compras: {total_despesas}
+                        - Produto mais vendido: {produto_top}
                         
-                        Crie um resumo de 2 parágrafos:
-                        1. Panorama motivador sobre o volume de vendas.
-                        2. Uma dica prática de gestão para aumentar o lucro ou reduzir custos.
-                        Use um tom profissional e acolhedor. Seja conciso.
+                        Dê um conselho de gestão curto (máximo 3 frases) focado em lucratividade. 
+                        Use um tom motivador e profissional.
                         """
 
-                        # 3. CHAMADA À API (ESTRATÉGIA DE FALLBACK)
+                        # 3. CHAMADA À API (COM DIAGNÓSTICO REAL)
                         import requests
                         if "GOOGLE_API_KEY" not in st.secrets:
-                            st.error("⚠️ Chave 'GOOGLE_API_KEY' não encontrada nos Secrets!")
+                            st.error("⚠️ Erro: GOOGLE_API_KEY não configurada nos Secrets do Streamlit.")
                             st.stop()
                         
                         chave_api = st.secrets["GOOGLE_API_KEY"]
-                        # Lista de modelos reais e estáveis
-                        modelos_para_testar = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"]
+                        # Testamos apenas os 2 modelos mais estáveis para evitar 404
+                        modelos_para_testar = ["gemini-1.5-flash", "gemini-pro"]
                         
                         sucesso_ia = False
-                        texto_final = ""
+                        detalhe_erro = ""
 
                         for modelo_nome in modelos_para_testar:
+                            url_google = f"https://generativelanguage.googleapis.com/v1/models/{modelo_nome}:generateContent?key={chave_api}"
+                            payload = {"contents": [{"parts": [{"text": prompt_ceo}]}]}
+                            
                             try:
-                                url_google = f"https://generativelanguage.googleapis.com/v1/models/{modelo_nome}:generateContent?key={chave_api}"
-                                payload = {"contents": [{"parts": [{"text": prompt_ceo}]}]}
-                                
-                                # Timeout de 10s para não travar o sistema
-                                resposta = requests.post(url_google, json=payload, timeout=10)
-                                
-                                if resposta.status_code == 200:
-                                    dados_retorno = resposta.json()
+                                res = requests.post(url_google, json=payload, timeout=15)
+                                if res.status_code == 200:
+                                    dados_retorno = res.json()
                                     texto_final = dados_retorno['candidates'][0]['content']['parts'][0]['text']
+                                    st.success(f"✅ Análise concluída (via {modelo_nome})")
+                                    st.info(texto_final)
                                     sucesso_ia = True
-                                    modelo_vencedor = modelo_nome
-                                    break # Sucesso! Para de tentar os outros
-                                elif resposta.status_code == 429:
-                                    continue # Limite de cota, tenta o próximo
+                                    break
                                 else:
-                                    continue # Outro erro (404, etc), tenta o próximo
-                            except:
+                                    # Se não for 200, guarda o erro real para o lojista não ficar no escuro
+                                    detalhe_erro = f"Código {res.status_code}: {res.text}"
+                                    continue 
+                            except Exception as e_req:
+                                detalhe_erro = str(e_req)
                                 continue
 
-                        if sucesso_ia:
-                            st.success(f"✅ Análise concluída com sucesso via {modelo_vencedor}!")
-                            st.info(texto_final)
-                        else:
-                            st.error("⚠️ O Google está sobrecarregado ou a cota expirou. Tente novamente em 2 minutos.")
+                        if not sucesso_ia:
+                            st.error(f"⚠️ A IA não respondeu. Motivo técnico: {detalhe_erro}")
+                            st.warning("Dica: Verifique se a sua Chave API no Google AI Studio tem permissão para o modelo Gemini 1.5 Flash.")
 
-                    except Exception as e:
-                        st.error(f"⚠️ Erro inesperado: {e}")
+                    except Exception as e_geral:
+                        st.error(f"⚠️ Erro ao processar dados da planilha: {e_geral}")
     
     st.divider()
     
