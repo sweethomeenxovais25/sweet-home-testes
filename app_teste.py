@@ -1177,61 +1177,76 @@ elif menu_selecionado == "💰 Financeiro":
             c_ia1, c_ia2 = st.columns([3, 1])
             c_ia1.write(f"Olá, **{st.session_state.get('usuario_logado', 'Gestor')}**! Quer que a Inteligência Artificial analise os números da **{NOME_LOJA}**?")
             
-            if c_ia2.button("🧠 Gerar Análise Executiva", type="primary", use_container_width=True):
-                with st.spinner("O CFO Virtual está a processar os dados da Sweet Home..."):
+            if c_ia2.button("🧠 Gerar Análise Data-Driven (Padrão Cientista de Dados)", type="primary", use_container_width=True):
+                with st.spinner("A aplicar modelos de Data Science nas finanças da Sweet Home..."):
                     try:
                         # =======================================================
-                        # 1. HIGIENIZAÇÃO E PREPARAÇÃO DOS DADOS (Fim do Erro por 1)
+                        # 1. HIGIENIZAÇÃO (TIDY DATA) E PREPARAÇÃO DOS DADOS
                         # =======================================================
                         if not df_vendas_hist.empty:
-                            # Tira a linha "TOTAIS" e linhas vazias para a contagem ficar 100% exata
                             col_cliente = 'CLIENTE' if 'CLIENTE' in df_vendas_hist.columns else df_vendas_hist.columns[3]
                             df_vendas_limpo = df_vendas_hist[~df_vendas_hist[col_cliente].astype(str).str.upper().str.contains("TOTAIS", na=False)].copy()
                             df_vendas_limpo = df_vendas_limpo[df_vendas_limpo[col_cliente].str.strip() != ""]
                             
                             total_vendas_qtd = len(df_vendas_limpo)
                             
-                            # Calcula o Faturamento Bruto Real para a IA ter contexto financeiro
                             col_total = 'TOTAL R$' if 'TOTAL R$' in df_vendas_limpo.columns else df_vendas_limpo.columns[11]
                             faturamento_bruto = sum(limpar_v(val) for val in df_vendas_limpo[col_total])
+                            
+                            # Métrica de Ticket Médio Automático
+                            ticket_medio = (faturamento_bruto / total_vendas_qtd) if total_vendas_qtd > 0 else 0.0
                             
                             try:
                                 col_prod_nome = 'PRODUTO' if 'PRODUTO' in df_vendas_limpo.columns else df_vendas_limpo.columns[5]
                                 produto_top = df_vendas_limpo[col_prod_nome].value_counts().idxmax()
+                                freq_top = df_vendas_limpo[col_prod_nome].value_counts().max()
                             except:
                                 produto_top = "Indisponível"
+                                freq_top = 0
                         else:
                             total_vendas_qtd = 0
                             faturamento_bruto = 0.0
+                            ticket_medio = 0.0
                             produto_top = "Nenhum"
+                            freq_top = 0
 
                         total_despesas = len(df_despesas) if not df_despesas.empty else 0
 
                         # =======================================================
-                        # 2. ENGENHARIA DE PROMPT (ESTRUTURA CORPORATIVA PRAGMÁTICA)
+                        # 2. ENGENHARIA DE PROMPT (BASEADA NO "DATA SCIENCE: A FIRST INTRODUCTION")
                         # =======================================================
                         prompt_ceo = f"""
-                        DADOS OFICIAIS E IMUTÁVEIS DA EMPRESA:
-                        - Vendas Totais Registradas: EXATAMENTE {total_vendas_qtd} vendas.
-                        - Faturamento Bruto Lançado: R$ {faturamento_bruto:,.2f}
-                        - Registos de Saídas/Despesas: {total_despesas} operações.
-                        - Produto Campeão de Vendas: '{produto_top}'
-
-                        DIRETRIZES ABSOLUTAS:
-                        1. EXATIDÃO: Use os números exatos fornecidos acima. Não invente, não deduza e não erre a quantidade de vendas ({total_vendas_qtd}).
-                        2. FORMATO PRAGMÁTICO: O relatório deve ser visualmente escaneável. Use tabelas Markdown, listas, negrito para destacar valores importantes e emojis corporativos (📊, 💰, 💡, 🎯).
+                        Atue como um Cientista de Dados Sênior e Diretor Financeiro (CFO) da 'Sweet Home Enxovais'. 
+                        A sua análise deve ser baseada nos princípios do livro 'Data Science: A First Introduction'.
                         
-                        ESTRUTURA OBRIGATÓRIA DA RESPOSTA:
-                        > **Resumo Executivo** (Use este formato de citação/blockquote para um parágrafo inicial de impacto sobre a saúde geral).
+                        DADOS OFICIAIS (TIDY DATA):
+                        - Volume de Vendas: EXATAMENTE {total_vendas_qtd} vendas registradas.
+                        - Faturamento Bruto: R$ {faturamento_bruto:,.2f}
+                        - Ticket Médio Atual: R$ {ticket_medio:,.2f}
+                        - Saídas/Despesas Registradas: {total_despesas} operações.
+                        - Produto Campeão Absoluto: '{produto_top}' (Aparece em {freq_top} vendas).
+
+                        DIRETRIZES DO RELATÓRIO:
+                        1. RIGOR E EXATIDÃO: Respeite a matemática fornecida. Não invente ou aproxime números.
+                        2. TAXONOMIA DE PERGUNTAS: A análise deve ir do Descritivo (o que aconteceu) ao Preditivo/Causal (tendências) e Prescritivo (o que fazer).
+                        3. VIÉS E PONTOS CEGOS: Identifique o que *não* está no banco de dados e que poderia estar a causar um "viés de sobrevivência" ou cegueira financeira (ex: CAC, LTV, sazonalidade).
+                        4. ESTRUTURA VISUAL PRAGMÁTICA: O relatório tem de ser impecável, usando Markdown, tabelas para comparação, blocos de citação e bullet points.
+
+                        ESTRUTURA EXATA A SER DEVOLVIDA:
+                        > **Resumo Executivo (Visão Global)**
+                        [Parágrafo único de alto impacto sobre a saúde geral do negócio].
                         
-                        ### 📊 Quadro de Indicadores
-                        [Crie uma tabela Markdown limpa exibindo os números oficiais de forma elegante]
+                        ### 📊 1. Taxonomia Descritiva (Quadro de Indicadores)
+                        [Crie uma Tabela Markdown limpa organizando as métricas fornecidas e adicione 1 ou 2 métricas derivadas logicamente].
 
-                        ### 🧠 Insights Ocultos
-                        [Escreva 2 parágrafos pragmáticos sobre o que esses números significam nas entrelinhas. Ex: O impacto da dependência do produto campeão, ou a relação entre volume de vendas e o registro de despesas.]
+                        ### 📈 2. Análise Exploratória e Preditiva (Padrões)
+                        [Escreva sobre o comportamento de compra. O que a dependência do produto '{produto_top}' significa em termos de Regressão/Tendência? Se continuarmos neste ritmo, qual é a previsão estratégica?]
 
-                        ### 🎯 Plano de Ação (Próximos 30 dias)
-                        [Forneça 3 passos estratégicos e acionáveis em bullet points para aumentar a margem de lucro ou melhorar a retenção de caixa da loja.]
+                        ### ⚠️ 3. Pontos Cegos e Viés de Dados
+                        [Como Cientista de Dados, indique 2 métricas que a Sweet Home NÃO está a medir nestes dados básicos, mas que são cruciais para não tomarmos decisões enviesadas no futuro].
+
+                        ### 🎯 4. Plano de Ação Estratégico (Prescritivo)
+                        [Entregue 3 comandos acionáveis de negócio para os próximos 30 dias com foco no aumento de Ticket Médio e Proteção de Caixa].
                         """
 
                         # =======================================================
@@ -1256,14 +1271,14 @@ elif menu_selecionado == "💰 Financeiro":
                             "messages": [
                                 {
                                     "role": "system", 
-                                    "content": "Você é um CFO (Diretor Financeiro) de elite com padrão McKinsey, prestando consultoria para a 'Sweet Home Enxovais'. Você não usa jargões vazios. A sua comunicação é visual, direta, baseada 100% nos dados fornecidos e voltada para aumento de lucro."
+                                    "content": "Você é uma inteligência artificial executiva, pragmática e visual. Nunca use jargões desnecessários. Entregue a análise de forma limpa, direta, com formatação perfeita em Markdown, emojis elegantes e separação clara."
                                 },
                                 {
                                     "role": "user", 
                                     "content": prompt_ceo
                                 }
                             ],
-                            "temperature": 0.2 # Reduzido para 0.2 para forçar a exatidão matemática extrema!
+                            "temperature": 0.25 # Equilíbrio ideal entre rigor matemático e visão estratégica de negócios
                         }
                         
                         try:
@@ -1272,9 +1287,9 @@ elif menu_selecionado == "💰 Financeiro":
                             if resposta.status_code == 200:
                                 dados_retorno = resposta.json()
                                 texto_final = dados_retorno['choices'][0]['message']['content']
-                                st.success("✅ Relatório Executivo gerado com sucesso!")
+                                st.success("✅ Diagnóstico de Dados concluído e validado!")
                                 
-                                # NOVO VISUAL: Usamos um container com borda em vez do "st.info" para renderizar as tabelas perfeitamente
+                                # Renderização Premium em Painel
                                 with st.container(border=True):
                                     st.markdown(texto_final, unsafe_allow_html=True)
                             else:
