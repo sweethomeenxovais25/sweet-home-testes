@@ -1178,83 +1178,114 @@ elif menu_selecionado == "💰 Financeiro":
             c_ia1.write(f"Olá, **{st.session_state.get('usuario_logado', 'Gestor')}**! Quer que a Inteligência Artificial analise os números da **{NOME_LOJA}**?")
             
             if c_ia2.button("🧠 Gerar Análise Executiva", type="primary", use_container_width=True):
-                with st.spinner("O CEO de Bolso está a analisar os seus dados..."):
+                with st.spinner("O CFO Virtual está a processar os dados da Sweet Home..."):
                     try:
-                        # 1. PREPARAÇÃO DOS DADOS (CÉREBRO DO SaaS)
-                        total_vendas_qtd = len(df_vendas_hist) if not df_vendas_hist.empty else 0
-                        total_despesas = len(df_despesas) if not df_despesas.empty else 0
-                        
-                        # Localização flexível do produto campeão
-                        produto_top = "Nenhum"
+                        # =======================================================
+                        # 1. HIGIENIZAÇÃO E PREPARAÇÃO DOS DADOS (Fim do Erro por 1)
+                        # =======================================================
                         if not df_vendas_hist.empty:
+                            # Tira a linha "TOTAIS" e linhas vazias para a contagem ficar 100% exata
+                            col_cliente = 'CLIENTE' if 'CLIENTE' in df_vendas_hist.columns else df_vendas_hist.columns[3]
+                            df_vendas_limpo = df_vendas_hist[~df_vendas_hist[col_cliente].astype(str).str.upper().str.contains("TOTAIS", na=False)].copy()
+                            df_vendas_limpo = df_vendas_limpo[df_vendas_limpo[col_cliente].str.strip() != ""]
+                            
+                            total_vendas_qtd = len(df_vendas_limpo)
+                            
+                            # Calcula o Faturamento Bruto Real para a IA ter contexto financeiro
+                            col_total = 'TOTAL R$' if 'TOTAL R$' in df_vendas_limpo.columns else df_vendas_limpo.columns[11]
+                            faturamento_bruto = sum(limpar_v(val) for val in df_vendas_limpo[col_total])
+                            
                             try:
-                                col_prod_nome = 'PRODUTO' if 'PRODUTO' in df_vendas_hist.columns else df_vendas_hist.columns[5]
-                                produto_top = df_vendas_hist[col_prod_nome].value_counts().idxmax()
+                                col_prod_nome = 'PRODUTO' if 'PRODUTO' in df_vendas_limpo.columns else df_vendas_limpo.columns[5]
+                                produto_top = df_vendas_limpo[col_prod_nome].value_counts().idxmax()
                             except:
-                                produto_top = "Identificado no histórico"
+                                produto_top = "Indisponível"
+                        else:
+                            total_vendas_qtd = 0
+                            faturamento_bruto = 0.0
+                            produto_top = "Nenhum"
 
-                        # 2. ENGENHARIA DE PROMPT (PERSONALIZADA)
+                        total_despesas = len(df_despesas) if not df_despesas.empty else 0
+
+                        # =======================================================
+                        # 2. ENGENHARIA DE PROMPT (ESTRUTURA CORPORATIVA PRAGMÁTICA)
+                        # =======================================================
                         prompt_ceo = f"""
-                        Aja como um Diretor Financeiro (CFO) amigável da loja {NOME_LOJA}. 
-                        Analise os seguintes dados reais:
-                        - Total de Vendas registradas: {total_vendas_qtd}
-                        - Registos de Despesas/Saídas: {total_despesas}
-                        - Produto mais vendido: {produto_top}
+                        DADOS OFICIAIS E IMUTÁVEIS DA EMPRESA:
+                        - Vendas Totais Registradas: EXATAMENTE {total_vendas_qtd} vendas.
+                        - Faturamento Bruto Lançado: R$ {faturamento_bruto:,.2f}
+                        - Registos de Saídas/Despesas: {total_despesas} operações.
+                        - Produto Campeão de Vendas: '{produto_top}'
+
+                        DIRETRIZES ABSOLUTAS:
+                        1. EXATIDÃO: Use os números exatos fornecidos acima. Não invente, não deduza e não erre a quantidade de vendas ({total_vendas_qtd}).
+                        2. FORMATO PRAGMÁTICO: O relatório deve ser visualmente escaneável. Use tabelas Markdown, listas, negrito para destacar valores importantes e emojis corporativos (📊, 💰, 💡, 🎯).
                         
-                        Crie um resumo executivo de 2 parágrafos. 
-                        No primeiro, dê um panorama geral motivador. 
-                        No segundo, dê uma sugestão prática para aumentar o lucro.
-                        Use um tom profissional e acolhedor. Seja conciso.
+                        ESTRUTURA OBRIGATÓRIA DA RESPOSTA:
+                        > **Resumo Executivo** (Use este formato de citação/blockquote para um parágrafo inicial de impacto sobre a saúde geral).
+                        
+                        ### 📊 Quadro de Indicadores
+                        [Crie uma tabela Markdown limpa exibindo os números oficiais de forma elegante]
+
+                        ### 🧠 Insights Ocultos
+                        [Escreva 2 parágrafos pragmáticos sobre o que esses números significam nas entrelinhas. Ex: O impacto da dependência do produto campeão, ou a relação entre volume de vendas e o registro de despesas.]
+
+                        ### 🎯 Plano de Ação (Próximos 30 dias)
+                        [Forneça 3 passos estratégicos e acionáveis em bullet points para aumentar a margem de lucro ou melhorar a retenção de caixa da loja.]
                         """
 
-                        # 3. MOTOR DE FALLBACK (O Cérebro Estilo NotebookLM)
+                        # =======================================================
+                        # 3. MOTOR MULTI-IA (Llama 3.3 via Groq)
+                        # =======================================================
                         import requests
-                        if "GOOGLE_API_KEY" not in st.secrets:
-                            st.error("⚠️ Chave 'GOOGLE_API_KEY' não encontrada nos Secrets!")
+                        
+                        if "GROQ_API_KEY" not in st.secrets:
+                            st.error("⚠️ Chave 'GROQ_API_KEY' não encontrada nos Secrets!")
                             st.stop()
+                            
+                        chave_groq = st.secrets["GROQ_API_KEY"]
+                        url_groq = "https://api.groq.com/openai/v1/chat/completions"
                         
-                        chave_api = st.secrets["GOOGLE_API_KEY"]
+                        headers = {
+                            "Authorization": f"Bearer {chave_groq}",
+                            "Content-Type": "application/json"
+                        }
                         
-                        # 💡 NOMES EXATOS E ATUALIZADOS
-                        modelos_para_testar = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"]
-                        
-                        sucesso_ia = False
-                        ultimo_erro_tecnico = ""
-
-                        for modelo_nome in modelos_para_testar:
-                            try:
-                                # 🚀 A MÁGICA: Mudamos a URL para 'v1beta'. Isso destrava o uso do 1.5 Pro (Motor do NotebookLM)
-                                url_google = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo_nome}:generateContent?key={chave_api}"
-                                
-                                # Adicionamos a "temperature" baixa para ele ser analítico e exato como o NotebookLM
-                                payload = {
-                                    "contents": [{"parts": [{"text": prompt_ceo}]}],
-                                    "generationConfig": {"temperature": 0.3} 
+                        payload = {
+                            "model": "llama-3.3-70b-versatile",
+                            "messages": [
+                                {
+                                    "role": "system", 
+                                    "content": "Você é um CFO (Diretor Financeiro) de elite com padrão McKinsey, prestando consultoria para a 'Sweet Home Enxovais'. Você não usa jargões vazios. A sua comunicação é visual, direta, baseada 100% nos dados fornecidos e voltada para aumento de lucro."
+                                },
+                                {
+                                    "role": "user", 
+                                    "content": prompt_ceo
                                 }
+                            ],
+                            "temperature": 0.2 # Reduzido para 0.2 para forçar a exatidão matemática extrema!
+                        }
+                        
+                        try:
+                            resposta = requests.post(url_groq, headers=headers, json=payload, timeout=20)
+                            
+                            if resposta.status_code == 200:
+                                dados_retorno = resposta.json()
+                                texto_final = dados_retorno['choices'][0]['message']['content']
+                                st.success("✅ Relatório Executivo gerado com sucesso!")
                                 
-                                resposta = requests.post(url_google, json=payload, timeout=15)
-                                
-                                if resposta.status_code == 200:
-                                    dados_retorno = resposta.json()
-                                    texto_final = dados_retorno['candidates'][0]['content']['parts'][0]['text']
-                                    st.success(f"✅ Análise concluída com sucesso (Cérebro: {modelo_nome})!")
-                                    st.info(texto_final)
-                                    sucesso_ia = True
-                                    break # Sucesso! Interrompe o loop
-                                else:
-                                    ultimo_erro_tecnico = f"Erro {resposta.status_code} no {modelo_nome}: {resposta.text}"
-                                    continue
-                            except Exception as e_req:
-                                ultimo_erro_tecnico = str(e_req)
-                                continue
-
-                        if not sucesso_ia:
-                            st.error("⚠️ O cérebro financeiro está indisponível no momento.")
-                            with st.expander("🔍 Ver detalhes técnicos do bloqueio"):
-                                st.code(ultimo_erro_tecnico)
+                                # NOVO VISUAL: Usamos um container com borda em vez do "st.info" para renderizar as tabelas perfeitamente
+                                with st.container(border=True):
+                                    st.markdown(texto_final, unsafe_allow_html=True)
+                            else:
+                                st.error("⚠️ O Cérebro Secundário encontrou um obstáculo.")
+                                with st.expander("🔍 Detalhes Técnicos"):
+                                    st.code(resposta.text)
+                        except Exception as e_req:
+                            st.error(f"⚠️ Erro de conexão com o servidor da IA: {e_req}")
 
                     except Exception as e_geral:
-                        st.error(f"⚠️ Erro ao processar os dados para a IA: {e_geral}")
+                        st.error(f"⚠️ Erro interno ao processar os dados para a IA: {e_geral}")
     
     st.divider()
     
