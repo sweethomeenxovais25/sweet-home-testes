@@ -415,17 +415,17 @@ def carregar_dados():
 banco_de_produtos, banco_de_clientes, df_full_inv, df_financeiro, df_vendas_hist, df_painel_resumo, df_clientes_full, df_socios, df_aportes, df_docs, banco_de_fornecedores, df_fornecedores, df_despesas, df_marketing, df_cred = carregar_dados()
 
 # =========================================================================
-# 👩‍💼 BIA COPILOT: MOTOR ONISCIENTE COM RAG (RETRIEVAL-AUGMENTED GENERATION)
+# 👩‍💼 BIA COPILOT: MOTOR DE BUSCA SEMÂNTICA POR SCORE (RAG AVANÇADO)
 # =========================================================================
 @st.fragment
 def bia_copilot_sidebar(df_v, df_c, df_d, df_i, df_m):
     st.divider()
     st.markdown("### 👩‍💼 Bia Copilot")
-    st.caption("Inteligência Artificial Integrada ao Banco de Dados")
+    st.caption("Inteligência Artificial de Alta Precisão")
 
     if "bia_mensagens" not in st.session_state:
         st.session_state["bia_mensagens"] = [
-            {"role": "assistant", "content": "Olá! Sou a Bia. Conheço todo o nosso estoque, clientes, finanças e marketing. O que quer saber?"}
+            {"role": "assistant", "content": "Olá! O meu novo motor de busca está ativo. Pode testar-me com produtos, clientes ou finanças!"}
         ]
 
     caixa_chat = st.container(height=400, border=False)
@@ -435,7 +435,7 @@ def bia_copilot_sidebar(df_v, df_c, df_d, df_i, df_m):
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
 
-    if pergunta := st.chat_input("Ex: Qual o preço do tapete? / A Maria deve algo?"):
+    if pergunta := st.chat_input("Ex: Qual o valor de venda e custo do tapete 101?"):
         st.session_state["bia_mensagens"].append({"role": "user", "content": pergunta})
         with caixa_chat:
             with st.chat_message("user"):
@@ -444,84 +444,91 @@ def bia_copilot_sidebar(df_v, df_c, df_d, df_i, df_m):
         with caixa_chat:
             with st.chat_message("assistant"):
                 resposta_placeholder = st.empty()
-                resposta_placeholder.markdown("⏳ *A varrer o banco de dados...*")
+                resposta_placeholder.markdown("⏳ *A processar algoritmo de busca...*")
                 
                 try:
                     import requests
                     import re
+                    import json
+                    from datetime import datetime
+                    import pytz
+                    
                     chave_groq = st.secrets.get("GROQ_API_KEY", "")
                     if not chave_groq:
                         resposta_placeholder.error("Chave da Groq não configurada nos secrets.")
                         return
 
                     # =================================================================
-                    # 🔍 1. MOTOR DE BUSCA SEMÂNTICA (O SEGREDO DA EXATIDÃO)
-                    # Extrai palavras-chave da pergunta para buscar nas planilhas
+                    # 🔬 1. MOTOR LEXICAL POR SCORE (A CIÊNCIA DE DADOS)
                     # =================================================================
-                    palavras_cruas = re.findall(r'\b[a-zA-ZÀ-ÿ0-9]{3,}\b', pergunta.lower())
-                    stop_words = {'qual', 'quais', 'como', 'quanto', 'quantos', 'saber', 'sobre', 'tem', 'temos', 'para', 'que', 'quero', 'valor', 'preco', 'preço', 'estoque', 'cliente'}
-                    termos_busca = [p for p in palavras_cruas if p not in stop_words]
+                    # Captura letras, números, hífens e pontos (Ex: "101.2", "CLI-001")
+                    termos_busca = re.findall(r'[a-zA-ZÀ-ÿ0-9.-]+', pergunta.lower())
+                    stop_words = {'qual', 'quais', 'como', 'quanto', 'quantos', 'saber', 'sobre', 'tem', 'temos', 'para', 'que', 'quero', 'valor', 'preco', 'preço', 'estoque', 'cliente', 'o', 'a', 'de', 'do', 'da', 'no', 'na'}
+                    termos_limpos = [t for t in termos_busca if t not in stop_words and len(t) > 1]
 
+                    # ⚙️ Função que dá "pontos" para a linha que mais parece com a pergunta
+                    def buscar_melhores_linhas(df_alvo, termos, limite=5):
+                        if df_alvo.empty or not termos: return []
+                        # Converte a planilha inteira para texto minúsculo para a busca
+                        df_str = df_alvo.astype(str).apply(lambda x: ' '.join(x).lower(), axis=1)
+                        # Dá 1 ponto para cada termo encontrado na linha
+                        scores = df_str.apply(lambda texto: sum(1 for termo in termos if termo in texto))
+                        # Pega só quem pontuou e ordena do maior para o menor
+                        df_match = df_alvo[scores > 0].copy()
+                        if df_match.empty: return []
+                        
+                        df_match['score'] = scores[scores > 0]
+                        df_top = df_match.sort_values('score', ascending=False).head(limite).drop(columns=['score'])
+                        
+                        # Retorna TODAS as colunas como Dicionário para a IA ler perfeitamente
+                        return df_top.astype(str).to_dict(orient='records')
+
+                    # =================================================================
+                    # 🔎 2. VARREDURA SIMULTÂNEA NAS PLANILHAS
+                    # =================================================================
                     contexto_dinamico = ""
                     
-                    # Se achou palavras-chave, filtra cirurgicamente o banco de dados!
-                    if termos_busca:
-                        # 📦 BUSCA NO ESTOQUE
-                        if not df_i.empty:
-                            mask_inv = df_i.astype(str).apply(lambda col: col.str.lower().str.contains('|'.join(termos_busca), na=False)).any(axis=1)
-                            achados_inv = df_i[mask_inv].head(5)
-                            if not achados_inv.empty:
-                                col_cod = 'CÓD. PRÓDUTO' if 'CÓD. PRÓDUTO' in df_i.columns else df_i.columns[0]
-                                col_nome = 'NOME DO PRODUTO' if 'NOME DO PRODUTO' in df_i.columns else df_i.columns[1]
-                                col_est = 'ESTOQUE ATUAL' if 'ESTOQUE ATUAL' in df_i.columns else df_i.columns[7]
-                                col_preco = 'VALOR DE VENDA' if 'VALOR DE VENDA' in df_i.columns else df_i.columns[8]
-                                contexto_dinamico += f"\n[📦 RESULTADO DA BUSCA NO ESTOQUE]:\n{achados_inv[[col_cod, col_nome, col_est, col_preco]].to_string()}\n"
+                    if termos_limpos:
+                        res_inv = buscar_melhores_linhas(df_i, termos_limpos)
+                        if res_inv: contexto_dinamico += f"\n[BASE: ESTOQUE]\n{json.dumps(res_inv, ensure_ascii=False, indent=2)}\n"
 
-                        # 👥 BUSCA NOS CLIENTES E DÍVIDAS
-                        if not df_c.empty:
-                            mask_cli = df_c.astype(str).apply(lambda col: col.str.lower().str.contains('|'.join(termos_busca), na=False)).any(axis=1)
-                            achados_cli = df_c[mask_cli].head(5)
-                            if not achados_cli.empty:
-                                col_nome_c = 'NOME' if 'NOME' in df_c.columns else df_c.columns[1]
-                                col_zap_c = 'TELEFONE' if 'TELEFONE' in df_c.columns else (df_c.columns[2] if len(df_c.columns)>2 else df_c.columns[-1])
-                                col_dev = 'SALDO DEVEDOR R$' if 'SALDO DEVEDOR R$' in df_c.columns else df_c.columns[-3]
-                                contexto_dinamico += f"\n[👥 RESULTADO DA BUSCA DE CLIENTES]:\n{achados_cli[[col_nome_c, col_zap_c, col_dev]].to_string()}\n"
+                        res_cli = buscar_melhores_linhas(df_c, termos_limpos)
+                        if res_cli: contexto_dinamico += f"\n[BASE: CLIENTES]\n{json.dumps(res_cli, ensure_ascii=False, indent=2)}\n"
 
-                        # 🏭 BUSCA NAS DESPESAS
-                        if not df_d.empty:
-                            mask_desp = df_d.astype(str).apply(lambda col: col.str.lower().str.contains('|'.join(termos_busca), na=False)).any(axis=1)
-                            achados_desp = df_d[mask_desp].head(5)
-                            if not achados_desp.empty:
-                                col_forn = 'FORNECEDOR / DESPESA' if 'FORNECEDOR / DESPESA' in df_d.columns else df_d.columns[2]
-                                col_val = 'VALOR R$' if 'VALOR R$' in df_d.columns else df_d.columns[4]
-                                col_stat = 'STATUS' if 'STATUS' in df_d.columns else df_d.columns[5]
-                                contexto_dinamico += f"\n[🏭 RESULTADO DA BUSCA DE DESPESAS]:\n{achados_desp[[col_forn, col_val, col_stat]].to_string()}\n"
+                        res_ven = buscar_melhores_linhas(df_v, termos_limpos)
+                        if res_ven: contexto_dinamico += f"\n[BASE: VENDAS (HISTÓRICO)]\n{json.dumps(res_ven, ensure_ascii=False, indent=2)}\n"
 
-                    # Se a busca dinâmica falhar, passamos um resumo macro
+                        res_desp = buscar_melhores_linhas(df_d, termos_limpos)
+                        if res_desp: contexto_dinamico += f"\n[BASE: DESPESAS/CONTAS]\n{json.dumps(res_desp, ensure_ascii=False, indent=2)}\n"
+
+                    # Se o usuário perguntar algo genérico como "resumo" e o score não achar nada específico:
                     if not contexto_dinamico:
-                        resumo_vendas = df_v[['CLIENTE', 'PRODUTO', 'TOTAL R$', 'STATUS']].tail(5).to_string() if not df_v.empty else "Nenhuma venda."
-                        contexto_dinamico = f"\n[ÚLTIMAS VENDAS]:\n{resumo_vendas}"
+                        resumo_v = df_v[['CLIENTE', 'PRODUTO', 'TOTAL R$', 'STATUS']].tail(5).to_dict(orient='records') if not df_v.empty else []
+                        contexto_dinamico = f"\n[ÚLTIMAS VENDAS DO SISTEMA]\n{json.dumps(resumo_v, ensure_ascii=False, indent=2)}"
 
                     # =================================================================
-                    # 🧠 2. ENGENHARIA DE PROMPT ESTRUTURADA
+                    # 🧠 3. INJEÇÃO DE CONTEXTO E PROMPT DE ALTA PRECISÃO
                     # =================================================================
+                    data_hoje = datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y")
+                    
                     prompt_sistema = f"""
-                    Você é a Bia, Assistente Virtual de Elite da loja 'Sweet Home Enxovais'.
-                    A sua missão é ser útil, rápida e ter exatidão absoluta com números.
+                    Você é a Bia, a Analista de Dados e Assistente da 'Sweet Home Enxovais'. Hoje é dia {data_hoje}.
                     
-                    REGRA DE OURO: Você recebeu abaixo blocos de [RESULTADOS DA BUSCA] que foram filtrados diretamente do banco de dados em tempo real de acordo com a pergunta do usuário. 
-                    Seja fiel a estes números! NUNCA invente preços ou quantidades. Se a informação não estiver no texto abaixo, diga claramente "Não encontrei essa informação no sistema".
+                    REGRA ABSOLUTA DE INTEGRIDADE:
+                    Abaixo estão os dados JSON puros que o motor de busca extraiu do banco de dados baseando-se na pergunta do usuário.
+                    1. Você deve basear a sua resposta EXCLUSIVAMENTE nestes dados.
+                    2. Você pode ver todas as colunas (Custo, Venda, Saldo, Status, etc). Cruze as informações se necessário.
+                    3. Se a informação solicitada não estiver no JSON abaixo, diga com clareza: "Não encontrei essa informação na minha base de dados." Não invente!
+                    4. Formate valores com R$ e seja amigável, mas objetiva.
                     
-                    DADOS INJETADOS EM TEMPO REAL PARA VOCÊ LER:
+                    [DADOS EXTRAÍDOS PARA SUA ANÁLISE]:
                     {contexto_dinamico}
-                    
-                    Responda sempre em Português do Brasil, de forma humanizada e simpática. Formate valores monetários em Reais (R$).
                     """
 
                     payload = {
                         "model": "llama-3.3-70b-versatile",
                         "messages": [{"role": "system", "content": prompt_sistema}] + st.session_state["bia_mensagens"][-5:],
-                        "temperature": 0.1 # Temperatura baixíssima = Fim das Alucinações Matemáticas
+                        "temperature": 0.05 # Quase zero! Remove completamente a criatividade matemática.
                     }
 
                     headers = {"Authorization": f"Bearer {chave_groq}", "Content-Type": "application/json"}
@@ -532,10 +539,10 @@ def bia_copilot_sidebar(df_v, df_c, df_d, df_i, df_m):
                         resposta_placeholder.markdown(texto_bia)
                         st.session_state["bia_mensagens"].append({"role": "assistant", "content": texto_bia})
                     else:
-                        resposta_placeholder.error(f"Erro na IA: {resposta.text}")
+                        resposta_placeholder.error(f"Erro no servidor Llama: {resposta.text}")
                 
                 except Exception as e:
-                    resposta_placeholder.error(f"Erro interno de processamento: {e}")
+                    resposta_placeholder.error(f"Falha na varredura de dados: {e}")
 
 with st.sidebar:
     try: st.image(LOGO_URL, use_container_width=True)
