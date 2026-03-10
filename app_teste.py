@@ -419,9 +419,9 @@ banco_de_produtos, banco_de_clientes, df_full_inv, df_financeiro, df_vendas_hist
 # =========================================================================
 @st.fragment
 def bia_copilot_sidebar(df_v, df_c, df_d):
-    st.sidebar.divider()
-    st.sidebar.markdown("### 👩‍💼 Bia Copilot")
-    st.sidebar.caption("A sua Assistente Inteligente 24h")
+    st.divider()
+    st.markdown("### 👩‍💼 Bia Copilot")
+    st.caption("A sua Assistente Inteligente 24h")
 
     # 1. Inicializa a memória do chat
     if "bia_mensagens" not in st.session_state:
@@ -429,16 +429,16 @@ def bia_copilot_sidebar(df_v, df_c, df_d):
             {"role": "assistant", "content": "Olá! Sou a Bia. Posso consultar clientes, vendas ou recibos. O que precisa?"}
         ]
 
-    # 2. Caixa de rolagem
-    caixa_chat = st.sidebar.container(height=350, border=False)
+    # 2. Caixa de rolagem (Agora usa st.container puro)
+    caixa_chat = st.container(height=350, border=False)
     
     with caixa_chat:
         for msg in st.session_state["bia_mensagens"]:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
 
-    # 3. Campo de entrada
-    if pergunta := st.sidebar.chat_input("Pergunte à Bia..."):
+    # 3. Campo de entrada (Agora usa st.chat_input puro)
+    if pergunta := st.chat_input("Pergunte à Bia..."):
         st.session_state["bia_mensagens"].append({"role": "user", "content": pergunta})
         with caixa_chat:
             with st.chat_message("user"):
@@ -457,7 +457,6 @@ def bia_copilot_sidebar(df_v, df_c, df_d):
                         resposta_placeholder.error("Chave da Groq não configurada nos secrets.")
                         return
 
-                    # 💡 AQUI FOI CORRIGIDO O NOME DAS COLUNAS PARA LER A SUA PLANILHA CORRETAMENTE
                     resumo_vendas = df_v.tail(10).to_string() if not df_v.empty else "Nenhuma venda."
                     
                     if not df_c.empty:
