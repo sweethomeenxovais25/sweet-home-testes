@@ -415,71 +415,113 @@ def carregar_dados():
 banco_de_produtos, banco_de_clientes, df_full_inv, df_financeiro, df_vendas_hist, df_painel_resumo, df_clientes_full, df_socios, df_aportes, df_docs, banco_de_fornecedores, df_fornecedores, df_despesas, df_marketing, df_cred = carregar_dados()
 
 # =========================================================================
-# 👩‍💼 BIA COPILOT: ASSISTENTE VIRTUAL GLOBAL (ISOLADA COM ST.FRAGMENT)
+# 👩‍💼 BIA COPILOT: MOTOR ONISCIENTE COM RAG (RETRIEVAL-AUGMENTED GENERATION)
 # =========================================================================
 @st.fragment
-def bia_copilot_sidebar(df_v, df_c, df_d):
+def bia_copilot_sidebar(df_v, df_c, df_d, df_i, df_m):
     st.divider()
     st.markdown("### 👩‍💼 Bia Copilot")
-    st.caption("A sua Assistente Inteligente 24h")
+    st.caption("Inteligência Artificial Integrada ao Banco de Dados")
 
-    # 1. Inicializa a memória do chat
     if "bia_mensagens" not in st.session_state:
         st.session_state["bia_mensagens"] = [
-            {"role": "assistant", "content": "Olá! Sou a Bia. Posso consultar clientes, vendas ou recibos. O que precisa?"}
+            {"role": "assistant", "content": "Olá! Sou a Bia. Conheço todo o nosso estoque, clientes, finanças e marketing. O que quer saber?"}
         ]
 
-    # 2. Caixa de rolagem (Agora usa st.container puro)
-    caixa_chat = st.container(height=350, border=False)
+    caixa_chat = st.container(height=400, border=False)
     
     with caixa_chat:
         for msg in st.session_state["bia_mensagens"]:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
 
-    # 3. Campo de entrada (Agora usa st.chat_input puro)
-    if pergunta := st.chat_input("Pergunte à Bia..."):
+    if pergunta := st.chat_input("Ex: Qual o preço do tapete? / A Maria deve algo?"):
         st.session_state["bia_mensagens"].append({"role": "user", "content": pergunta})
         with caixa_chat:
             with st.chat_message("user"):
                 st.markdown(pergunta)
 
-        # 4. Processamento da IA com Injeção de Contexto
         with caixa_chat:
             with st.chat_message("assistant"):
                 resposta_placeholder = st.empty()
-                resposta_placeholder.markdown("⏳ *Consultando arquivos...*")
+                resposta_placeholder.markdown("⏳ *A varrer o banco de dados...*")
                 
                 try:
                     import requests
+                    import re
                     chave_groq = st.secrets.get("GROQ_API_KEY", "")
                     if not chave_groq:
                         resposta_placeholder.error("Chave da Groq não configurada nos secrets.")
                         return
 
-                    resumo_vendas = df_v.tail(10).to_string() if not df_v.empty else "Nenhuma venda."
+                    # =================================================================
+                    # 🔍 1. MOTOR DE BUSCA SEMÂNTICA (O SEGREDO DA EXATIDÃO)
+                    # Extrai palavras-chave da pergunta para buscar nas planilhas
+                    # =================================================================
+                    palavras_cruas = re.findall(r'\b[a-zA-ZÀ-ÿ0-9]{3,}\b', pergunta.lower())
+                    stop_words = {'qual', 'quais', 'como', 'quanto', 'quantos', 'saber', 'sobre', 'tem', 'temos', 'para', 'que', 'quero', 'valor', 'preco', 'preço', 'estoque', 'cliente'}
+                    termos_busca = [p for p in palavras_cruas if p not in stop_words]
+
+                    contexto_dinamico = ""
                     
-                    if not df_c.empty:
-                        col_nome = 'NOME' if 'NOME' in df_c.columns else df_c.columns[1]
-                        col_zap = 'ZAP' if 'ZAP' in df_c.columns else df_c.columns[2]
-                        resumo_clientes = df_c[[col_nome, col_zap]].tail(15).to_string()
-                    else:
-                        resumo_clientes = "Sem clientes."
-                    
+                    # Se achou palavras-chave, filtra cirurgicamente o banco de dados!
+                    if termos_busca:
+                        # 📦 BUSCA NO ESTOQUE
+                        if not df_i.empty:
+                            mask_inv = df_i.astype(str).apply(lambda col: col.str.lower().str.contains('|'.join(termos_busca), na=False)).any(axis=1)
+                            achados_inv = df_i[mask_inv].head(5)
+                            if not achados_inv.empty:
+                                col_cod = 'CÓD. PRÓDUTO' if 'CÓD. PRÓDUTO' in df_i.columns else df_i.columns[0]
+                                col_nome = 'NOME DO PRODUTO' if 'NOME DO PRODUTO' in df_i.columns else df_i.columns[1]
+                                col_est = 'ESTOQUE ATUAL' if 'ESTOQUE ATUAL' in df_i.columns else df_i.columns[7]
+                                col_preco = 'VALOR DE VENDA' if 'VALOR DE VENDA' in df_i.columns else df_i.columns[8]
+                                contexto_dinamico += f"\n[📦 RESULTADO DA BUSCA NO ESTOQUE]:\n{achados_inv[[col_cod, col_nome, col_est, col_preco]].to_string()}\n"
+
+                        # 👥 BUSCA NOS CLIENTES E DÍVIDAS
+                        if not df_c.empty:
+                            mask_cli = df_c.astype(str).apply(lambda col: col.str.lower().str.contains('|'.join(termos_busca), na=False)).any(axis=1)
+                            achados_cli = df_c[mask_cli].head(5)
+                            if not achados_cli.empty:
+                                col_nome_c = 'NOME' if 'NOME' in df_c.columns else df_c.columns[1]
+                                col_zap_c = 'TELEFONE' if 'TELEFONE' in df_c.columns else (df_c.columns[2] if len(df_c.columns)>2 else df_c.columns[-1])
+                                col_dev = 'SALDO DEVEDOR R$' if 'SALDO DEVEDOR R$' in df_c.columns else df_c.columns[-3]
+                                contexto_dinamico += f"\n[👥 RESULTADO DA BUSCA DE CLIENTES]:\n{achados_cli[[col_nome_c, col_zap_c, col_dev]].to_string()}\n"
+
+                        # 🏭 BUSCA NAS DESPESAS
+                        if not df_d.empty:
+                            mask_desp = df_d.astype(str).apply(lambda col: col.str.lower().str.contains('|'.join(termos_busca), na=False)).any(axis=1)
+                            achados_desp = df_d[mask_desp].head(5)
+                            if not achados_desp.empty:
+                                col_forn = 'FORNECEDOR / DESPESA' if 'FORNECEDOR / DESPESA' in df_d.columns else df_d.columns[2]
+                                col_val = 'VALOR R$' if 'VALOR R$' in df_d.columns else df_d.columns[4]
+                                col_stat = 'STATUS' if 'STATUS' in df_d.columns else df_d.columns[5]
+                                contexto_dinamico += f"\n[🏭 RESULTADO DA BUSCA DE DESPESAS]:\n{achados_desp[[col_forn, col_val, col_stat]].to_string()}\n"
+
+                    # Se a busca dinâmica falhar, passamos um resumo macro
+                    if not contexto_dinamico:
+                        resumo_vendas = df_v[['CLIENTE', 'PRODUTO', 'TOTAL R$', 'STATUS']].tail(5).to_string() if not df_v.empty else "Nenhuma venda."
+                        contexto_dinamico = f"\n[ÚLTIMAS VENDAS]:\n{resumo_vendas}"
+
+                    # =================================================================
+                    # 🧠 2. ENGENHARIA DE PROMPT ESTRUTURADA
+                    # =================================================================
                     prompt_sistema = f"""
-                    Você é a Bia, assistente virtual prestativa da 'Sweet Home Enxovais'.
-                    Responda de forma CURTA, DIRETA e use Emojis. 
-                    Se perguntarem por recibos ou fotos, diga que está a procurar e mostre o link se encontrar.
+                    Você é a Bia, Assistente Virtual de Elite da loja 'Sweet Home Enxovais'.
+                    A sua missão é ser útil, rápida e ter exatidão absoluta com números.
                     
-                    DADOS RECENTES (Baseie-se APENAS nisto):
-                    [VENDAS]:\n{resumo_vendas}
-                    [CLIENTES]:\n{resumo_clientes}
+                    REGRA DE OURO: Você recebeu abaixo blocos de [RESULTADOS DA BUSCA] que foram filtrados diretamente do banco de dados em tempo real de acordo com a pergunta do usuário. 
+                    Seja fiel a estes números! NUNCA invente preços ou quantidades. Se a informação não estiver no texto abaixo, diga claramente "Não encontrei essa informação no sistema".
+                    
+                    DADOS INJETADOS EM TEMPO REAL PARA VOCÊ LER:
+                    {contexto_dinamico}
+                    
+                    Responda sempre em Português do Brasil, de forma humanizada e simpática. Formate valores monetários em Reais (R$).
                     """
 
                     payload = {
                         "model": "llama-3.3-70b-versatile",
-                        "messages": [{"role": "system", "content": prompt_sistema}] + st.session_state["bia_mensagens"][-4:],
-                        "temperature": 0.3
+                        "messages": [{"role": "system", "content": prompt_sistema}] + st.session_state["bia_mensagens"][-5:],
+                        "temperature": 0.1 # Temperatura baixíssima = Fim das Alucinações Matemáticas
                     }
 
                     headers = {"Authorization": f"Bearer {chave_groq}", "Content-Type": "application/json"}
@@ -490,10 +532,10 @@ def bia_copilot_sidebar(df_v, df_c, df_d):
                         resposta_placeholder.markdown(texto_bia)
                         st.session_state["bia_mensagens"].append({"role": "assistant", "content": texto_bia})
                     else:
-                        resposta_placeholder.error("Desculpe, conexão falhou.")
+                        resposta_placeholder.error(f"Erro na IA: {resposta.text}")
                 
                 except Exception as e:
-                    resposta_placeholder.error("Erro interno ao pensar.")
+                    resposta_placeholder.error(f"Erro interno de processamento: {e}")
 
 with st.sidebar:
     try: st.image(LOGO_URL, use_container_width=True)
@@ -562,9 +604,9 @@ with st.sidebar:
         st.rerun()
 
     # =========================================================================
-    # 🌟 AQUI A BIA GANHA VIDA NO FINAL DA BARRA LATERAL (Com as variáveis corretas)
+    # 🌟 AQUI A BIA GANHA VIDA COM ACESSO TOTAL AO SISTEMA (RAG)
     # =========================================================================
-    bia_copilot_sidebar(df_vendas_hist, df_clientes_full, df_despesas)
+    bia_copilot_sidebar(df_vendas_hist, df_clientes_full, df_despesas, df_full_inv, df_marketing)
 
     st.divider()
     with st.expander("🛡️ Backup do Sistema (SaaS Safe)"):
