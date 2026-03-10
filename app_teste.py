@@ -1207,7 +1207,7 @@ elif menu_selecionado == "💰 Financeiro":
                         Use um tom profissional e acolhedor. Seja conciso.
                         """
 
-                        # 3. MOTOR DE FALLBACK COM LISTA ATUALIZADA
+                        # 3. MOTOR DE FALLBACK (O Cérebro Estilo NotebookLM)
                         import requests
                         if "GOOGLE_API_KEY" not in st.secrets:
                             st.error("⚠️ Chave 'GOOGLE_API_KEY' não encontrada nos Secrets!")
@@ -1215,38 +1215,42 @@ elif menu_selecionado == "💰 Financeiro":
                         
                         chave_api = st.secrets["GOOGLE_API_KEY"]
                         
-                        # 💡 A CORREÇÃO ESTÁ AQUI: "gemini-pro" alterado para "gemini-1.5-pro" (nome técnico V1)
-                        modelos_para_testar = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
+                        # 💡 NOMES EXATOS E ATUALIZADOS
+                        modelos_para_testar = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"]
                         
                         sucesso_ia = False
                         ultimo_erro_tecnico = ""
 
                         for modelo_nome in modelos_para_testar:
                             try:
-                                # Usamos o endpoint v1 para maior estabilidade no SaaS
-                                url_google = f"https://generativelanguage.googleapis.com/v1/models/{modelo_nome}:generateContent?key={chave_api}"
-                                payload = {"contents": [{"parts": [{"text": prompt_ceo}]}]}
+                                # 🚀 A MÁGICA: Mudamos a URL para 'v1beta'. Isso destrava o uso do 1.5 Pro (Motor do NotebookLM)
+                                url_google = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo_nome}:generateContent?key={chave_api}"
                                 
-                                resposta = requests.post(url_google, json=payload, timeout=12)
+                                # Adicionamos a "temperature" baixa para ele ser analítico e exato como o NotebookLM
+                                payload = {
+                                    "contents": [{"parts": [{"text": prompt_ceo}]}],
+                                    "generationConfig": {"temperature": 0.3} 
+                                }
+                                
+                                resposta = requests.post(url_google, json=payload, timeout=15)
                                 
                                 if resposta.status_code == 200:
                                     dados_retorno = resposta.json()
                                     texto_final = dados_retorno['candidates'][0]['content']['parts'][0]['text']
-                                    st.success(f"✅ Análise concluída com sucesso (via {modelo_nome})!")
+                                    st.success(f"✅ Análise concluída com sucesso (Cérebro: {modelo_nome})!")
                                     st.info(texto_final)
                                     sucesso_ia = True
                                     break # Sucesso! Interrompe o loop
                                 else:
-                                    # Guarda o erro para diagnóstico se nenhum funcionar
-                                    ultimo_erro_tecnico = f"Modelo {modelo_nome} retornou Erro {resposta.status_code}: {resposta.text}"
+                                    ultimo_erro_tecnico = f"Erro {resposta.status_code} no {modelo_nome}: {resposta.text}"
                                     continue
                             except Exception as e_req:
                                 ultimo_erro_tecnico = str(e_req)
                                 continue
 
                         if not sucesso_ia:
-                            st.error("⚠️ O Google recusou a ligação ou a cota expirou.")
-                            with st.expander("🔍 Detalhes Técnicos para Suporte"):
+                            st.error("⚠️ O cérebro financeiro está indisponível no momento.")
+                            with st.expander("🔍 Ver detalhes técnicos do bloqueio"):
                                 st.code(ultimo_erro_tecnico)
 
                     except Exception as e_geral:
