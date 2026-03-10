@@ -414,6 +414,96 @@ def carregar_dados():
 
 banco_de_produtos, banco_de_clientes, df_full_inv, df_financeiro, df_vendas_hist, df_painel_resumo, df_clientes_full, df_socios, df_aportes, df_docs, banco_de_fornecedores, df_fornecedores, df_despesas, df_marketing, df_cred = carregar_dados()
 
+# =========================================================================
+# 👩‍💼 BIA COPILOT: ASSISTENTE VIRTUAL GLOBAL (ISOLADA COM ST.FRAGMENT)
+# =========================================================================
+@st.fragment
+def bia_copilot_sidebar(df_v, df_c, df_d):
+    st.sidebar.divider()
+    st.sidebar.markdown("### 👩‍💼 Bia Copilot")
+    st.sidebar.caption("Assistente Inteligente da Sweet Home")
+
+    # 1. Inicializa a memória do chat
+    if "bia_mensagens" not in st.session_state:
+        st.session_state["bia_mensagens"] = [
+            {"role": "assistant", "content": "Olá! Sou a Bia. Posso consultar clientes, vendas, recibos ou tirar dúvidas sobre o sistema. O que precisa?"}
+        ]
+
+    # 2. Caixa de rolagem para o chat não ocupar a tela toda
+    caixa_chat = st.sidebar.container(height=350, border=False)
+    
+    with caixa_chat:
+        for msg in st.session_state["bia_mensagens"]:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+
+    # 3. Campo de entrada de texto
+    if pergunta := st.sidebar.chat_input("Pergunte à Bia..."):
+        # Mostra a pergunta do usuário na hora
+        st.session_state["bia_mensagens"].append({"role": "user", "content": pergunta})
+        with caixa_chat:
+            with st.chat_message("user"):
+                st.markdown(pergunta)
+
+        # 4. Injeção de Contexto (A Bia precisa saber o que tem no sistema)
+        with caixa_chat:
+            with st.chat_message("assistant"):
+                resposta_placeholder = st.empty()
+                resposta_placeholder.markdown("⏳ *Consultando os arquivos da loja...*")
+                
+                try:
+                    import requests
+                    chave_groq = st.secrets.get("GROQ_API_KEY", "")
+                    
+                    if not chave_groq:
+                        resposta_placeholder.error("Chave da Groq não configurada.")
+                        return
+
+                    # Prepara um mini-relatório em texto para a Bia ler
+                    resumo_vendas = df_v.tail(15).to_string() if not df_v.empty else "Nenhuma venda."
+                    resumo_clientes = df_c[['NOME', 'TELEFONE', 'SALDO DEVEDOR R$']].tail(15).to_string() if not df_c.empty and 'NOME' in df_c.columns else "Sem clientes."
+                    
+                    prompt_sistema = f"""
+                    Você é a Bia, assistente virtual prestativa e amigável da loja 'Sweet Home Enxovais'.
+                    Responda de forma CURTA e DIRETA. Use Emojis.
+                    
+                    Se o usuário pedir um comprovante/nota e houver um link de imagem (http...), mostre a imagem usando Markdown: ![Comprovante](link)
+                    
+                    DADOS RECENTES DO SISTEMA (Baseie-se APENAS nisto):
+                    [VENDAS RECENTES]:
+                    {resumo_vendas}
+                    
+                    [CLIENTES E DÍVIDAS]:
+                    {resumo_clientes}
+                    """
+
+                    payload = {
+                        "model": "llama-3.3-70b-versatile",
+                        "messages": [
+                            {"role": "system", "content": prompt_sistema}
+                        ] + st.session_state["bia_mensagens"][-4:], # Manda só as últimas 4 mensagens para não pesar
+                        "temperature": 0.3
+                    }
+
+                    headers = {"Authorization": f"Bearer {chave_groq}", "Content-Type": "application/json"}
+                    resposta = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=15)
+                    
+                    if resposta.status_code == 200:
+                        texto_bia = resposta.json()['choices'][0]['message']['content']
+                        resposta_placeholder.markdown(texto_bia)
+                        st.session_state["bia_mensagens"].append({"role": "assistant", "content": texto_bia})
+                    else:
+                        resposta_placeholder.error("Desculpe, a minha conexão falhou.")
+                
+                except Exception as e:
+                    resposta_placeholder.error("Erro interno. Tente novamente.")
+
+# =========================================================================
+# INVOCANDO A BIA NA BARRA LATERAL
+# (Coloque isso logo após carregar suas planilhas no código principal)
+# =========================================================================
+bia_copilot_sidebar(df_vendas_hist, df_clientes, df_despesas)
+
 with st.sidebar:
     try: st.image(LOGO_URL, use_container_width=True)
     except: st.write(f"🏢 **{NOME_LOJA}**")
