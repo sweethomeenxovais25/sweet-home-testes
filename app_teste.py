@@ -421,15 +421,15 @@ banco_de_produtos, banco_de_clientes, df_full_inv, df_financeiro, df_vendas_hist
 def bia_copilot_sidebar(df_v, df_c, df_d):
     st.sidebar.divider()
     st.sidebar.markdown("### 👩‍💼 Bia Copilot")
-    st.sidebar.caption("Assistente Inteligente da Sweet Home")
+    st.sidebar.caption("A sua Assistente Inteligente 24h")
 
     # 1. Inicializa a memória do chat
     if "bia_mensagens" not in st.session_state:
         st.session_state["bia_mensagens"] = [
-            {"role": "assistant", "content": "Olá! Sou a Bia. Posso consultar clientes, vendas, recibos ou tirar dúvidas sobre o sistema. O que precisa?"}
+            {"role": "assistant", "content": "Olá! Sou a Bia. Posso consultar clientes, vendas ou recibos. O que precisa?"}
         ]
 
-    # 2. Caixa de rolagem para o chat não ocupar a tela toda
+    # 2. Caixa de rolagem
     caixa_chat = st.sidebar.container(height=350, border=False)
     
     with caixa_chat:
@@ -437,51 +437,49 @@ def bia_copilot_sidebar(df_v, df_c, df_d):
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
 
-    # 3. Campo de entrada de texto
+    # 3. Campo de entrada
     if pergunta := st.sidebar.chat_input("Pergunte à Bia..."):
-        # Mostra a pergunta do usuário na hora
         st.session_state["bia_mensagens"].append({"role": "user", "content": pergunta})
         with caixa_chat:
             with st.chat_message("user"):
                 st.markdown(pergunta)
 
-        # 4. Injeção de Contexto (A Bia precisa saber o que tem no sistema)
+        # 4. Processamento da IA com Injeção de Contexto
         with caixa_chat:
             with st.chat_message("assistant"):
                 resposta_placeholder = st.empty()
-                resposta_placeholder.markdown("⏳ *Consultando os arquivos da loja...*")
+                resposta_placeholder.markdown("⏳ *Consultando arquivos...*")
                 
                 try:
                     import requests
                     chave_groq = st.secrets.get("GROQ_API_KEY", "")
-                    
                     if not chave_groq:
-                        resposta_placeholder.error("Chave da Groq não configurada.")
+                        resposta_placeholder.error("Chave da Groq não configurada nos secrets.")
                         return
 
-                    # Prepara um mini-relatório em texto para a Bia ler
-                    resumo_vendas = df_v.tail(15).to_string() if not df_v.empty else "Nenhuma venda."
-                    resumo_clientes = df_c[['NOME', 'TELEFONE', 'SALDO DEVEDOR R$']].tail(15).to_string() if not df_c.empty and 'NOME' in df_c.columns else "Sem clientes."
+                    # 💡 AQUI FOI CORRIGIDO O NOME DAS COLUNAS PARA LER A SUA PLANILHA CORRETAMENTE
+                    resumo_vendas = df_v.tail(10).to_string() if not df_v.empty else "Nenhuma venda."
+                    
+                    if not df_c.empty:
+                        col_nome = 'NOME' if 'NOME' in df_c.columns else df_c.columns[1]
+                        col_zap = 'ZAP' if 'ZAP' in df_c.columns else df_c.columns[2]
+                        resumo_clientes = df_c[[col_nome, col_zap]].tail(15).to_string()
+                    else:
+                        resumo_clientes = "Sem clientes."
                     
                     prompt_sistema = f"""
-                    Você é a Bia, assistente virtual prestativa e amigável da loja 'Sweet Home Enxovais'.
-                    Responda de forma CURTA e DIRETA. Use Emojis.
+                    Você é a Bia, assistente virtual prestativa da 'Sweet Home Enxovais'.
+                    Responda de forma CURTA, DIRETA e use Emojis. 
+                    Se perguntarem por recibos ou fotos, diga que está a procurar e mostre o link se encontrar.
                     
-                    Se o usuário pedir um comprovante/nota e houver um link de imagem (http...), mostre a imagem usando Markdown: ![Comprovante](link)
-                    
-                    DADOS RECENTES DO SISTEMA (Baseie-se APENAS nisto):
-                    [VENDAS RECENTES]:
-                    {resumo_vendas}
-                    
-                    [CLIENTES E DÍVIDAS]:
-                    {resumo_clientes}
+                    DADOS RECENTES (Baseie-se APENAS nisto):
+                    [VENDAS]:\n{resumo_vendas}
+                    [CLIENTES]:\n{resumo_clientes}
                     """
 
                     payload = {
                         "model": "llama-3.3-70b-versatile",
-                        "messages": [
-                            {"role": "system", "content": prompt_sistema}
-                        ] + st.session_state["bia_mensagens"][-4:], # Manda só as últimas 4 mensagens para não pesar
+                        "messages": [{"role": "system", "content": prompt_sistema}] + st.session_state["bia_mensagens"][-4:],
                         "temperature": 0.3
                     }
 
@@ -493,16 +491,10 @@ def bia_copilot_sidebar(df_v, df_c, df_d):
                         resposta_placeholder.markdown(texto_bia)
                         st.session_state["bia_mensagens"].append({"role": "assistant", "content": texto_bia})
                     else:
-                        resposta_placeholder.error("Desculpe, a minha conexão falhou.")
+                        resposta_placeholder.error("Desculpe, conexão falhou.")
                 
                 except Exception as e:
-                    resposta_placeholder.error("Erro interno. Tente novamente.")
-
-# =========================================================================
-# INVOCANDO A BIA NA BARRA LATERAL
-# (Coloque isso logo após carregar suas planilhas no código principal)
-# =========================================================================
-bia_copilot_sidebar(df_vendas_hist, df_clientes, df_despesas)
+                    resposta_placeholder.error("Erro interno ao pensar.")
 
 with st.sidebar:
     try: st.image(LOGO_URL, use_container_width=True)
