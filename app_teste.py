@@ -559,8 +559,13 @@ with st.sidebar:
     
     if st.button("🔄 Sincronizar Planilha", key="btn_sincronizar"):
         st.cache_data.clear()
-        st.cache_resource.clear() # Deixe os dois para garantir uma limpeza profunda!
+        st.cache_resource.clear() 
         st.rerun()
+
+    # =========================================================================
+    # 🌟 AQUI A BIA GANHA VIDA NO FINAL DA BARRA LATERAL (Com as variáveis corretas)
+    # =========================================================================
+    bia_copilot_sidebar(df_vendas_hist, df_clientes_full, df_despesas)
 
     st.divider()
     with st.expander("🛡️ Backup do Sistema (SaaS Safe)"):
