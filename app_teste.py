@@ -1177,11 +1177,12 @@ elif menu_selecionado == "💰 Financeiro":
             c_ia1, c_ia2 = st.columns([3, 1])
             c_ia1.write(f"Olá, **{st.session_state.get('usuario_logado', 'Gestor')}**! Quer que a Inteligência Artificial analise os números da **{NOME_LOJA}**?")
             
-            if c_ia2.button("🧠 Gerar Análise Data-Driven (Padrão Cientista de Dados)", type="primary", use_container_width=True):
-                with st.spinner("A aplicar modelos de Data Science nas finanças da Sweet Home..."):
+            # Usamos type="secondary" para o texto herdar a sua cor marrom escura elegante (COR_TEXTO)
+            if c_ia2.button("🧠 Gerar Análise Data-Driven", type="secondary", use_container_width=True):
+                with st.spinner("A processar algoritmos de análise e modelagem de dados..."):
                     try:
                         # =======================================================
-                        # 1. HIGIENIZAÇÃO (TIDY DATA) E PREPARAÇÃO DOS DADOS
+                        # 1. HIGIENIZAÇÃO E PREPARAÇÃO DOS DADOS
                         # =======================================================
                         if not df_vendas_hist.empty:
                             col_cliente = 'CLIENTE' if 'CLIENTE' in df_vendas_hist.columns else df_vendas_hist.columns[3]
@@ -1192,14 +1193,16 @@ elif menu_selecionado == "💰 Financeiro":
                             
                             col_total = 'TOTAL R$' if 'TOTAL R$' in df_vendas_limpo.columns else df_vendas_limpo.columns[11]
                             faturamento_bruto = sum(limpar_v(val) for val in df_vendas_limpo[col_total])
-                            
-                            # Métrica de Ticket Médio Automático
                             ticket_medio = (faturamento_bruto / total_vendas_qtd) if total_vendas_qtd > 0 else 0.0
                             
                             try:
                                 col_prod_nome = 'PRODUTO' if 'PRODUTO' in df_vendas_limpo.columns else df_vendas_limpo.columns[5]
-                                produto_top = df_vendas_limpo[col_prod_nome].value_counts().idxmax()
-                                freq_top = df_vendas_limpo[col_prod_nome].value_counts().max()
+                                col_prod_cod = 'CÓD. PRÓDUTO' if 'CÓD. PRÓDUTO' in df_vendas_limpo.columns else df_vendas_limpo.columns[4]
+                                
+                                # 💡 MÁGICA: Junta o Código e o Nome para análise precisa
+                                produtos_combinados = df_vendas_limpo[col_prod_cod].astype(str) + " - " + df_vendas_limpo[col_prod_nome].astype(str)
+                                produto_top = produtos_combinados.value_counts().idxmax()
+                                freq_top = produtos_combinados.value_counts().max()
                             except:
                                 produto_top = "Indisponível"
                                 freq_top = 0
@@ -1213,47 +1216,44 @@ elif menu_selecionado == "💰 Financeiro":
                         total_despesas = len(df_despesas) if not df_despesas.empty else 0
 
                         # =======================================================
-                        # 2. ENGENHARIA DE PROMPT (BASEADA NO "DATA SCIENCE: A FIRST INTRODUCTION")
+                        # 2. ENGENHARIA DE PROMPT (MACHINE LEARNING & ESTRUTURA)
                         # =======================================================
                         prompt_ceo = f"""
-                        Atue como um Cientista de Dados Sênior e Diretor Financeiro (CFO) da 'Sweet Home Enxovais'. 
-                        A sua análise deve ser baseada nos princípios do livro 'Data Science: A First Introduction'.
+                        Atue como um Cientista de Dados e um Algoritmo de Machine Learning Preditivo analisando a 'Sweet Home Enxovais'.
                         
-                        DADOS OFICIAIS (TIDY DATA):
-                        - Volume de Vendas: EXATAMENTE {total_vendas_qtd} vendas registradas.
+                        DADOS OFICIAIS PARA PROCESSAMENTO:
+                        - Volume Exato: {total_vendas_qtd} vendas.
                         - Faturamento Bruto: R$ {faturamento_bruto:,.2f}
-                        - Ticket Médio Atual: R$ {ticket_medio:,.2f}
-                        - Saídas/Despesas Registradas: {total_despesas} operações.
-                        - Produto Campeão Absoluto: '{produto_top}' (Aparece em {freq_top} vendas).
+                        - Ticket Médio: R$ {ticket_medio:,.2f}
+                        - Volume de Despesas Lançadas: {total_despesas} operações.
+                        - Top SKU (Produto Campeão): '{produto_top}' (Vendido {freq_top} vezes).
 
-                        DIRETRIZES DO RELATÓRIO:
-                        1. RIGOR E EXATIDÃO: Respeite a matemática fornecida. Não invente ou aproxime números.
-                        2. TAXONOMIA DE PERGUNTAS: A análise deve ir do Descritivo (o que aconteceu) ao Preditivo/Causal (tendências) e Prescritivo (o que fazer).
-                        3. VIÉS E PONTOS CEGOS: Identifique o que *não* está no banco de dados e que poderia estar a causar um "viés de sobrevivência" ou cegueira financeira (ex: CAC, LTV, sazonalidade).
-                        4. ESTRUTURA VISUAL PRAGMÁTICA: O relatório tem de ser impecável, usando Markdown, tabelas para comparação, blocos de citação e bullet points.
+                        REGRAS DE ENGENHARIA DO SISTEMA (CRÍTICO):
+                        1. PROIBIDO USAR O SÍMBOLO DE CIFRÃO ($): Para não causar o 'bug verde' de renderização LaTeX no sistema, nunca escreva o símbolo do dólar/cifrão. Escreva estritamente 'R$ ' (com espaço) ou 'Reais'.
+                        2. EXATIDÃO MATEMÁTICA: O número de vendas é exatamente {total_vendas_qtd}. Não aproxime.
 
-                        ESTRUTURA EXATA A SER DEVOLVIDA:
-                        > **Resumo Executivo (Visão Global)**
-                        [Parágrafo único de alto impacto sobre a saúde geral do negócio].
+                        ESTRUTURA DE SAÍDA EXIGIDA (Siga os tópicos exatamente assim):
                         
-                        ### 📊 1. Taxonomia Descritiva (Quadro de Indicadores)
-                        [Crie uma Tabela Markdown limpa organizando as métricas fornecidas e adicione 1 ou 2 métricas derivadas logicamente].
+                        > **Visão Global (Sumário)**
+                        [Parágrafo direto com diagnóstico da saúde do negócio].
+                        
+                        ### 📊 1. Arquitetura de Indicadores
+                        [Crie uma Tabela Markdown limpa com as métricas fornecidas].
 
-                        ### 📈 2. Análise Exploratória e Preditiva (Padrões)
-                        [Escreva sobre o comportamento de compra. O que a dependência do produto '{produto_top}' significa em termos de Regressão/Tendência? Se continuarmos neste ritmo, qual é a previsão estratégica?]
+                        ### 🤖 2. Modelagem Preditiva e Clusterização Simulada
+                        [Aplique lógica de Machine Learning: baseado no ticket médio de R$ {ticket_medio:.2f} e no SKU '{produto_top}', defina 2 'Clusters' (perfis) prováveis de clientes que estão a comprar na loja e faça uma previsão sobre o comportamento futuro de recompra deles].
 
-                        ### ⚠️ 3. Pontos Cegos e Viés de Dados
-                        [Como Cientista de Dados, indique 2 métricas que a Sweet Home NÃO está a medir nestes dados básicos, mas que são cruciais para não tomarmos decisões enviesadas no futuro].
+                        ### ⚠️ 3. Lacunas de Dados (CAC e LTV)
+                        [Como Cientista de Dados, exija pragmaticamente a implementação do rastreio de Custo de Aquisição de Clientes (CAC) e Valor do Ciclo de Vida (LTV). Explique em 2 frases o risco de escalar cegamente sem estas duas métricas no sistema atual].
 
-                        ### 🎯 4. Plano de Ação Estratégico (Prescritivo)
-                        [Entregue 3 comandos acionáveis de negócio para os próximos 30 dias com foco no aumento de Ticket Médio e Proteção de Caixa].
+                        ### 🎯 4. Execução Pragmática
+                        [Liste 3 ações curtas e táticas focadas em otimização de funil e aumento de LTV].
                         """
 
                         # =======================================================
-                        # 3. MOTOR MULTI-IA (Llama 3.3 via Groq)
+                        # 3. MOTOR DA IA (Llama 3.3)
                         # =======================================================
                         import requests
-                        
                         if "GROQ_API_KEY" not in st.secrets:
                             st.error("⚠️ Chave 'GROQ_API_KEY' não encontrada nos Secrets!")
                             st.stop()
@@ -1261,46 +1261,40 @@ elif menu_selecionado == "💰 Financeiro":
                         chave_groq = st.secrets["GROQ_API_KEY"]
                         url_groq = "https://api.groq.com/openai/v1/chat/completions"
                         
-                        headers = {
-                            "Authorization": f"Bearer {chave_groq}",
-                            "Content-Type": "application/json"
-                        }
+                        headers = {"Authorization": f"Bearer {chave_groq}", "Content-Type": "application/json"}
                         
                         payload = {
                             "model": "llama-3.3-70b-versatile",
                             "messages": [
-                                {
-                                    "role": "system", 
-                                    "content": "Você é uma inteligência artificial executiva, pragmática e visual. Nunca use jargões desnecessários. Entregue a análise de forma limpa, direta, com formatação perfeita em Markdown, emojis elegantes e separação clara."
-                                },
-                                {
-                                    "role": "user", 
-                                    "content": prompt_ceo
-                                }
+                                {"role": "system", "content": "Você é um algoritmo pragmático focado em Data Science para negócios. Responde de forma ultraestruturada, usa tabelas, formatação limpa e NUNCA usa o símbolo de cifrão solto."},
+                                {"role": "user", "content": prompt_ceo}
                             ],
-                            "temperature": 0.25 # Equilíbrio ideal entre rigor matemático e visão estratégica de negócios
+                            "temperature": 0.2
                         }
                         
                         try:
                             resposta = requests.post(url_groq, headers=headers, json=payload, timeout=20)
                             
                             if resposta.status_code == 200:
-                                dados_retorno = resposta.json()
-                                texto_final = dados_retorno['choices'][0]['message']['content']
-                                st.success("✅ Diagnóstico de Dados concluído e validado!")
+                                texto_final = resposta.json()['choices'][0]['message']['content']
+                                st.success("✅ Máquina de Decisão processada com sucesso!")
                                 
-                                # Renderização Premium em Painel
+                                # Renderização Visual Impecável
                                 with st.container(border=True):
                                     st.markdown(texto_final, unsafe_allow_html=True)
+                                
+                                # 💡 AQUI ESTÁ A MÁGICA DA CÓPIA! Um botão nativo do sistema para copiar tudo perfeito.
+                                with st.expander("📋 Copiar Relatório (Texto Bruto)"):
+                                    st.caption("Clique no ícone no canto superior direito da caixa abaixo para copiar toda a formatação perfeitamente.")
+                                    st.code(texto_final, language="markdown")
+                                    
                             else:
-                                st.error("⚠️ O Cérebro Secundário encontrou um obstáculo.")
-                                with st.expander("🔍 Detalhes Técnicos"):
-                                    st.code(resposta.text)
+                                st.error("⚠️ O Motor Preditivo encontrou um obstáculo.")
                         except Exception as e_req:
-                            st.error(f"⚠️ Erro de conexão com o servidor da IA: {e_req}")
+                            st.error(f"⚠️ Erro de conexão: {e_req}")
 
                     except Exception as e_geral:
-                        st.error(f"⚠️ Erro interno ao processar os dados para a IA: {e_geral}")
+                        st.error(f"⚠️ Erro interno na preparação dos dados: {e_geral}")
     
     st.divider()
     
