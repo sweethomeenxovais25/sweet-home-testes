@@ -415,120 +415,85 @@ def carregar_dados():
 banco_de_produtos, banco_de_clientes, df_full_inv, df_financeiro, df_vendas_hist, df_painel_resumo, df_clientes_full, df_socios, df_aportes, df_docs, banco_de_fornecedores, df_fornecedores, df_despesas, df_marketing, df_cred = carregar_dados()
 
 # =========================================================================
-# 👩‍💼 BIA COPILOT: MOTOR DE BUSCA SEMÂNTICA POR SCORE (RAG AVANÇADO)
+# 👩‍💼 BIA COPILOT: AGENTE DE E-COMMERCE E MARKETING (COM AVATAR)
 # =========================================================================
 @st.fragment
 def bia_copilot_sidebar(df_v, df_c, df_d, df_i, df_m):
     st.divider()
     st.markdown("### 👩‍💼 Bia Copilot")
-    st.caption("Inteligência Artificial de Alta Precisão")
+    st.caption("Especialista em Shopee, SEO e Mercado")
+
+    # 🖼️ LINK DA IMAGEM DA BIA (Pode trocar pelo seu link Raw do GitHub depois)
+    URL_AVATAR_BIA = "https://res.cloudinary.com/dywkig1gh/image/upload/v1773187728/SweetHome/Outros/%5BOUTROS%5D%20bia_avatar.png.png"
 
     if "bia_mensagens" not in st.session_state:
         st.session_state["bia_mensagens"] = [
-            {"role": "assistant", "content": "Olá! O meu novo motor de busca está ativo. Pode testar-me com produtos, clientes ou finanças!"}
+            {"role": "assistant", "content": "Olá! Deixei de ser apenas uma buscadora. Agora eu escrevo anúncios para a Shopee, pesquiso preços de mercado e crio campanhas de WhatsApp. O que vamos vender hoje?"}
         ]
 
     caixa_chat = st.container(height=400, border=False)
     
     with caixa_chat:
         for msg in st.session_state["bia_mensagens"]:
-            with st.chat_message(msg["role"]):
-                st.markdown(msg["content"])
+            # 💡 AQUI ENTRA A MÁGICA DO AVATAR!
+            if msg["role"] == "assistant":
+                with st.chat_message("assistant", avatar=URL_AVATAR_BIA):
+                    st.markdown(msg["content"])
+            else:
+                with st.chat_message("user"):
+                    st.markdown(msg["content"])
 
-    if pergunta := st.chat_input("Ex: Qual o valor de venda e custo do tapete 101?"):
+    if pergunta := st.chat_input("Ex: Crie um anúncio para Shopee do produto 101..."):
         st.session_state["bia_mensagens"].append({"role": "user", "content": pergunta})
         with caixa_chat:
             with st.chat_message("user"):
                 st.markdown(pergunta)
 
         with caixa_chat:
-            with st.chat_message("assistant"):
+            with st.chat_message("assistant", avatar=URL_AVATAR_BIA):
                 resposta_placeholder = st.empty()
-                resposta_placeholder.markdown("⏳ *A processar algoritmo de busca...*")
+                resposta_placeholder.markdown("⏳ *A preparar estratégia de vendas...*")
                 
                 try:
                     import requests
                     import re
                     import json
-                    from datetime import datetime
-                    import pytz
                     
                     chave_groq = st.secrets.get("GROQ_API_KEY", "")
                     if not chave_groq:
                         resposta_placeholder.error("Chave da Groq não configurada nos secrets.")
                         return
 
-                    # =================================================================
-                    # 🔬 1. MOTOR LEXICAL POR SCORE (A CIÊNCIA DE DADOS)
-                    # =================================================================
-                    # Captura letras, números, hífens e pontos (Ex: "101.2", "CLI-001")
+                    # 📦 Mini-buscador para a Bia saber sobre qual produto você está falando
                     termos_busca = re.findall(r'[a-zA-ZÀ-ÿ0-9.-]+', pergunta.lower())
-                    stop_words = {'qual', 'quais', 'como', 'quanto', 'quantos', 'saber', 'sobre', 'tem', 'temos', 'para', 'que', 'quero', 'valor', 'preco', 'preço', 'estoque', 'cliente', 'o', 'a', 'de', 'do', 'da', 'no', 'na'}
-                    termos_limpos = [t for t in termos_busca if t not in stop_words and len(t) > 1]
-
-                    # ⚙️ Função que dá "pontos" para a linha que mais parece com a pergunta
-                    def buscar_melhores_linhas(df_alvo, termos, limite=5):
-                        if df_alvo.empty or not termos: return []
-                        # Converte a planilha inteira para texto minúsculo para a busca
-                        df_str = df_alvo.astype(str).apply(lambda x: ' '.join(x).lower(), axis=1)
-                        # Dá 1 ponto para cada termo encontrado na linha
-                        scores = df_str.apply(lambda texto: sum(1 for termo in termos if termo in texto))
-                        # Pega só quem pontuou e ordena do maior para o menor
-                        df_match = df_alvo[scores > 0].copy()
-                        if df_match.empty: return []
-                        
-                        df_match['score'] = scores[scores > 0]
-                        df_top = df_match.sort_values('score', ascending=False).head(limite).drop(columns=['score'])
-                        
-                        # Retorna TODAS as colunas como Dicionário para a IA ler perfeitamente
-                        return df_top.astype(str).to_dict(orient='records')
-
-                    # =================================================================
-                    # 🔎 2. VARREDURA SIMULTÂNEA NAS PLANILHAS
-                    # =================================================================
-                    contexto_dinamico = ""
+                    contexto_produto = ""
                     
-                    if termos_limpos:
-                        res_inv = buscar_melhores_linhas(df_i, termos_limpos)
-                        if res_inv: contexto_dinamico += f"\n[BASE: ESTOQUE]\n{json.dumps(res_inv, ensure_ascii=False, indent=2)}\n"
+                    if not df_i.empty and len(termos_busca) > 2:
+                        df_str = df_i.astype(str).apply(lambda x: ' '.join(x).lower(), axis=1)
+                        scores = df_str.apply(lambda texto: sum(1 for termo in termos_busca if termo in texto))
+                        df_match = df_i[scores > 0].sort_values(by=df_i.columns[0]).head(2)
+                        
+                        if not df_match.empty:
+                            contexto_produto = f"\n[DADOS DO SEU ESTOQUE PARA USAR NO ANÚNCIO]:\n{json.dumps(df_match.astype(str).to_dict(orient='records'), ensure_ascii=False)}\n"
 
-                        res_cli = buscar_melhores_linhas(df_c, termos_limpos)
-                        if res_cli: contexto_dinamico += f"\n[BASE: CLIENTES]\n{json.dumps(res_cli, ensure_ascii=False, indent=2)}\n"
-
-                        res_ven = buscar_melhores_linhas(df_v, termos_limpos)
-                        if res_ven: contexto_dinamico += f"\n[BASE: VENDAS (HISTÓRICO)]\n{json.dumps(res_ven, ensure_ascii=False, indent=2)}\n"
-
-                        res_desp = buscar_melhores_linhas(df_d, termos_limpos)
-                        if res_desp: contexto_dinamico += f"\n[BASE: DESPESAS/CONTAS]\n{json.dumps(res_desp, ensure_ascii=False, indent=2)}\n"
-
-                    # Se o usuário perguntar algo genérico como "resumo" e o score não achar nada específico:
-                    if not contexto_dinamico:
-                        resumo_v = df_v[['CLIENTE', 'PRODUTO', 'TOTAL R$', 'STATUS']].tail(5).to_dict(orient='records') if not df_v.empty else []
-                        contexto_dinamico = f"\n[ÚLTIMAS VENDAS DO SISTEMA]\n{json.dumps(resumo_v, ensure_ascii=False, indent=2)}"
-
-                    # =================================================================
-                    # 🧠 3. INJEÇÃO DE CONTEXTO E PROMPT DE ALTA PRECISÃO
-                    # =================================================================
-                    data_hoje = datetime.now(pytz.timezone('America/Sao_Paulo')).strftime("%d/%m/%Y")
-                    
+                    # 🧠 NOVO CÉREBRO: O PROMPT DE GROWTH HACKING
                     prompt_sistema = f"""
-                    Você é a Bia, a Analista de Dados e Assistente da 'Sweet Home Enxovais'. Hoje é dia {data_hoje}.
+                    Você é a Bia, a Head de E-commerce e Copywriter Sênior da 'Sweet Home Enxovais'.
                     
-                    REGRA ABSOLUTA DE INTEGRIDADE:
-                    Abaixo estão os dados JSON puros que o motor de busca extraiu do banco de dados baseando-se na pergunta do usuário.
-                    1. Você deve basear a sua resposta EXCLUSIVAMENTE nestes dados.
-                    2. Você pode ver todas as colunas (Custo, Venda, Saldo, Status, etc). Cruze as informações se necessário.
-                    3. Se a informação solicitada não estiver no JSON abaixo, diga com clareza: "Não encontrei essa informação na minha base de dados." Não invente!
-                    4. Formate valores com R$ e seja amigável, mas objetiva.
+                    A SUA NOVA MISSÃO:
+                    1. Se pedirem um anúncio para SHOPEE/MERCADO LIVRE: Crie um título com SEO (muitas palavras-chave), descrição focada em benefícios, gatilhos de escassez e tags. Use os dados do estoque fornecidos.
+                    2. Se pedirem PESQUISA DE MERCADO: Use o seu conhecimento geral de IA para estimar preços de fornecedores no Brasil (como Brás/Ibitinga) e dar dicas de margem de lucro.
+                    3. Se pedirem COPY PARA WHATSAPP: Escreva mensagens altamente persuasivas para vender para clientes.
                     
-                    [DADOS EXTRAÍDOS PARA SUA ANÁLISE]:
-                    {contexto_dinamico}
+                    {contexto_produto}
+                    
+                    Não diga como você fez a pesquisa. Apenas entregue o texto pronto, formatado em Markdown, com emojis elegantes e fáceis de copiar.
                     """
 
                     payload = {
                         "model": "llama-3.3-70b-versatile",
-                        "messages": [{"role": "system", "content": prompt_sistema}] + st.session_state["bia_mensagens"][-5:],
-                        "temperature": 0.05 # Quase zero! Remove completamente a criatividade matemática.
+                        "messages": [{"role": "system", "content": prompt_sistema}] + st.session_state["bia_mensagens"][-3:],
+                        "temperature": 0.4 # Aumentamos um pouco a temperatura para ela ter criatividade publicitária!
                     }
 
                     headers = {"Authorization": f"Bearer {chave_groq}", "Content-Type": "application/json"}
@@ -539,10 +504,10 @@ def bia_copilot_sidebar(df_v, df_c, df_d, df_i, df_m):
                         resposta_placeholder.markdown(texto_bia)
                         st.session_state["bia_mensagens"].append({"role": "assistant", "content": texto_bia})
                     else:
-                        resposta_placeholder.error(f"Erro no servidor Llama: {resposta.text}")
+                        resposta_placeholder.error("Erro na comunicação com a API.")
                 
                 except Exception as e:
-                    resposta_placeholder.error(f"Falha na varredura de dados: {e}")
+                    resposta_placeholder.error(f"Erro de sistema: {e}")
 
 with st.sidebar:
     try: st.image(LOGO_URL, use_container_width=True)
