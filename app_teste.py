@@ -44,11 +44,15 @@ def verificar_status_odoo(codigo_produto):
 # ==========================================
 # 🧠 0. CONFIGURAÇÕES INICIAIS E I.A.
 # ==========================================
+
+# 1. LIGANDO O MOTOR DA INTELIGÊNCIA ARTIFICIAL (GEMINI)
 try:
     import google.generativeai as genai
     import os
+    # Força o uso da API REST para evitar travamentos (looping infinito) no Streamlit Cloud
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"], transport="rest")
 except Exception as e:
+    print(f"Aviso de IA: {e}")
     pass
 
 # ==========================================
@@ -71,7 +75,7 @@ def conectar_google():
             return gspread.authorize(creds).open_by_key(st.secrets["cliente"]["spreadsheet_id"])
         return None
     except Exception as e:
-        st.error(f"Erro de ligação com a base de dados: {e}")
+        st.error(f"Erro de ligação com a base de dados do cliente: {e}")
         st.stop()
 
 planilha_mestre = conectar_google()
@@ -79,7 +83,7 @@ planilha_mestre = conectar_google()
 # ==========================================
 # 🎨 2. MOTOR WHITE-LABEL (LEITURA DINÂMICA)
 # ==========================================
-# 💡 SOLUÇÃO DO BUG: Lê do banco de dados. Se falhar, usa os Secrets como segurança.
+# 💡 Lógica otimizada: tenta ler do banco, se falhar, lê dos Secrets.
 try:
     aba_config = planilha_mestre.worksheet("CONFIGURACOES")
     dados_config = aba_config.get_all_values()
@@ -90,23 +94,30 @@ try:
     COR_PRIMARIA = dicionario_config.get("COR_PRIMARIA", st.secrets["tema"]["cor_primaria"])
     COR_SECUNDARIA = dicionario_config.get("COR_SECUNDARIA", st.secrets["tema"]["cor_secundaria"])
     COR_TEXTO = dicionario_config.get("COR_TEXTO", st.secrets["tema"]["cor_texto"])
-except Exception:
+except Exception as e:
+    # Fallback seguro caso a aba CONFIGURACOES não exista ou dê erro
     NOME_LOJA = st.secrets["cliente"]["nome_loja"]
     LOGO_URL = st.secrets["cliente"]["logo_url"]
     COR_PRIMARIA = st.secrets["tema"]["cor_primaria"]
     COR_SECUNDARIA = st.secrets["tema"]["cor_secundaria"]
     COR_TEXTO = st.secrets["tema"]["cor_texto"]
 
-# CONFIGURAÇÃO ÚNICA DA PÁGINA (Deve aparecer apenas 1x no código inteiro)
-st.set_page_config(page_title=f"Gestão | {NOME_LOJA}", page_icon=LOGO_URL, layout="wide")
+# ==========================================
+# 3. CONFIGURAÇÃO ÚNICA DA PÁGINA (Apenas 1 vez!)
+# ==========================================
+st.set_page_config(
+    page_title=f"Gestão | {NOME_LOJA}", 
+    page_icon=LOGO_URL, 
+    layout="wide"
+)
 
 # Inicialização das Memórias de Sessão
 if 'autenticado' not in st.session_state: st.session_state['autenticado'] = False
 if 'historico_sessao' not in st.session_state: st.session_state['historico_sessao'] = []
 if 'historico_estoque' not in st.session_state: st.session_state['historico_estoque'] = []
 if 'carrinho' not in st.session_state: st.session_state['carrinho'] = []    
-
-# --- AUXILIARES TÉCNICOS (Declarados apenas 1x) ---
+    
+# --- AUXILIARES TÉCNICOS ---
 def limpar_v(v):
     if pd.isna(v) or v == "": return 0.0
     numero = pd.to_numeric(str(v).replace('R$', '').replace('.', '').replace(',', '.').strip(), errors='coerce') or 0.0
@@ -119,25 +130,31 @@ def limpar_texto(texto):
     return texto_sem_acento.lower().strip()
 
 def buscar_cep_magico(cep):
+    import requests
     cep_limpo = str(cep).replace("-", "").replace(".", "").strip()
     if len(cep_limpo) == 8:
         try:
             url = f"https://viacep.com.br/ws/{cep_limpo}/json/"
             resposta = requests.get(url, timeout=5)
             dados = resposta.json()
-            if "erro" not in dados: return dados
-        except: return None
+            if "erro" not in dados:
+                return dados
+        except:
+            return None
     return None
 
 def buscar_cnpj_magico(cnpj):
+    import requests
     cnpj_limpo = str(cnpj).replace(".", "").replace("-", "").replace("/", "").strip()
     if len(cnpj_limpo) == 14:
         try:
             url = f"https://receitaws.com.br/v1/cnpj/{cnpj_limpo}"
             resposta = requests.get(url, timeout=5)
             dados = resposta.json()
-            if dados.get("status") == "OK": return dados
-        except: return None
+            if dados.get("status") == "OK":
+                return dados
+        except:
+            return None
     return None
 
 def gerar_hash_senha(senha):
@@ -145,18 +162,49 @@ def gerar_hash_senha(senha):
     return hashlib.sha256(str(senha).encode('utf-8')).hexdigest()
 
 # ==========================================
-# 🎨 3. IDENTIDADE VISUAL DINÂMICA (INJETADA UMA ÚNICA VEZ)
+# 🎨 4. IDENTIDADE VISUAL DINÂMICA (INJETADA 1 VEZ)
 # ==========================================
 estilo_dinamico = f"""
 <style>
-    [data-testid="stAppViewContainer"] {{ background-color: #ffffff !important; border-right: 12px solid {COR_PRIMARIA} !important; }}
-    [data-testid="stSidebar"] {{ background-color: {COR_SECUNDARIA} !important; border-right: 1px solid #e0e0e0 !important; }}
-    [data-testid="collapsedControl"] svg, [data-testid="collapsedControl"] path, [data-testid="stSidebar"] button svg, [data-testid="stSidebar"] button path {{ color: {COR_TEXTO} !important; fill: {COR_TEXTO} !important; stroke: {COR_TEXTO} !important; }}
+    /* Tela Principal Branca com a Listra na cor Primária do Cliente */
+    [data-testid="stAppViewContainer"] {{
+        background-color: #ffffff !important;
+        border-right: 12px solid {COR_PRIMARIA} !important;
+    }}
+    
+    /* Barra Lateral na cor Secundária do Cliente */
+    [data-testid="stSidebar"] {{
+        background-color: {COR_SECUNDARIA} !important;
+        border-right: 1px solid #e0e0e0 !important;
+    }}
+
+    /* A cor dos textos acompanha a configuração */
+    [data-testid="collapsedControl"] svg, 
+    [data-testid="collapsedControl"] path,
+    [data-testid="stSidebar"] button svg,
+    [data-testid="stSidebar"] button path {{
+        color: {COR_TEXTO} !important;
+        fill: {COR_TEXTO} !important;
+        stroke: {COR_TEXTO} !important;
+    }}
+
     .stMarkdown, p, span, label, div[data-testid="stMetricValue"] {{ color: {COR_TEXTO} !important; }}
     h1, h2, h3, h4 {{ color: {COR_TEXTO} !important; }}
-    button[kind="primary"] {{ background-color: {COR_PRIMARIA} !important; color: #ffffff !important; font-weight: bold !important; border-radius: 6px !important; border: none !important; box-shadow: 2px 2px 8px rgba(0,0,0,0.1) !important; transition: all 0.2s ease-in-out !important; }}
+
+    /* BOTÕES PRIMÁRIOS (Ações Fortes) */
+    button[kind="primary"] {{
+        background-color: {COR_PRIMARIA} !important; 
+        color: #ffffff !important;
+        font-weight: bold !important;
+        border-radius: 6px !important;
+        border: none !important;
+        box-shadow: 2px 2px 8px rgba(0,0,0,0.1) !important;
+        transition: all 0.2s ease-in-out !important;
+    }}
     button[kind="primary"]:hover {{ transform: scale(1.02); opacity: 0.9; }}
     button[kind="primary"] p, button[kind="primary"] span {{ color: #ffffff !important; }}
+
+    /* Limpeza do cabeçalho e rodapé */
     #MainMenu {{visibility: hidden;}}
     footer {{visibility: hidden;}}
     header {{background-color: transparent !important;}}
