@@ -2,6 +2,8 @@
 
 
 
+
+
 import streamlit as st
 import pandas as pd
 import gspread
@@ -414,101 +416,6 @@ def carregar_dados():
 
 banco_de_produtos, banco_de_clientes, df_full_inv, df_financeiro, df_vendas_hist, df_painel_resumo, df_clientes_full, df_socios, df_aportes, df_docs, banco_de_fornecedores, df_fornecedores, df_despesas, df_marketing, df_cred = carregar_dados()
 
-# =========================================================================
-# 👩‍💼 BIA COPILOT: AGENTE DE E-COMMERCE E MARKETING (COM AVATAR)
-# =========================================================================
-@st.fragment
-def bia_copilot_sidebar(df_v, df_c, df_d, df_i, df_m):
-    st.divider()
-    st.markdown("### 👩‍💼 Bia Copilot")
-    st.caption("Especialista em Shopee, SEO e Mercado")
-
-    # 🖼️ LINK DA IMAGEM DA BIA (Pode trocar pelo seu link Raw do GitHub depois)
-    URL_AVATAR_BIA = "https://res.cloudinary.com/dywkig1gh/image/upload/v1773187728/SweetHome/Outros/%5BOUTROS%5D%20bia_avatar.png.png"
-
-    if "bia_mensagens" not in st.session_state:
-        st.session_state["bia_mensagens"] = [
-            {"role": "assistant", "content": "Olá! Deixei de ser apenas uma buscadora. Agora eu escrevo anúncios para a Shopee, pesquiso preços de mercado e crio campanhas de WhatsApp. O que vamos vender hoje?"}
-        ]
-
-    caixa_chat = st.container(height=400, border=False)
-    
-    with caixa_chat:
-        for msg in st.session_state["bia_mensagens"]:
-            # 💡 AQUI ENTRA A MÁGICA DO AVATAR!
-            if msg["role"] == "assistant":
-                with st.chat_message("assistant", avatar=URL_AVATAR_BIA):
-                    st.markdown(msg["content"])
-            else:
-                with st.chat_message("user"):
-                    st.markdown(msg["content"])
-
-    if pergunta := st.chat_input("Ex: Crie um anúncio para Shopee do produto 101..."):
-        st.session_state["bia_mensagens"].append({"role": "user", "content": pergunta})
-        with caixa_chat:
-            with st.chat_message("user"):
-                st.markdown(pergunta)
-
-        with caixa_chat:
-            with st.chat_message("assistant", avatar=URL_AVATAR_BIA):
-                resposta_placeholder = st.empty()
-                resposta_placeholder.markdown("⏳ *A preparar estratégia de vendas...*")
-                
-                try:
-                    import requests
-                    import re
-                    import json
-                    
-                    chave_groq = st.secrets.get("GROQ_API_KEY", "")
-                    if not chave_groq:
-                        resposta_placeholder.error("Chave da Groq não configurada nos secrets.")
-                        return
-
-                    # 📦 Mini-buscador para a Bia saber sobre qual produto você está falando
-                    termos_busca = re.findall(r'[a-zA-ZÀ-ÿ0-9.-]+', pergunta.lower())
-                    contexto_produto = ""
-                    
-                    if not df_i.empty and len(termos_busca) > 2:
-                        df_str = df_i.astype(str).apply(lambda x: ' '.join(x).lower(), axis=1)
-                        scores = df_str.apply(lambda texto: sum(1 for termo in termos_busca if termo in texto))
-                        df_match = df_i[scores > 0].sort_values(by=df_i.columns[0]).head(2)
-                        
-                        if not df_match.empty:
-                            contexto_produto = f"\n[DADOS DO SEU ESTOQUE PARA USAR NO ANÚNCIO]:\n{json.dumps(df_match.astype(str).to_dict(orient='records'), ensure_ascii=False)}\n"
-
-                    # 🧠 NOVO CÉREBRO: O PROMPT DE GROWTH HACKING
-                    prompt_sistema = f"""
-                    Você é a Bia, a Head de E-commerce e Copywriter Sênior da 'Sweet Home Enxovais'.
-                    
-                    A SUA NOVA MISSÃO:
-                    1. Se pedirem um anúncio para SHOPEE/MERCADO LIVRE: Crie um título com SEO (muitas palavras-chave), descrição focada em benefícios, gatilhos de escassez e tags. Use os dados do estoque fornecidos.
-                    2. Se pedirem PESQUISA DE MERCADO: Use o seu conhecimento geral de IA para estimar preços de fornecedores no Brasil (como Brás/Ibitinga) e dar dicas de margem de lucro.
-                    3. Se pedirem COPY PARA WHATSAPP: Escreva mensagens altamente persuasivas para vender para clientes.
-                    
-                    {contexto_produto}
-                    
-                    Não diga como você fez a pesquisa. Apenas entregue o texto pronto, formatado em Markdown, com emojis elegantes e fáceis de copiar.
-                    """
-
-                    payload = {
-                        "model": "llama-3.3-70b-versatile",
-                        "messages": [{"role": "system", "content": prompt_sistema}] + st.session_state["bia_mensagens"][-3:],
-                        "temperature": 0.4 # Aumentamos um pouco a temperatura para ela ter criatividade publicitária!
-                    }
-
-                    headers = {"Authorization": f"Bearer {chave_groq}", "Content-Type": "application/json"}
-                    resposta = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=15)
-                    
-                    if resposta.status_code == 200:
-                        texto_bia = resposta.json()['choices'][0]['message']['content']
-                        resposta_placeholder.markdown(texto_bia)
-                        st.session_state["bia_mensagens"].append({"role": "assistant", "content": texto_bia})
-                    else:
-                        resposta_placeholder.error("Erro na comunicação com a API.")
-                
-                except Exception as e:
-                    resposta_placeholder.error(f"Erro de sistema: {e}")
-
 with st.sidebar:
     try: st.image(LOGO_URL, use_container_width=True)
     except: st.write(f"🏢 **{NOME_LOJA}**")
@@ -572,13 +479,8 @@ with st.sidebar:
     
     if st.button("🔄 Sincronizar Planilha", key="btn_sincronizar"):
         st.cache_data.clear()
-        st.cache_resource.clear() 
+        st.cache_resource.clear() # Deixe os dois para garantir uma limpeza profunda!
         st.rerun()
-
-    # =========================================================================
-    # 🌟 AQUI A BIA GANHA VIDA COM ACESSO TOTAL AO SISTEMA (RAG)
-    # =========================================================================
-    bia_copilot_sidebar(df_vendas_hist, df_clientes_full, df_despesas, df_full_inv, df_marketing)
 
     st.divider()
     with st.expander("🛡️ Backup do Sistema (SaaS Safe)"):
@@ -971,7 +873,6 @@ if menu_selecionado == "🛒 Vendas":
                             recibo_texto += f"✨ *Obrigado pela preferência!*"
 
                             st.success("✅ Venda registrada com sucesso!")
-                            st.balloons() # 🎈 A MÁGICA VISUAL ACONTECE AQUI!
                             st.code(recibo_texto, language="text")
                             
                             # 1. Inteligência de Zap
